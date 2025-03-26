@@ -9,7 +9,7 @@
   ],
   "routes": [
     { "src": "/auth/(.*)", "dest": "app.js" },
-    { "src": "/logout", "dest": "app.js" }, // 追加
+    { "src": "/logout", "dest": "app.js" },
     { "src": "/(.*)", "dest": "/$1" },
     { "src": "/", "dest": "index.html" }
   ]
