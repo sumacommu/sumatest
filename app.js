@@ -33,6 +33,7 @@ passport.use(new GoogleStrategy({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
+  console.log('Google認証開始:', { clientID: process.env.GOOGLE_CLIENT_ID, callbackURL: 'https://sumatest.vercel.app/auth/google/callback' });
   try {
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
@@ -51,6 +52,7 @@ passport.use(new GoogleStrategy({
       });
       console.log(`ユーザー作成完了: ${profile.id}`);
     }
+    console.log('プロフィール取得成功:', profile.id);
     return done(null, profile);
   } catch (error) {
     console.error('認証エラー:', error.message, error.stack);
