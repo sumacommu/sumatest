@@ -78,7 +78,7 @@ passport.deserializeUser(async (id, done) => {
     console.error('deserializeUserエラー:', error.message, error.stack);
     done(error);
   }
-}));
+});
 
 // ルート
 app.get('/', async (req, res) => {
@@ -104,7 +104,7 @@ app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'em
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
   console.log('コールバック成功、リダイレクト');
   res.redirect('/');
-}));
+});
 
 // ログアウトルート
 app.get('/logout', (req, res) => {
