@@ -32,24 +32,29 @@ app.use(passport.session());
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: 'https://sumatest.vercel.app/'
+  callbackURL: 'https://sumatest.vercel.app/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  const userRef = doc(db, 'users', profile.id);
-  const userSnap = await getDoc(userRef);
+  try {
+    const userRef = doc(db, 'users', profile.id);
+    const userSnap = await getDoc(userRef);
 
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      displayName: profile.displayName,
-      email: profile.emails[0].value,
-      photoUrl: profile.photos[0].value,
-      createdAt: new Date(),
-      matchCount: 0,
-      reportCount: 0,
-      validReportCount: 0,
-      penalty: false
-    });
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        displayName: profile.displayName,
+        email: profile.emails[0].value,
+        photoUrl: profile.photos[0].value,
+        createdAt: new Date(),
+        matchCount: 0,
+        reportCount: 0,
+        validReportCount: 0,
+        penalty: false
+      });
+    }
+    return done(null, profile);
+  } catch (error) {
+    console.error('認証エラー:', error);
+    return done(error);
   }
-  return done(null, profile);
 }));
 
 passport.serializeUser((user, done) => done(null, user.id));
@@ -60,14 +65,19 @@ passport.deserializeUser(async (id, done) => {
 
 // ルート
 app.get('/', async (req, res) => {
-  if (req.user) {
-    const userData = req.user;
-    res.send(`
-      <h1>こんにちは、${userData.displayName}さん！</h1>
-      <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-    `);
-  } else {
-    res.send('<a href="/auth/google">Googleでログイン</a>');
+  try {
+    if (req.user) {
+      const userData = req.user;
+      res.send(`
+        <h1>こんにちは、${userData.displayName}さん！</h1>
+        <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+      `);
+    } else {
+      res.send('<a href="/auth/google">Googleでログイン</a>');
+    }
+  } catch (error) {
+    console.error('ルートエラー:', error);
+    res.status(500).send('サーバーエラーが発生しました');
   }
 });
 
