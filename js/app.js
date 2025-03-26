@@ -59,8 +59,16 @@ passport.use(new GoogleStrategy({
 
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
-  const userSnap = await getDoc(doc(db, 'users', id));
-  done(null, userSnap.data());
+  try {
+    const userSnap = await getDoc(doc(db, 'users', id));
+    if (!userSnap.exists()) {
+      return done(new Error('ユーザーが見つかりません'));
+    }
+    done(null, userSnap.data());
+  } catch (error) {
+    console.error('deserializeUserエラー:', error);
+    done(error);
+  }
 });
 
 // ルート

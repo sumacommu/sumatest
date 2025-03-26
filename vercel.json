@@ -1,14 +1,11 @@
 {
   "version": 2,
   "builds": [
-      { "src": "js/app.js", "use": "@vercel/node" },
-      { "src": "*.html", "use": "@vercel/static" },
-      { "src": "css/*", "use": "@vercel/static" },
-      { "src": "img/*", "use": "@vercel/static" },
-      { "src": "js/*.js", "use": "@vercel/static" }
+    { "src": "js/app.js", "use": "@vercel/node" },
+    { "src": "public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-      { "src": "/auth/(.*)", "dest": "js/app.js" },
-      { "src": "/(.*)", "dest": "/$1" }
+    { "src": "/auth/(.*)", "dest": "js/app.js" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
