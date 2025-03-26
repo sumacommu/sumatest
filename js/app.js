@@ -1,48 +1,79 @@
-require('dotenv').config();
-
 const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const { initializeApp } = require('firebase/app');
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+require('dotenv').config();
 
 const app = express();
 
+// Firebase初期化
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.FIREBASE_DATABASE_URL,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
+// Express設定
+app.use(express.static('public'));
 app.use(session({ secret: 'your-secret-key', resave: false, saveUninitialized: false }));
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Google認証
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: 'https://sumatest.vercel.app/'
-  },
-  (accessToken, refreshToken, profile, done) => {
-    return done(null, profile);
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: 'https://sumatest.vercel.app/'
+}, async (accessToken, refreshToken, profile, done) => {
+  const userRef = doc(db, 'users', profile.id);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      displayName: profile.displayName,
+      email: profile.emails[0].value,
+      photoUrl: profile.photos[0].value,
+      createdAt: new Date(),
+      matchCount: 0,
+      reportCount: 0,
+      validReportCount: 0,
+      penalty: false
+    });
   }
-));
+  return done(null, profile);
+}));
 
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  const userSnap = await getDoc(doc(db, 'users', id));
+  done(null, userSnap.data());
+});
 
-app.get('/', (req, res) => {
+// ルート
+app.get('/', async (req, res) => {
   if (req.user) {
-    res.send(`こんにちは、${req.user.displayName}さん！`);
+    const userData = req.user;
+    res.send(`
+      <h1>こんにちは、${userData.displayName}さん！</h1>
+      <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+    `);
   } else {
     res.send('<a href="/auth/google">Googleでログイン</a>');
   }
 });
 
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    res.redirect('/');
-  }
-);
-
-app.listen(3000, () => {
-  console.log('サーバーが http://localhost:3000 で起動しました');
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+  res.redirect('/');
 });
+
+app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
