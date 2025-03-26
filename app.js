@@ -3,7 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -23,11 +23,12 @@ const db = getFirestore(firebaseApp);
 
 // Express設定
 app.use(express.static(__dirname));
+app.use(express.urlencoded({ extended: true })); // POST用
 app.use(session({
   secret: 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // セッション7日有効
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7日有効
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -53,7 +54,8 @@ passport.use(new GoogleStrategy({
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
-        penalty: false
+        penalty: false,
+        rating: 1000 // 初期レート
       });
       console.log(`ユーザー作成完了: ${profile.id}`);
     }
@@ -80,18 +82,33 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// ルート
+// ルート（トップページ）
 app.get('/', async (req, res) => {
   try {
     if (req.user) {
       const userData = req.user;
       res.send(`
-        <h1>こんにちは、${userData.displayName}さん！</h1>
-        <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-        <p><a href="/logout">ログアウト</a></p>
+        <html>
+          <body>
+            <h1>こんにちは、${userData.displayName}さん！</h1>
+            <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+            <p><a href="/solo">タイマン用</a></p>
+            <p><a href="/team">チーム用</a></p>
+            <p><a href="/logout">ログアウト</a></p>
+          </body>
+        </html>
       `);
     } else {
-      res.send('<a href="/auth/google">Googleでログイン</a>');
+      res.send(`
+        <html>
+          <body>
+            <h1>スマブラマッチング</h1>
+            <p><a href="/solo">タイマン用</a></p>
+            <p><a href="/team">チーム用</a></p>
+            <p><a href="/auth/google">Googleでログイン</a></p>
+          </body>
+        </html>
+      `);
     }
   } catch (error) {
     console.error('ルートエラー:', error.message, error.stack);
@@ -122,6 +139,129 @@ app.get('/logout', (req, res) => {
       res.redirect('/');
     });
   });
+});
+
+// タイマン用ページ
+app.get('/solo', async (req, res) => {
+  try {
+    const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
+    const waitingSnapshot = await getDocs(waitingQuery);
+    const waitingCount = waitingSnapshot.size;
+
+    const matchedQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'matched'));
+    const matchedSnapshot = await getDocs(matchedQuery);
+    const matchedCount = matchedSnapshot.size / 2; // 2人1組なので半分
+
+    let html = `
+      <html>
+        <body>
+          <h1>タイマン用ページ</h1>
+          <p>待機中: ${waitingCount}人</p>
+          <p>マッチング中: ${matchedCount}組</p>
+    `;
+    if (req.user) {
+      html += `
+        <form action="/solo/match" method="POST">
+          <button type="submit">マッチング開始</button>
+        </form>
+        <p>現在のレート: ${req.user.rating}</p>
+      `;
+    } else {
+      html += `<p>マッチングするには<a href="/auth/google">ログイン</a>してください</p>`;
+    }
+    html += `
+        <p><a href="/">戻る</a></p>
+      </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error) {
+    console.error('タイマン用ページエラー:', error.message, error.stack);
+    res.status(500).send('エラーが発生しました');
+  }
+});
+
+// タイマン用マッチング処理
+app.post('/solo/match', async (req, res) => {
+  if (!req.user) {
+    return res.redirect('/solo');
+  }
+  const userId = req.user.id;
+  const userRating = req.user.rating;
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(
+      matchesRef,
+      where('type', '==', 'solo'),
+      where('status', '==', 'waiting'),
+      where('userId', '!=', userId)
+    );
+    const waitingSnapshot = await getDocs(waitingQuery);
+
+    let matched = false;
+    for (const docSnap of waitingSnapshot.docs) {
+      const opponentData = docSnap.data();
+      const opponentRating = (await getDoc(doc(db, 'users', opponentData.userId))).data().rating;
+      if (Math.abs(userRating - opponentRating) <= 200) { // レート差200以内
+        await updateDoc(docSnap.ref, { status: 'matched', opponentId: userId });
+        await addDoc(matchesRef, {
+          userId: userId,
+          type: 'solo',
+          status: 'matched',
+          opponentId: opponentData.userId,
+          timestamp: new Date().toISOString()
+        });
+        matched = true;
+        res.send(`
+          <html>
+            <body>
+              <h1>マッチング成立！</h1>
+              <p>相手が見つかりました！レート: ${opponentRating}</p>
+              <p><a href="/solo">戻る</a></p>
+            </body>
+          </html>
+        `);
+        break;
+      }
+    }
+
+    if (!matched) {
+      await addDoc(matchesRef, {
+        userId: userId,
+        type: 'solo',
+        status: 'waiting',
+        timestamp: new Date().toISOString()
+      });
+      res.send(`
+        <html>
+          <body>
+            <h1>マッチング待機中</h1>
+            <p>相手を待っています... あなたのレート: ${userRating}</p>
+            <p><a href="/solo">更新</a></p>
+            <p><a href="/">戻る</a></p>
+          </body>
+        </html>
+      `);
+    }
+  } catch (error) {
+    console.error('マッチングエラー:', error.message, error.stack);
+    res.status(500).send('マッチングに失敗しました');
+  }
+});
+
+// チーム用ページ（仮）
+app.get('/team', async (req, res) => {
+  res.send(`
+    <html>
+      <body>
+        <h1>チーム用ページ</h1>
+        <p>準備中です</p>
+        <p><a href="/">戻る</a></p>
+      </body>
+    </html>
+  `);
 });
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
