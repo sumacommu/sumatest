@@ -23,7 +23,12 @@ const db = getFirestore(firebaseApp);
 
 // Express設定
 app.use(express.static(__dirname));
-app.use(session({ secret: 'your-secret-key', resave: false, saveUninitialized: false }));
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // セッション7日有効
+}));
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -73,7 +78,7 @@ passport.deserializeUser(async (id, done) => {
     console.error('deserializeUserエラー:', error.message, error.stack);
     done(error);
   }
-});
+}));
 
 // ルート
 app.get('/', async (req, res) => {
@@ -83,6 +88,7 @@ app.get('/', async (req, res) => {
       res.send(`
         <h1>こんにちは、${userData.displayName}さん！</h1>
         <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+        <p><a href="/logout">ログアウト</a></p>
       `);
     } else {
       res.send('<a href="/auth/google">Googleでログイン</a>');
@@ -93,10 +99,29 @@ app.get('/', async (req, res) => {
   }
 });
 
+// Google認証ルート
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
   console.log('コールバック成功、リダイレクト');
   res.redirect('/');
+}));
+
+// ログアウトルート
+app.get('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('ログアウトエラー:', err);
+      return res.status(500).send('ログアウトに失敗しました');
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('セッション破棄エラー:', err);
+        return res.status(500).send('セッション破棄に失敗しました');
+      }
+      console.log('ログアウト成功');
+      res.redirect('/');
+    });
+  });
 });
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
