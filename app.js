@@ -3,7 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore'); // Firestore用
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -19,10 +19,10 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp); // Firestore用
+const db = getFirestore(firebaseApp);
 
 // Express設定
-app.use(express.static(__dirname)); // ルートの静的ファイルを提供
+app.use(express.static(__dirname));
 app.use(session({ secret: 'your-secret-key', resave: false, saveUninitialized: false }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -38,6 +38,7 @@ passport.use(new GoogleStrategy({
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      console.log(`新規ユーザー作成: ${profile.id}`);
       await setDoc(userRef, {
         displayName: profile.displayName,
         email: profile.emails[0].value,
@@ -48,10 +49,11 @@ passport.use(new GoogleStrategy({
         validReportCount: 0,
         penalty: false
       });
+      console.log(`ユーザー作成完了: ${profile.id}`);
     }
     return done(null, profile);
   } catch (error) {
-    console.error('認証エラー:', error);
+    console.error('認証エラー:', error.message, error.stack);
     return done(error);
   }
 }));
@@ -61,11 +63,12 @@ passport.deserializeUser(async (id, done) => {
   try {
     const userSnap = await getDoc(doc(db, 'users', id));
     if (!userSnap.exists()) {
+      console.error(`ユーザー見つからず: ${id}`);
       return done(new Error('ユーザーが見つかりません'));
     }
     done(null, userSnap.data());
   } catch (error) {
-    console.error('deserializeUserエラー:', error);
+    console.error('deserializeUserエラー:', error.message, error.stack);
     done(error);
   }
 });
@@ -83,13 +86,14 @@ app.get('/', async (req, res) => {
       res.send('<a href="/auth/google">Googleでログイン</a>');
     }
   } catch (error) {
-    console.error('ルートエラー:', error);
+    console.error('ルートエラー:', error.message, error.stack);
     res.status(500).send('サーバーエラーが発生しました');
   }
 });
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+  console.log('コールバック成功、リダイレクト');
   res.redirect('/');
 });
 
