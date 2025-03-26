@@ -3,7 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore'); // Firestore用
 require('dotenv').config();
 
 const app = express();
@@ -12,7 +12,6 @@ const app = express();
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
   projectId: process.env.FIREBASE_PROJECT_ID,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
@@ -20,10 +19,10 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
+const db = getFirestore(firebaseApp); // Firestore用
 
 // Express設定
-app.use(express.static('public'));
+app.use(express.static(__dirname)); // ルートの静的ファイルを提供
 app.use(session({ secret: 'your-secret-key', resave: false, saveUninitialized: false }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -43,7 +42,7 @@ passport.use(new GoogleStrategy({
         displayName: profile.displayName,
         email: profile.emails[0].value,
         photoUrl: profile.photos[0].value,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
