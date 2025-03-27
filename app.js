@@ -252,7 +252,7 @@ app.get('/solo/cancel', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理（成立時の修正）
+// タイマン用マッチング処理
 app.post('/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
@@ -278,12 +278,12 @@ app.post('/solo/match', async (req, res) => {
       const opponentSnap = await getDoc(opponentRef);
       const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
       if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) {
-        const matchId = docSnap.id; // マッチングIDとして使用
+        const matchId = docSnap.id; // 待機側のドキュメントIDを使用
         await updateDoc(docSnap.ref, { 
           status: 'matched', 
           opponentId: userId
         });
-        await addDoc(matchesRef, {
+        const newMatchDoc = await addDoc(matchesRef, {
           userId: userId,
           type: 'solo',
           status: 'matched',
@@ -293,8 +293,7 @@ app.post('/solo/match', async (req, res) => {
           timestamp: new Date().toISOString()
         });
         matched = true;
-        const opponentName = opponentSnap.data().displayName || '不明';
-        res.redirect(`/solo/setup/${matchId}`); // セットアップ画面へ
+        res.redirect(`/solo/setup/${newMatchDoc.id}`); // 新しいマッチIDでリダイレクト
         break;
       }
     }
@@ -352,15 +351,49 @@ app.get('/solo/setup/:matchId', async (req, res) => {
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
         <h2>キャラクター選択</h2>
         <form action="/solo/setup/${matchId}" method="POST">
-          <button type="button"><img src="/characters/mario.png" width="64" height="64"></button>
-          <button type="button"><img src="/characters/link.png" width="64" height="64"></button>
-          <!-- 仮で2キャラ -->
-          <button type="submit">選択確定</button>
+          <button type="submit" name="character" value="mario"><img src="/characters/mario.png" width="64" height="64">マリオ</button>
+          <button type="submit" name="character" value="link"><img src="/characters/link.png" width="64" height="64">リンク</button>
+          <button type="submit" name="character" value="mii_fighter"><img src="/characters/mii_fighter.png" width="64" height="64">Miiファイター</button>
+          <!-- 他のキャラを追加 -->
         </form>
         <p><a href="/solo">戻る</a></p>
       </body>
     </html>
   `);
+});
+
+// キャラ選択処理
+app.post('/solo/setup/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/solo');
+  }
+  const character = req.body.character;
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  if (character === 'mii_fighter') {
+    res.send(`
+      <html>
+        <body>
+          <h1>Miiファイター設定</h1>
+          <form action="/solo/setup/${matchId}/mii" method="POST">
+            <label>技番号（例: 1233）: <input type="text" name="miiMoves" maxlength="4"></label>
+            <button type="submit">設定</button>
+          </form>
+          <p><a href="/solo/setup/${matchId}">戻る</a></p>
+        </body>
+      </html>
+    `);
+  } else {
+    await updateDoc(matchRef, { character: character });
+    res.redirect(`/solo/stage/${matchId}`);
+  }
 });
 
 // ID更新処理
