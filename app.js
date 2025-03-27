@@ -338,10 +338,10 @@ app.get('/solo/setup/:matchId', async (req, res) => {
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
         <h2>キャラクター選択</h2>
         <form action="/solo/setup/${matchId}" method="POST">
-          <button type="submit" name="character" value="mario"><img src="/characters/mario.png" width="64" height="64">マリオ</button>
-          <button type="submit" name="character" value="link"><img src="/characters/link.png" width="64" height="64">リンク</button>
-          <button type="submit" name="character" value="mii_fighter"><img src="/characters/mii_fighter.png" width="64" height="64">Miiファイター</button>
-          <!-- 他のキャラを追加 -->
+          <button type="submit" name="character" value="01"><img src="/characters/01.png" width="64" height="64">マリオ</button>
+          <button type="submit" name="character" value="03"><img src="/characters/03.png" width="64" height="64">リンク</button>
+          <button type="submit" name="character" value="54"><img src="/characters/54.png" width="64" height="64">Miiファイター</button>
+          <!-- 仮で3キャラ -->
         </form>
         <p><a href="/solo">戻る</a></p>
       </body>
