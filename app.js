@@ -177,7 +177,7 @@ app.get('/solo', async (req, res) => {
   }
 });
 
-// マッチング状態チェック用ルート
+// マッチング状態チェック用ルート（修正）
 app.get('/solo/check', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/solo');
@@ -189,20 +189,8 @@ app.get('/solo/check', async (req, res) => {
 
   if (!userMatchSnapshot.empty) {
     const matchData = userMatchSnapshot.docs[0].data();
-    const opponentRef = doc(db, 'users', matchData.opponentId);
-    const opponentSnap = await getDoc(opponentRef);
-    const opponentName = opponentSnap.data().displayName || '不明';
-    const opponentRating = opponentSnap.data().rating || 1500;
-    res.send(`
-      <html>
-        <body>
-          <h1>マッチング成立！</h1>
-          <p>相手: ${opponentName} (レート: ${opponentRating})</p>
-          <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
-          <p><a href="/solo">戻る</a></p>
-        </body>
-      </html>
-    `);
+    const matchId = userMatchSnapshot.docs[0].id;
+    res.redirect(`/solo/setup/${matchId}`); // 成立したらセットアップ画面へ
   } else {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
     const waitingSnapshot = await getDocs(waitingQuery);
@@ -278,7 +266,6 @@ app.post('/solo/match', async (req, res) => {
       const opponentSnap = await getDoc(opponentRef);
       const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
       if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) {
-        const matchId = docSnap.id; // 待機側のドキュメントIDを使用
         await updateDoc(docSnap.ref, { 
           status: 'matched', 
           opponentId: userId
@@ -293,7 +280,7 @@ app.post('/solo/match', async (req, res) => {
           timestamp: new Date().toISOString()
         });
         matched = true;
-        res.redirect(`/solo/setup/${newMatchDoc.id}`); // 新しいマッチIDでリダイレクト
+        res.redirect(`/solo/setup/${newMatchDoc.id}`);
         break;
       }
     }
