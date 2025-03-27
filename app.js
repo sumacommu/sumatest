@@ -75,7 +75,9 @@ passport.deserializeUser(async (id, done) => {
       console.error(`ユーザー見つからず: ${id}`);
       return done(new Error('ユーザーが見つかりません'));
     }
-    done(null, userSnap.data());
+    const userData = userSnap.data();
+    userData.id = id; // IDを追加
+    done(null, userData);
   } catch (error) {
     console.error('deserializeUserエラー:', error.message, error.stack);
     done(error);
@@ -184,11 +186,12 @@ app.get('/solo', async (req, res) => {
 
 // タイマン用マッチング処理
 app.post('/solo/match', async (req, res) => {
-  if (!req.user) {
+  if (!req.user || !req.user.id) {
+    console.error('ユーザー情報が不正:', req.user);
     return res.redirect('/solo');
   }
-  const userId = req.user.id; // 修正済みデータから取得
-  const userRating = req.user.rating || 1500; // 未定義なら1500
+  const userId = req.user.id;
+  const userRating = req.user.rating || 1500; // デフォルト1500
 
   try {
     const matchesRef = collection(db, 'matches');
@@ -205,7 +208,7 @@ app.post('/solo/match', async (req, res) => {
       const opponentData = docSnap.data();
       const opponentRef = doc(db, 'users', opponentData.userId);
       const opponentSnap = await getDoc(opponentRef);
-      const opponentRating = opponentSnap.data().rating || 1500;
+      const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
       if (Math.abs(userRating - opponentRating) <= 200) {
         await updateDoc(docSnap.ref, { status: 'matched', opponentId: userId });
         await addDoc(matchesRef, {
