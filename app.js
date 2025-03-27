@@ -161,7 +161,6 @@ app.get('/solo', async (req, res) => {
       const rating = req.user.rating || 1500;
       html += `
         <form action="/solo/match" method="POST">
-          <label>専用部屋ID（任意）: <input type="text" name="roomId"></label>
           <button type="submit">マッチング開始</button>
         </form>
         <p>現在のレート: ${rating}</p>
@@ -206,22 +205,40 @@ app.get('/solo/check', async (req, res) => {
   } else {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
     const waitingSnapshot = await getDocs(waitingQuery);
-    const roomId = waitingSnapshot.empty ? '未設定' : waitingSnapshot.docs[0].data().roomId;
+    const roomId = waitingSnapshot.empty ? '' : waitingSnapshot.docs[0].data().roomId;
     res.send(`
       <html>
         <body>
           <h1>マッチング待機中</h1>
           <p>相手を待っています... あなたのレート: ${req.user.rating || 1500}</p>
-          <p>専用部屋ID: ${roomId}</p>
-          <p><a href="/solo/check">更新</a></p>
-          <p><a href="/solo">戻る</a></p>
+          <form action="/solo/update" method="POST">
+            <label>専用部屋ID: <input type="text" name="roomId" value="${roomId}"></label>
+            <button type="submit">IDを設定して更新</button>
+          </form>
+          <p><a href="/solo/cancel">キャンセル</a></p>
         </body>
       </html>
     `);
   }
 });
 
-// タイマン用マッチング処理（ID修正版）
+// 待機キャンセルルート
+app.get('/solo/cancel', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/solo');
+  }
+  const userId = req.user.id;
+  const matchesRef = collection(db, 'matches');
+  const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+  const waitingSnapshot = await getDocs(waitingQuery);
+
+  waitingSnapshot.forEach(async (docSnap) => {
+    await deleteDoc(docSnap.ref);
+  });
+  res.redirect('/solo');
+});
+
+// タイマン用マッチング処理
 app.post('/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
@@ -229,7 +246,6 @@ app.post('/solo/match', async (req, res) => {
   }
   const userId = req.user.id;
   const userRating = req.user.rating || 1500;
-  const roomId = req.body.roomId || ''; // 待機側が設定
 
   try {
     const matchesRef = collection(db, 'matches');
@@ -247,7 +263,7 @@ app.post('/solo/match', async (req, res) => {
       const opponentRef = doc(db, 'users', opponentData.userId);
       const opponentSnap = await getDoc(opponentRef);
       const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
-      if (Math.abs(userRating - opponentRating) <= 200) {
+      if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) { // ID必須
         await updateDoc(docSnap.ref, { 
           status: 'matched', 
           opponentId: userId
@@ -257,8 +273,8 @@ app.post('/solo/match', async (req, res) => {
           type: 'solo',
           status: 'matched',
           opponentId: opponentData.userId,
-          roomId: '', // マッチ側はIDなし
-          opponentRoomId: opponentData.roomId || '',
+          roomId: '',
+          opponentRoomId: opponentData.roomId,
           timestamp: new Date().toISOString()
         });
         matched = true;
@@ -268,7 +284,7 @@ app.post('/solo/match', async (req, res) => {
             <body>
               <h1>マッチング成立！</h1>
               <p>相手: ${opponentName} (レート: ${opponentRating})</p>
-              <p>相手の専用部屋ID: ${opponentData.roomId || '未設定'}</p>
+              <p>相手の専用部屋ID: ${opponentData.roomId}</p>
               <p><a href="/solo">戻る</a></p>
             </body>
           </html>
@@ -282,20 +298,10 @@ app.post('/solo/match', async (req, res) => {
         userId: userId,
         type: 'solo',
         status: 'waiting',
-        roomId: roomId,
+        roomId: '', // 初期は空
         timestamp: new Date().toISOString()
       });
-      res.send(`
-        <html>
-          <body>
-            <h1>マッチング待機中</h1>
-            <p>相手を待っています... あなたのレート: ${userRating}</p>
-            <p>専用部屋ID: ${roomId}</p>
-            <p><a href="/solo/check">更新</a></p>
-            <p><a href="/solo">戻る</a></p>
-          </body>
-        </html>
-      `);
+      res.redirect('/solo/check');
     }
   } catch (error) {
     console.error('マッチングエラー:', error.message, error.stack);
@@ -303,6 +309,38 @@ app.post('/solo/match', async (req, res) => {
       <html>
         <body>
           <h1>マッチングに失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/solo">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// ID更新処理
+app.post('/solo/update', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/solo');
+  }
+  const userId = req.user.id;
+  const roomId = req.body.roomId || '';
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+    const waitingSnapshot = await getDocs(waitingQuery);
+
+    if (!waitingSnapshot.empty) {
+      const docSnap = waitingSnapshot.docs[0];
+      await updateDoc(docSnap.ref, { roomId: roomId });
+    }
+    res.redirect('/solo/check');
+  } catch (error) {
+    console.error('ID更新エラー:', error.message, error.stack);
+    res.send(`
+      <html>
+        <body>
+          <h1>ID更新に失敗しました</h1>
           <p>エラー: ${error.message}</p>
           <p><a href="/solo">戻る</a></p>
         </body>
