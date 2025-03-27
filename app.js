@@ -3,7 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -232,10 +232,23 @@ app.get('/solo/cancel', async (req, res) => {
   const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
   const waitingSnapshot = await getDocs(waitingQuery);
 
-  waitingSnapshot.forEach(async (docSnap) => {
-    await deleteDoc(docSnap.ref);
-  });
-  res.redirect('/solo');
+  try {
+    waitingSnapshot.forEach(async (docSnap) => {
+      await deleteDoc(docSnap.ref);
+    });
+    res.redirect('/solo');
+  } catch (error) {
+    console.error('キャンセルエラー:', error.message, error.stack);
+    res.send(`
+      <html>
+        <body>
+          <h1>キャンセルに失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/solo">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
 });
 
 // タイマン用マッチング処理
