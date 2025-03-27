@@ -221,7 +221,7 @@ app.get('/solo/check', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理
+// タイマン用マッチング処理（ID修正版）
 app.post('/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
@@ -229,7 +229,7 @@ app.post('/solo/match', async (req, res) => {
   }
   const userId = req.user.id;
   const userRating = req.user.rating || 1500;
-  const roomId = req.body.roomId || '';
+  const roomId = req.body.roomId || ''; // 待機側が設定
 
   try {
     const matchesRef = collection(db, 'matches');
@@ -250,15 +250,14 @@ app.post('/solo/match', async (req, res) => {
       if (Math.abs(userRating - opponentRating) <= 200) {
         await updateDoc(docSnap.ref, { 
           status: 'matched', 
-          opponentId: userId,
-          opponentRoomId: roomId
+          opponentId: userId
         });
         await addDoc(matchesRef, {
           userId: userId,
           type: 'solo',
           status: 'matched',
           opponentId: opponentData.userId,
-          roomId: roomId,
+          roomId: '', // マッチ側はIDなし
           opponentRoomId: opponentData.roomId || '',
           timestamp: new Date().toISOString()
         });
