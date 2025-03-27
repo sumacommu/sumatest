@@ -55,7 +55,7 @@ passport.use(new GoogleStrategy({
         reportCount: 0,
         validReportCount: 0,
         penalty: false,
-        rating: 1000 // 初期レート
+        rating: 1500 // 初期レート
       });
       console.log(`ユーザー作成完了: ${profile.id}`);
     }
@@ -187,8 +187,8 @@ app.post('/solo/match', async (req, res) => {
   if (!req.user) {
     return res.redirect('/solo');
   }
-  const userId = req.user.id;
-  const userRating = req.user.rating;
+  const userId = req.user.id; // 修正済みデータから取得
+  const userRating = req.user.rating || 1500; // 未定義なら1500
 
   try {
     const matchesRef = collection(db, 'matches');
@@ -203,8 +203,10 @@ app.post('/solo/match', async (req, res) => {
     let matched = false;
     for (const docSnap of waitingSnapshot.docs) {
       const opponentData = docSnap.data();
-      const opponentRating = (await getDoc(doc(db, 'users', opponentData.userId))).data().rating;
-      if (Math.abs(userRating - opponentRating) <= 200) { // レート差200以内
+      const opponentRef = doc(db, 'users', opponentData.userId);
+      const opponentSnap = await getDoc(opponentRef);
+      const opponentRating = opponentSnap.data().rating || 1500;
+      if (Math.abs(userRating - opponentRating) <= 200) {
         await updateDoc(docSnap.ref, { status: 'matched', opponentId: userId });
         await addDoc(matchesRef, {
           userId: userId,
@@ -247,7 +249,15 @@ app.post('/solo/match', async (req, res) => {
     }
   } catch (error) {
     console.error('マッチングエラー:', error.message, error.stack);
-    res.status(500).send('マッチングに失敗しました');
+    res.send(`
+      <html>
+        <body>
+          <h1>マッチングに失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/solo">戻る</a></p>
+        </body>
+      </html>
+    `);
   }
 });
 
