@@ -290,7 +290,7 @@ app.post('/solo/match', async (req, res) => {
           opponentId: opponentData.userId,
           roomId: '',
           opponentRoomId: opponentData.roomId,
-          timestamp: New Date().toISOString()
+          timestamp: new Date().toISOString()
         });
         matched = true;
         const opponentName = opponentSnap.data().displayName || '不明';
