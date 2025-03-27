@@ -1,0 +1,94 @@
+フォルダー パスの一覧:  ボリューム Windows
+ボリューム シリアル番号は 409B-C03E です
+C:.
+    01_mario.png
+    02_donkey.png
+    03_link.png
+    04_samus.png
+    05_dark samus.png
+    06_yoshi.png
+    07_kirby.png
+    08_fox.png
+    09_pikachu.png
+    10_luigi.png
+    11_ness.png
+    12_captain.png
+    13_purin.png
+    14_peach.png
+    15_daisy.png
+    16_koopa.png
+    17_ice_climber.png
+    18_sheik.png
+    19_zelda.png
+    20_doctor mario.png
+    21_pichu.png
+    22_falco.png
+    23_marth.png
+    24_lucina.png
+    25_younglink.png
+    26_ganon.png
+    27_mewtwo.png
+    28_roy.png
+    29_chrom.png
+    30_gamewatch.png
+    31_metaknight.png
+    32_pit.png
+    33_black pit.png
+    34_zerosuit.png
+    35_wario.png
+    36_snake.png
+    37_ike.png
+    38_pokemon trainer.png
+    39_diddy.png
+    40_lucas.png
+    41_sonic.png
+    42_dedede.png
+    43_pikmin.png
+    44_lucario.png
+    45_robot.png
+    46_toonlink.png
+    47_wolf.png
+    48_murabito.png
+    49_rockman.png
+    50_wiifit.png
+    51_rosetta.png
+    52_littlemac.png
+    53_gekkouga.png
+    54_miifighter.png
+    55_miiswordsman.png
+    56_miigunner.png
+    57_palutena.png
+    58_pacman.png
+    59_reflet.png
+    60_shulk.png
+    61_koopajr.png
+    62_duckhunt.png
+    63_ryu.png
+    64_ken.png
+    65_cloud.png
+    66_kamui.png
+    67_bayonetta.png
+    68_inkling.png
+    69_ridley.png
+    70_simon.png
+    71_richter.png
+    72_King K Rool.png
+    73_shizue.png
+    74_gaogaen.png
+    75_packun.png
+    76_joker.png
+    77_hero.png
+    78_buddy.png
+    79_telly.png
+    80_byleth.png
+    81_minmin.png
+    82_steve.png
+    83_sephiroth.png
+    84_pyra.png
+    85_mythra.png
+    86_kazuya.png
+    87_sora.png
+    ファイル名.txt
+    
+サブフォルダーは存在しません 
+
