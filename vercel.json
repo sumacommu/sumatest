@@ -2,13 +2,10 @@
   "version": 2,
   "public": true,
   "builds": [
-    { "src": "app.js", "use": "@vercel/node" },
-    { "src": "*.html", "use": "@vercel/static" },
-    { "src": "css/*", "use": "@vercel/static" },
-    { "src": "img/*", "use": "@vercel/static" },
-    { "src": "js/*", "use": "@vercel/static" }
+    { "src": "app.js", "use": "@vercel/node" }
   ],
   "routes": [
+    { "src": "/characters/(.*)", "dest": "/public/characters/$1" },
     { "src": "/auth/(.*)", "dest": "app.js" },
     { "src": "/logout", "dest": "app.js" },
     { "src": "/(.*)", "dest": "app.js" }
