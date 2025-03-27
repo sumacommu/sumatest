@@ -32,6 +32,7 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(express.static('public'));
 
 // Google認証
 passport.use(new GoogleStrategy({
@@ -251,7 +252,7 @@ app.get('/solo/cancel', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理
+// タイマン用マッチング処理（成立時の修正）
 app.post('/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
@@ -276,7 +277,8 @@ app.post('/solo/match', async (req, res) => {
       const opponentRef = doc(db, 'users', opponentData.userId);
       const opponentSnap = await getDoc(opponentRef);
       const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
-      if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) { // ID必須
+      if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) {
+        const matchId = docSnap.id; // マッチングIDとして使用
         await updateDoc(docSnap.ref, { 
           status: 'matched', 
           opponentId: userId
@@ -288,20 +290,11 @@ app.post('/solo/match', async (req, res) => {
           opponentId: opponentData.userId,
           roomId: '',
           opponentRoomId: opponentData.roomId,
-          timestamp: new Date().toISOString()
+          timestamp: New Date().toISOString()
         });
         matched = true;
         const opponentName = opponentSnap.data().displayName || '不明';
-        res.send(`
-          <html>
-            <body>
-              <h1>マッチング成立！</h1>
-              <p>相手: ${opponentName} (レート: ${opponentRating})</p>
-              <p>相手の専用部屋ID: ${opponentData.roomId}</p>
-              <p><a href="/solo">戻る</a></p>
-            </body>
-          </html>
-        `);
+        res.redirect(`/solo/setup/${matchId}`); // セットアップ画面へ
         break;
       }
     }
@@ -311,7 +304,7 @@ app.post('/solo/match', async (req, res) => {
         userId: userId,
         type: 'solo',
         status: 'waiting',
-        roomId: '', // 初期は空
+        roomId: '',
         timestamp: new Date().toISOString()
       });
       res.redirect('/solo/check');
@@ -328,6 +321,46 @@ app.post('/solo/match', async (req, res) => {
       </html>
     `);
   }
+});
+
+// セットアップ画面
+app.get('/solo/setup/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/solo');
+  }
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  const matchData = matchSnap.data();
+  const opponentId = matchData.userId === userId ? matchData.opponentId : matchData.userId;
+  const opponentRef = doc(db, 'users', opponentId);
+  const opponentSnap = await getDoc(opponentRef);
+  const opponentName = opponentSnap.data().displayName || '不明';
+  const opponentRating = opponentSnap.data().rating || 1500;
+
+  res.send(`
+    <html>
+      <body>
+        <h1>マッチング成立！</h1>
+        <p>相手: ${opponentName} (レート: ${opponentRating})</p>
+        <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
+        <h2>キャラクター選択</h2>
+        <form action="/solo/setup/${matchId}" method="POST">
+          <button type="button"><img src="/characters/mario.png" width="64" height="64"></button>
+          <button type="button"><img src="/characters/link.png" width="64" height="64"></button>
+          <!-- 仮で2キャラ -->
+          <button type="submit">選択確定</button>
+        </form>
+        <p><a href="/solo">戻る</a></p>
+      </body>
+    </html>
+  `);
 });
 
 // ID更新処理
