@@ -5,7 +5,7 @@
     { "src": "app.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/characters/(.*)", "dest": "/public/characters/$1" },
+    { "src": "/characters/(.*)", "dest": "/characters/$1" },
     { "src": "/auth/(.*)", "dest": "app.js" },
     { "src": "/logout", "dest": "app.js" },
     { "src": "/(.*)", "dest": "app.js" }
