@@ -22,7 +22,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 // Express設定
-app.use(express.json()); // JSONボディを解析
+app.use(express.json()); // JSONボディ解析を確実に
 app.use(express.urlencoded({ extended: true })); // POST用
 app.use(session({
   secret: 'your-secret-key',
@@ -329,10 +329,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const opponentName = opponentSnap.data().displayName || '不明';
   const opponentRating = opponentSnap.data().rating || 1500;
 
-  // 名前を仮置き（表示しないので影響なし）
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
-    return { id, name: `キャラ${id}` };
+    return { id, name: `キャラ${id}` }; // 名前は表示しないので仮置き
   });
   const popularCharacters = [
     { id: '01', name: 'マリオ' },
@@ -360,7 +359,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .popular { background-color: #ffe0e0; }
           .section { margin: 20px 0; }
           #miiInput { display: none; }
-          button { border: none; background: none; cursor: pointer; }
+          button { border: none; background: none; cursor: pointer; opacity: 0.2; transition: opacity 0.3s; }
+          button.selected { opacity: 1; }
         </style>
       </head>
       <body>
@@ -372,14 +372,14 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <h2>キャラクター選択</h2>
           <div id="charSelected">未選択</div>
           ${popularCharacters.map(char => `
-            <button class="popular" onclick="selectCharacter('${char.id}', '${char.name}')">
+            <button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
               <img src="/characters/${char.id}.png">
             </button>
           `).join('')}
           <button onclick="document.getElementById('charPopup').style.display='block'">全キャラから選ぶ</button>
           <div id="charPopup" class="popup">
             ${allCharacters.map(char => `
-              <button onclick="selectCharacter('${char.id}', '${char.name}')">
+              <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
                 <img src="/characters/${char.id}.png">
               </button>
             `).join('')}
@@ -395,7 +395,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <h2>ステージ選択</h2>
           <div id="stageSelected">未選択</div>
           ${stages.map(stage => `
-            <button onclick="selectStage('${stage.id}', '${stage.name}')">
+            <button class="stage-btn" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
               <img src="/stages/${stage.id}.png">${stage.name}
             </button>
           `).join('')}
@@ -418,96 +418,64 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             } else {
               miiInput.style.display = 'none';
             }
+            document.querySelectorAll('.char-btn').forEach(btn => {
+              btn.classList.toggle('selected', btn.dataset.id === id);
+            });
           }
 
           function selectStage(id, name) {
             selectedStage = id;
             document.getElementById('stageSelected').innerText = name;
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+              btn.classList.toggle('selected', btn.dataset.id === id);
+            });
           }
 
-          // ... (saveSelectionsはそのまま)
+          async function saveSelections(matchId) {
+            if (!selectedChar || !selectedStage) {
+              alert('キャラクターとステージを選択してください');
+              return;
+            }
+            const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+            const data = { character: selectedChar, stage: selectedStage };
+            if (miiMoves) data.miiMoves = miiMoves;
+
+            try {
+              const response = await fetch('/api/solo/setup/' + matchId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              if (response.ok) {
+                window.location.href = '/api/solo';
+              } else {
+                const errorText = await response.text();
+                alert('保存に失敗しました: ' + errorText);
+              }
+            } catch (error) {
+              alert('ネットワークエラー: ' + error.message);
+            }
+          }
         </script>
       </body>
     </html>
   `);
 });
 
-// ステージセットアップ画面
-app.get('/api/solo/stage/:matchId', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.redirect('/api/solo');
-  }
-
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
-  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    return res.send('マッチが見つかりません');
-  }
-
-  const stages = [
-    { id: 'BattleField', name: '戦場' },
-    { id: 'Final Destination', name: '終点' },
-    { id: 'Hollow Bastion', name: 'ホロウバスティオン' },
-    { id: 'Pokémon Stadium 2', name: 'ポケモンスタジアム2' },
-    { id: 'Small Battlefield', name: '小戦場' },
-    { id: 'Smashville', name: 'スマ村' },
-    { id: 'Town and City', name: '村と町' }
-  ];
-
-  res.send(`
-    <html>
-      <head>
-        <style>
-          img { width: 100px; height: 100px; margin: 5px; }
-        </style>
-      </head>
-      <body>
-        <h1>ステージ選択</h1>
-        <form action="/api/solo/stage/${matchId}" method="POST">
-          ${stages.map(stage => `
-            <button type="submit" name="stage" value="${stage.id}">
-              <img src="/stages/${stage.id}.png">${stage.name}
-            </button>
-          `).join('')}
-        </form>
-        <p><a href="/api/solo/setup/${matchId}">戻る</a></p>
-      </body>
-    </html>
-  `);
-});
-
-app.post('/api/solo/setup/:matchId', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.redirect('/api/solo');
-  }
-  const { character, stage, miiMoves } = req.body;
-
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
-  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    return res.status(404).send('マッチが見つかりません');
-  }
-
-  const updateData = { character, stage };
-  if (miiMoves) updateData.miiMoves = miiMoves;
-  await updateDoc(matchRef, updateData);
-  res.status(200).send('OK');
-});
-
-// キャラ選択処理
+// キャラ・ステージ保存処理
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
   console.log('POST /api/solo/setup:', { matchId, userId, body: req.body });
   if (!userId) {
     console.log('ユーザー認証失敗');
-    return res.redirect('/api/solo');
+    return res.status(401).send('ログインが必要です');
   }
   const { character, stage, miiMoves } = req.body;
+  if (!character || !stage) {
+    console.log('データ不足:', { character, stage });
+    return res.status(400).send('キャラクターとステージが必要です');
+  }
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
@@ -521,26 +489,6 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   await updateDoc(matchRef, updateData);
   console.log('保存成功:', updateData);
   res.status(200).send('OK');
-});
-
-// Miiファイター設定処理
-app.post('/api/solo/setup/:matchId/mii', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.redirect('/api/solo');
-  }
-  const miiMoves = req.body.miiMoves;
-  const character = req.body.character;
-
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
-  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    return res.send('マッチが見つかりません');
-  }
-
-  await updateDoc(matchRef, { character: character, miiMoves: miiMoves });
-  res.redirect(`/api/solo/stage/${matchId}`);
 });
 
 // ID更新処理
