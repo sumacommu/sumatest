@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "app.js", "use": "@vercel/node" }
-  ],
   "routes": [
+    { "src": "/characters/(.*)", "dest": "/characters/$1" },
     { "src": "/auth/(.*)", "dest": "app.js" },
     { "src": "/logout", "dest": "app.js" },
     { "src": "/solo/(.*)", "dest": "app.js" },
