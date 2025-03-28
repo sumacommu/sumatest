@@ -328,18 +328,126 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const opponentName = opponentSnap.data().displayName || '不明';
   const opponentRating = opponentSnap.data().rating || 1500;
 
+  // 全キャラクターリスト（仮に87体）
+  const allCharacters = Array.from({ length: 87 }, (_, i) => {
+    const id = String(i + 1).padStart(2, '0');
+    return { id, name: `キャラ${id}` }; // 名前は後で調整
+  });
+  const popularCharacters = [
+    { id: '01', name: 'マリオ' },
+    { id: '03', name: 'リンク' },
+    { id: '54', name: '格闘Mii' }
+  ];
+
   res.send(`
     <html>
+      <head>
+        <style>
+          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: 1px solid #ccc; overflow: auto; }
+          .popup img { width: 64px; height: 64px; margin: 5px; }
+          .popular { background-color: #ffe0e0; }
+        </style>
+      </head>
       <body>
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
         <h2>キャラクター選択</h2>
         <form action="/api/solo/setup/${matchId}" method="POST">
-          <button type="submit" name="character" value="01"><img src="/characters/01.png" width="64" height="64">マリオ</button>
-          <button type="submit" name="character" value="03"><img src="/characters/03.png" width="64" height="64">リンク</button>
-          <button type="submit" name="character" value="54"><img src="/characters/54.png" width="64" height="64">Miiファイター</button>
+          ${popularCharacters.map(char => `
+            <button class="popular" type="submit" name="character" value="${char.id}">
+              <img src="/characters/${char.id}.png">${char.name}
+            </button>
+          `).join('')}
+          <button type="button" onclick="document.getElementById('charPopup').style.display='block'">全キャラから選ぶ</button>
         </form>
+        <div id="charPopup" class="popup">
+          ${allCharacters.map(char => `
+            <button type="submit" name="character" value="${char.id}" form="charForm">
+              <img src="/characters/${char.id}.png">${char.name}
+            </button>
+          `).join('')}
+        </div>
+        <form id="charForm" action="/api/solo/setup/${matchId}" method="POST" style="display:none;"></form>
+        <p><a href="/api/solo">戻る</a></p>
+        <script>
+          document.getElementById('charPopup').addEventListener('click', function(e) {
+            if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+              this.style.display = 'none';
+            }
+          });
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+// ステージセットアップ画面
+app.get('/api/solo/stage/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/api/solo');
+  }
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  const stages = [
+    { id: 'BattleField', name: '戦場' },
+    { id: 'Final Destination', name: '終点' },
+    { id: 'Hollow Bastion', name: 'ホロウバスティオン' },
+    { id: 'Pokemon Stadium 2', name: 'ポケモンスタジアム2' },
+    { id: 'Small Battlefield', name: '小戦場' },
+    { id: 'Smashville', name: 'スマッシュヴィル' },
+    { id: 'Town and City', name: '街と町' }
+  ];
+
+  res.send(`
+    <html>
+      <head>
+        <style>
+          img { width: 100px; height: 100px; margin: 5px; }
+        </style>
+      </head>
+      <body>
+        <h1>ステージ選択</h1>
+        <form action="/api/solo/stage/${matchId}" method="POST">
+          ${stages.map(stage => `
+            <button type="submit" name="stage" value="${stage.id}">
+              <img src="/stages/${stage.id}.png">${stage.name}
+            </button>
+          `).join('')}
+        </form>
+        <p><a href="/api/solo/setup/${matchId}">戻る</a></p>
+      </body>
+    </html>
+  `);
+});
+
+app.post('/api/solo/stage/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/api/solo');
+  }
+  const stage = req.body.stage;
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  await updateDoc(matchRef, { stage: stage });
+  res.send(`
+    <html>
+      <body>
+        <h1>準備完了</h1>
+        <p>ステージ: ${stage}</p>
         <p><a href="/api/solo">戻る</a></p>
       </body>
     </html>
