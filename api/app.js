@@ -22,7 +22,6 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 // Express設定
-app.use(express.static(__dirname));
 app.use(express.urlencoded({ extended: true })); // POST用
 app.use(session({
   secret: 'your-secret-key',
@@ -32,15 +31,14 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.static('public'));
 
 // Google認証
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: 'https://sumatest.vercel.app/auth/google/callback'
+  callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  console.log('Google認証開始:', { clientID: process.env.GOOGLE_CLIENT_ID, callbackURL: 'https://sumatest.vercel.app/auth/google/callback' });
+  console.log('Google認証開始:', { clientID: process.env.GOOGLE_CLIENT_ID, callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback' });
   try {
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
@@ -86,7 +84,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // ルート（トップページ）
-app.get('/', async (req, res) => {
+app.get('/api/', async (req, res) => {
   try {
     if (req.user) {
       const userData = req.user;
@@ -95,9 +93,9 @@ app.get('/', async (req, res) => {
           <body>
             <h1>こんにちは、${userData.displayName}さん！</h1>
             <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-            <p><a href="/solo">タイマン用</a></p>
-            <p><a href="/team">チーム用</a></p>
-            <p><a href="/logout">ログアウト</a></p>
+            <p><a href="/api/solo">タイマン用</a></p>
+            <p><a href="/api/team">チーム用</a></p>
+            <p><a href="/api/logout">ログアウト</a></p>
           </body>
         </html>
       `);
@@ -106,9 +104,9 @@ app.get('/', async (req, res) => {
         <html>
           <body>
             <h1>スマブラマッチング</h1>
-            <p><a href="/solo">タイマン用</a></p>
-            <p><a href="/team">チーム用</a></p>
-            <p><a href="/auth/google">Googleでログイン</a></p>
+            <p><a href="/api/solo">タイマン用</a></p>
+            <p><a href="/api/team">チーム用</a></p>
+            <p><a href="/api/auth/google">Googleでログイン</a></p>
           </body>
         </html>
       `);
@@ -120,14 +118,14 @@ app.get('/', async (req, res) => {
 });
 
 // Google認証ルート
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/api/auth/google/callback', passport.authenticate('google', { failureRedirect: '/api/' }), (req, res) => {
   console.log('コールバック成功、リダイレクト');
-  res.redirect('/');
+  res.redirect('/api/');
 });
 
 // ログアウトルート
-app.get('/logout', (req, res) => {
+app.get('/api/logout', (req, res) => {
   req.logout((err) => {
     if (err) {
       console.error('ログアウトエラー:', err);
@@ -139,13 +137,13 @@ app.get('/logout', (req, res) => {
         return res.status(500).send('セッション破棄に失敗しました');
       }
       console.log('ログアウト成功');
-      res.redirect('/');
+      res.redirect('/api/');
     });
   });
 });
 
 // タイマン用ページ
-app.get('/solo', async (req, res) => {
+app.get('/api/solo', async (req, res) => {
   try {
     const matchesRef = collection(db, 'matches');
     const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
@@ -161,15 +159,15 @@ app.get('/solo', async (req, res) => {
     if (req.user) {
       const rating = req.user.rating || 1500;
       html += `
-        <form action="/solo/match" method="POST">
+        <form action="/api/solo/match" method="POST">
           <button type="submit">マッチング開始</button>
         </form>
         <p>現在のレート: ${rating}</p>
       `;
     } else {
-      html += `<p>マッチングするには<a href="/auth/google">ログイン</a>してください</p>`;
+      html += `<p>マッチングするには<a href="/api/auth/google">ログイン</a>してください</p>`;
     }
-    html += `<p><a href="/">戻る</a></p></body></html>`;
+    html += `<p><a href="/api/">戻る</a></p></body></html>`;
     res.send(html);
   } catch (error) {
     console.error('タイマン用ページエラー:', error.message, error.stack);
@@ -177,10 +175,10 @@ app.get('/solo', async (req, res) => {
   }
 });
 
-// マッチング状態チェック用ルート（修正）
-app.get('/solo/check', async (req, res) => {
+// マッチング状態チェック用ルート
+app.get('/api/solo/check', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
   const userId = req.user.id;
   const matchesRef = collection(db, 'matches');
@@ -190,7 +188,7 @@ app.get('/solo/check', async (req, res) => {
   if (!userMatchSnapshot.empty) {
     const matchData = userMatchSnapshot.docs[0].data();
     const matchId = userMatchSnapshot.docs[0].id;
-    res.redirect(`/solo/setup/${matchId}`); // 成立したらセットアップ画面へ
+    res.redirect(`/api/solo/setup/${matchId}`); // 成立したらセットアップ画面へ
   } else {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
     const waitingSnapshot = await getDocs(waitingQuery);
@@ -200,11 +198,11 @@ app.get('/solo/check', async (req, res) => {
         <body>
           <h1>マッチング待機中</h1>
           <p>相手を待っています... あなたのレート: ${req.user.rating || 1500}</p>
-          <form action="/solo/update" method="POST">
+          <form action="/api/solo/update" method="POST">
             <label>専用部屋ID: <input type="text" name="roomId" value="${roomId}"></label>
             <button type="submit">IDを設定して更新</button>
           </form>
-          <p><a href="/solo/cancel">キャンセル</a></p>
+          <p><a href="/api/solo/cancel">キャンセル</a></p>
         </body>
       </html>
     `);
@@ -212,9 +210,9 @@ app.get('/solo/check', async (req, res) => {
 });
 
 // 待機キャンセルルート
-app.get('/solo/cancel', async (req, res) => {
+app.get('/api/solo/cancel', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
   const userId = req.user.id;
   const matchesRef = collection(db, 'matches');
@@ -225,7 +223,7 @@ app.get('/solo/cancel', async (req, res) => {
     waitingSnapshot.forEach(async (docSnap) => {
       await deleteDoc(docSnap.ref);
     });
-    res.redirect('/solo');
+    res.redirect('/api/solo');
   } catch (error) {
     console.error('キャンセルエラー:', error.message, error.stack);
     res.send(`
@@ -233,7 +231,7 @@ app.get('/solo/cancel', async (req, res) => {
         <body>
           <h1>キャンセルに失敗しました</h1>
           <p>エラー: ${error.message}</p>
-          <p><a href="/solo">戻る</a></p>
+          <p><a href="/api/solo">戻る</a></p>
         </body>
       </html>
     `);
@@ -241,10 +239,10 @@ app.get('/solo/cancel', async (req, res) => {
 });
 
 // タイマン用マッチング処理
-app.post('/solo/match', async (req, res) => {
+app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
   const userId = req.user.id;
   const userRating = req.user.rating || 1500;
@@ -280,7 +278,7 @@ app.post('/solo/match', async (req, res) => {
           timestamp: new Date().toISOString()
         });
         matched = true;
-        res.redirect(`/solo/setup/${newMatchDoc.id}`);
+        res.redirect(`/api/solo/setup/${newMatchDoc.id}`);
         break;
       }
     }
@@ -293,7 +291,7 @@ app.post('/solo/match', async (req, res) => {
         roomId: '',
         timestamp: new Date().toISOString()
       });
-      res.redirect('/solo/check');
+      res.redirect('/api/solo/check');
     }
   } catch (error) {
     console.error('マッチングエラー:', error.message, error.stack);
@@ -302,7 +300,7 @@ app.post('/solo/match', async (req, res) => {
         <body>
           <h1>マッチングに失敗しました</h1>
           <p>エラー: ${error.message}</p>
-          <p><a href="/solo">戻る</a></p>
+          <p><a href="/api/solo">戻る</a></p>
         </body>
       </html>
     `);
@@ -310,11 +308,11 @@ app.post('/solo/match', async (req, res) => {
 });
 
 // セットアップ画面
-app.get('/solo/setup/:matchId', async (req, res) => {
+app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
   if (!userId) {
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
 
   const matchRef = doc(db, 'matches', matchId);
@@ -337,24 +335,23 @@ app.get('/solo/setup/:matchId', async (req, res) => {
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
         <h2>キャラクター選択</h2>
-        <form action="/solo/setup/${matchId}" method="POST">
+        <form action="/api/solo/setup/${matchId}" method="POST">
           <button type="submit" name="character" value="01"><img src="/characters/01.png" width="64" height="64">マリオ</button>
           <button type="submit" name="character" value="03"><img src="/characters/03.png" width="64" height="64">リンク</button>
           <button type="submit" name="character" value="54"><img src="/characters/54.png" width="64" height="64">Miiファイター</button>
-          <!-- 仮で3キャラ -->
         </form>
-        <p><a href="/solo">戻る</a></p>
+        <p><a href="/api/solo">戻る</a></p>
       </body>
     </html>
   `);
 });
 
 // キャラ選択処理
-app.post('/solo/setup/:matchId', async (req, res) => {
+app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
   if (!userId) {
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
   const character = req.body.character;
 
@@ -364,29 +361,48 @@ app.post('/solo/setup/:matchId', async (req, res) => {
     return res.send('マッチが見つかりません');
   }
 
-  if (character === 'mii_fighter') {
+  if (character === '54') { // Miiファイターの場合
     res.send(`
       <html>
         <body>
           <h1>Miiファイター設定</h1>
-          <form action="/solo/setup/${matchId}/mii" method="POST">
+          <form action="/api/solo/setup/${matchId}/mii" method="POST">
             <label>技番号（例: 1233）: <input type="text" name="miiMoves" maxlength="4"></label>
             <button type="submit">設定</button>
           </form>
-          <p><a href="/solo/setup/${matchId}">戻る</a></p>
+          <p><a href="/api/solo/setup/${matchId}">戻る</a></p>
         </body>
       </html>
     `);
   } else {
     await updateDoc(matchRef, { character: character });
-    res.redirect(`/solo/stage/${matchId}`);
+    res.redirect(`/api/solo/stage/${matchId}`);
   }
 });
 
+// Miiファイター設定処理
+app.post('/api/solo/setup/:matchId/mii', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/api/solo');
+  }
+  const miiMoves = req.body.miiMoves;
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  await updateDoc(matchRef, { character: '54', miiMoves: miiMoves });
+  res.redirect(`/api/solo/stage/${matchId}`);
+});
+
 // ID更新処理
-app.post('/solo/update', async (req, res) => {
+app.post('/api/solo/update', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/solo');
+    return res.redirect('/api/solo');
   }
   const userId = req.user.id;
   const roomId = req.body.roomId || '';
@@ -400,7 +416,7 @@ app.post('/solo/update', async (req, res) => {
       const docSnap = waitingSnapshot.docs[0];
       await updateDoc(docSnap.ref, { roomId: roomId });
     }
-    res.redirect('/solo/check');
+    res.redirect('/api/solo/check');
   } catch (error) {
     console.error('ID更新エラー:', error.message, error.stack);
     res.send(`
@@ -408,7 +424,7 @@ app.post('/solo/update', async (req, res) => {
         <body>
           <h1>ID更新に失敗しました</h1>
           <p>エラー: ${error.message}</p>
-          <p><a href="/solo">戻る</a></p>
+          <p><a href="/api/solo">戻る</a></p>
         </body>
       </html>
     `);
@@ -416,13 +432,13 @@ app.post('/solo/update', async (req, res) => {
 });
 
 // チーム用ページ（仮）
-app.get('/team', async (req, res) => {
+app.get('/api/team', async (req, res) => {
   res.send(`
     <html>
       <body>
         <h1>チーム用ページ</h1>
         <p>準備中です</p>
-        <p><a href="/">戻る</a></p>
+        <p><a href="/api/">戻る</a></p>
       </body>
     </html>
   `);
