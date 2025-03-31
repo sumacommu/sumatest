@@ -472,34 +472,41 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  console.log('リクエスト開始:', { matchId, userId, body: req.body });
+  console.log('リクエスト受信:', { matchId, userId, body: req.body });
 
-  // ユーザー認証の確認
-  if (!userId) {
-    console.log('ユーザー認証失敗');
-    return res.status(401).send('ログインが必要です');
-  }
+  if (!userId) return res.status(401).send('ログインが必要です');
 
   const { character, stage, miiMoves } = req.body;
-  // データの不足チェック
-  if (!character || !stage) {
-    console.log('データ不足:', { character, stage });
-    return res.status(400).send('キャラクターとステージが必要です');
-  }
+  if (!character || !stage) return res.status(400).send('キャラクターとステージが必要です');
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
-  // マッチの存在確認
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    console.log('マッチが見つからない:', matchId);
     return res.status(404).send('マッチが見つかりません');
   }
 
-  const updateData = { character, stage };
-  if (miiMoves) updateData.miiMoves = miiMoves;
-  await updateDoc(matchRef, updateData);
-  console.log('保存成功:', updateData); // ここに到達するか確認
-  res.status(200).send('OK');
+  const matchData = matchSnap.data();
+  const isPlayer1 = matchData.userId === userId;
+  const choices = { character, stage };
+  if (miiMoves) choices.miiMoves = miiMoves;
+
+  const updateData = {
+    ...(isPlayer1 ? { player1Choices: choices } : { player2Choices: choices }),
+    step: matchData.step || 'character_selection'
+  };
+
+  if ((isPlayer1 && matchData.player2Choices) || (!isPlayer1 && matchData.player1Choices)) {
+    updateData.step = 'stage_ban_1';
+  }
+
+  try {
+    await updateDoc(matchRef, updateData);
+    console.log('保存成功:', updateData);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('保存エラー:', error.message, error.stack);
+    res.status(500).send('保存に失敗しました: ' + error.message);
+  }
 });
 
 // ID更新処理
