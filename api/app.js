@@ -391,72 +391,89 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4"></label>
         </div>
 
-        <div class="section">
-          <h2>ステージ選択</h2>
-          <div id="stageSelected">未選択</div>
-          ${stages.map(stage => `
-            <button class="stage-btn" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
-              <img src="/stages/${stage.id}.png">${stage.name}
-            </button>
-          `).join('')}
-        </div>
+<div class="section">
+  <h2>ステージ選択</h2>
+  <div id="stageSelected">未選択</div>
+  ${stages.map(stage => `
+    <button class="stage-btn" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
+      <img src="/stages/${stage.id}.png">${stage.name}
+    </button>
+  `).join('')}
+</div>
 
         <button onclick="saveSelections('${matchId}')">決定</button>
         <p><a href="/api/solo">戻る</a></p>
 
-        <script>
-          let selectedChar = null;
-          let selectedStage = null;
+<script>
+  let selectedChar = null;
+  let selectedStage = null;
 
-          function selectCharacter(id, name) {
-            selectedChar = id;
-            document.getElementById('charSelected').innerHTML = '<img src="/characters/' + id + '.png" width="64" height="64">';
-            document.getElementById('charPopup').style.display = 'none';
-            const miiInput = document.getElementById('miiInput');
-            if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block';
-            } else {
-              miiInput.style.display = 'none';
-            }
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
+  function selectCharacter(id, name) {
+    selectedChar = id;
+    document.getElementById('charSelected').innerHTML = '<img src="/characters/' + id + '.png" width="64" height="64">';
+    document.getElementById('charPopup').style.display = 'none';
+    const miiInput = document.getElementById('miiInput');
+    if (['54', '55', '56'].includes(id)) {
+      miiInput.style.display = 'block';
+    } else {
+      miiInput.style.display = 'none';
+    }
+    document.querySelectorAll('.char-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.id === id);
+      btn.classList.toggle('unselected', btn.dataset.id !== id);
+    });
+  }
 
-          function selectStage(id, name) {
-            selectedStage = id;
-            document.getElementById('stageSelected').innerText = name;
-            document.querySelectorAll('.stage-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
+  function selectStage(id, name) {
+    selectedStage = id;
+    document.getElementById('stageSelected').innerText = name;
+    document.querySelectorAll('.stage-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.id === id);
+      btn.classList.toggle('unselected', btn.dataset.id !== id);
+    });
+  }
 
-          async function saveSelections(matchId) {
-            if (!selectedChar || !selectedStage) {
-              alert('キャラクターとステージを選択してください');
-              return;
-            }
-            const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-            const data = { character: selectedChar, stage: selectedStage };
-            if (miiMoves) data.miiMoves = miiMoves;
+  // ポップアップ表示時に全キャラを濃くする
+  document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
+    document.querySelectorAll('.char-btn').forEach(btn => {
+      btn.classList.remove('unselected');
+    });
+    document.getElementById('charPopup').style.display = 'block';
+  });
 
-            try {
-              const response = await fetch('/api/solo/setup/' + matchId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-              });
-              if (response.ok) {
-                window.location.href = '/api/solo';
-              } else {
-                const errorText = await response.text();
-                alert('保存に失敗しました: ' + errorText);
-              }
-            } catch (error) {
-              alert('ネットワークエラー: ' + error.message);
-            }
-          }
-        </script>
+  // ページ読み込み時に全キャラとステージを濃くする
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.char-btn, .stage-btn').forEach(btn => {
+      btn.classList.remove('unselected');
+    });
+  });
+
+  async function saveSelections(matchId) {
+    if (!selectedChar || !selectedStage) {
+      alert('キャラクターとステージを選択してください');
+      return;
+    }
+    const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+    const data = { character: selectedChar, stage: selectedStage };
+    if (miiMoves) data.miiMoves = miiMoves;
+
+    try {
+      const response = await fetch('/api/solo/setup/' + matchId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        window.location.href = '/api/solo';
+      } else {
+        const errorText = await response.text();
+        alert('保存に失敗しました: ' + errorText);
+      }
+    } catch (error) {
+      alert('ネットワークエラー: ' + error.message);
+    }
+  }
+</script>
       </body>
     </html>
   `);
@@ -466,12 +483,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  console.log('POST /api/solo/setup:', { matchId, userId, body: req.body });
+  console.log('リクエスト開始:', { matchId, userId, body: req.body });
+
+  // ユーザー認証の確認
   if (!userId) {
     console.log('ユーザー認証失敗');
     return res.status(401).send('ログインが必要です');
   }
+
   const { character, stage, miiMoves } = req.body;
+  // データの不足チェック
   if (!character || !stage) {
     console.log('データ不足:', { character, stage });
     return res.status(400).send('キャラクターとステージが必要です');
@@ -479,6 +500,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
+  // マッチの存在確認
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
     console.log('マッチが見つからない:', matchId);
     return res.status(404).send('マッチが見つかりません');
@@ -487,7 +509,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const updateData = { character, stage };
   if (miiMoves) updateData.miiMoves = miiMoves;
   await updateDoc(matchRef, updateData);
-  console.log('保存成功:', updateData);
+  console.log('保存成功:', updateData); // ここに到達するか確認
   res.status(200).send('OK');
 });
 

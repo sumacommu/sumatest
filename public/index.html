@@ -2,11 +2,67 @@
 <html>
 <head>
   <title>スマブラマッチング</title>
+  <style>
+  /* ここにCSSコードを書く */
+  .char-btn {
+  opacity: 1; /* デフォルトで濃く表示 */
+  transition: opacity 0.3s; /* 薄さの変化を滑らかに */
+  }
+  .char-btn.unselected {
+    opacity: 0.2; /* 未選択時に薄く表示 */
+  }
+  /* 「全キャラから選ぶ」や「決定」ボタンは影響を受けないように */
+  button:not(.char-btn) {
+    opacity: 1 !important;
+  }
+  .stage-btn {
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+.stage-btn.unselected {
+  opacity: 0.2;
+}
+  </style>
 </head>
 <body>
   <h1>スマブラマッチング</h1>
   <p><a href="/api/solo">タイマン用</a></p>
   <p><a href="/api/team">チーム用</a></p>
   <p><a href="/api/auth/google">Googleでログイン</a></p>
+  <script>
+let selectedChar = null; // 選択中のキャラクターを保持
+
+// キャラクター選択時の処理
+function selectCharacter(id, name) {
+  selectedChar = id;
+  document.getElementById('charSelected').innerHTML = '<img src="/characters/' + id + '.png" width="64" height="64">';
+  document.getElementById('charPopup').style.display = 'none';
+
+  // すべてのキャラクターボタンをチェック
+  document.querySelectorAll('.char-btn').forEach(btn => {
+    if (btn.dataset.id === id) {
+      btn.classList.remove('unselected'); // 選択したキャラは濃く
+    } else {
+      btn.classList.add('unselected'); // それ以外は薄く
+    }
+  });
+}
+
+// 「全キャラから選ぶ」ボタンの処理
+document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
+  // ポップアップ表示前に全キャラを濃くする
+  document.querySelectorAll('.char-btn').forEach(btn => {
+    btn.classList.remove('unselected');
+  });
+  document.getElementById('charPopup').style.display = 'block';
+});
+
+// ページ読み込み時に全キャラを濃くする
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.char-btn').forEach(btn => {
+    btn.classList.remove('unselected');
+  });
+});
+  </script>
 </body>
 </html>
