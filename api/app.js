@@ -312,9 +312,7 @@ app.post('/api/solo/match', async (req, res) => {
 app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  if (!userId) {
-    return res.redirect('/api/solo');
-  }
+  if (!userId) return res.redirect('/api/solo');
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
@@ -323,15 +321,21 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   }
 
   const matchData = matchSnap.data();
-  const opponentId = matchData.userId === userId ? matchData.opponentId : matchData.userId;
+  const isPlayer1 = matchData.userId === userId;
+  const opponentId = isPlayer1 ? matchData.opponentId : matchData.userId;
   const opponentRef = doc(db, 'users', opponentId);
   const opponentSnap = await getDoc(opponentRef);
   const opponentName = opponentSnap.data().displayName || '不明';
   const opponentRating = opponentSnap.data().rating || 1500;
 
+  const player1Choices = matchData.player1Choices || {};
+  const player2Choices = matchData.player2Choices || {};
+  const myChoices = isPlayer1 ? player1Choices : player2Choices;
+  const opponentChoices = isPlayer1 ? player2Choices : player1Choices;
+
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
-    return { id, name: `キャラ${id}` }; // 名前は表示しないので仮置き
+    return { id, name: `キャラ${id}` };
   });
   const popularCharacters = [
     { id: '01', name: 'マリオ' },
@@ -345,9 +349,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     { id: 'Final Destination', name: '終点' },
     { id: 'Hollow Bastion', name: 'ホロウバスティオン' },
     { id: 'Pokemon Stadium 2', name: 'ポケモンスタジアム2' },
-    { id: 'Small Battlefield', name: '小戦場' },
-    { id: 'Smashville', name: 'スマ村' },
-    { id: 'Town and City', name: '村と町' }
+    { id: 'Small Battlefield', name: '小戦場' }
   ];
 
   res.send(`
