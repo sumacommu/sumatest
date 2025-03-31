@@ -4,16 +4,50 @@
   <title>スマブラマッチング</title>
   <style>
   /* ここにCSSコードを書く */
-  .char-btn {
-  opacity: 0.3; /* デフォルトで薄く */
-  transition: opacity 0.3s; /* 変化を滑らかに */
+  .popup { 
+  display: none; 
+  position: fixed; 
+  top: 20%; 
+  left: 20%; 
+  width: 60%; 
+  height: 60%; 
+  background: white; 
+  border: none; /* 枠を削除 */
+  overflow: auto; 
 }
-.char-btn.selected {
-  opacity: 1; /* 選択時に濃く */
+.popup img { 
+  width: 64px; 
+  height: 64px; 
+  margin: 5px; 
 }
-/* 「全キャラから選ぶ」や「決定」ボタンは常に濃く */
-button:not(.char-btn) {
-  opacity: 1 !important;
+.section { 
+  margin: 20px 0; 
+}
+#miiInput { 
+  display: none; 
+}
+.char-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; /* 枠を削除 */
+  background: none; /* 背景色を削除 */
+  padding: 0; /* 余白を削除 */
+}
+.char-btn.selected { 
+  opacity: 1; 
+}
+.stage-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; /* 枠を削除 */
+  background: none; /* 背景色を削除 */
+  padding: 0; /* 余白を削除 */
+}
+.stage-btn.selected { 
+  opacity: 1; 
+}
+button:not(.char-btn):not(.stage-btn) { 
+  opacity: 1 !important; 
 }
   </style>
 </head>

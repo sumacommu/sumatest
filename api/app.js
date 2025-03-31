@@ -354,119 +354,115 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-/* <head>内の<style>を更新 */
-.popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: 1px solid #ccc; overflow: auto; }
-.popup img { width: 64px; height: 64px; margin: 5px; }
-.popular { background-color: #ffe0e0; }
-.section { margin: 20px 0; }
-#miiInput { display: none; }
-.char-btn { opacity: 0.3; transition: opacity 0.3s; }
-.char-btn.selected { opacity: 1; }
-.stage-btn { opacity: 0.3; transition: opacity 0.3s; }
-.stage-btn.selected { opacity: 1; }
-button:not(.char-btn):not(.stage-btn) { opacity: 1 !important; }
+          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; }
+          .popup img { width: 64px; height: 64px; margin: 5px; }
+          .section { margin: 20px 0; }
+          #miiInput { display: none; }
+          .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
+          .char-btn.selected { opacity: 1; }
+          .stage-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
+          .stage-btn.selected { opacity: 1; }
+          button:not(.char-btn):not(.stage-btn) { opacity: 1 !important; }
         </style>
       </head>
       <body>
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
-
+        <p>あなたの選択: ${myChoices.character ? '完了' : '未選択'}</p>
+        <p>相手の選択: ${opponentChoices.character ? '完了' : '未選択'}</p>
+        ${myChoices.character && !opponentChoices.character ? '<p>相手の選択を待っています...</p>' : ''}
+        ${myChoices.character && opponentChoices.character ? '<p>次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a></p>' : ''}
+  
         <div class="section">
           <h2>キャラクター選択</h2>
-          <div id="charSelected">未選択</div>
           ${popularCharacters.map(char => `
-            <button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+            <button class="popular char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
               <img src="/characters/${char.id}.png">
             </button>
           `).join('')}
           <button onclick="document.getElementById('charPopup').style.display='block'">全キャラから選ぶ</button>
           <div id="charPopup" class="popup">
             ${allCharacters.map(char => `
-              <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+              <button class="char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
                 <img src="/characters/${char.id}.png">
               </button>
             `).join('')}
           </div>
         </div>
-
+  
         <div class="section" id="miiInput">
           <h2>Miiファイター設定</h2>
-          <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4"></label>
+          <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4" value="${myChoices.miiMoves || ''}"></label>
         </div>
-
-<div class="section">
-  <h2>ステージ選択</h2>
-  <div id="stageSelected">未選択</div>
-  ${stages.map(stage => `
-    <button class="stage-btn" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
-      <img src="/stages/${stage.id}.png">${stage.name}
-    </button>
-  `).join('')}
-</div>
-
+  
+        <div class="section">
+          <h2>ステージ選択</h2>
+          ${stages.map(stage => `
+            <button class="stage-btn ${myChoices.stage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
+              <img src="/stages/${stage.id}.png">
+            </button>
+          `).join('')}
+        </div>
+  
         <button onclick="saveSelections('${matchId}')">決定</button>
         <p><a href="/api/solo">戻る</a></p>
-
-<script>
-// <script>を更新
-let selectedChar = null;
-let selectedStage = null;
-
-function selectCharacter(id, name) {
-  selectedChar = id;
-  document.getElementById('charSelected').innerHTML = '<img src="/characters/' + id + '.png" width="64" height="64">';
-  document.getElementById('charPopup').style.display = 'none';
-  const miiInput = document.getElementById('miiInput');
-  if (['54', '55', '56'].includes(id)) {
-    miiInput.style.display = 'block';
-  } else {
-    miiInput.style.display = 'none';
-  }
-  document.querySelectorAll('.char-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.id === id);
-  });
-}
-
-function selectStage(id, name) {
-  selectedStage = id;
-  document.getElementById('stageSelected').innerText = name;
-  document.querySelectorAll('.stage-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.id === id);
-  });
-}
-
-// 「全キャラから選ぶ」はポップアップ表示のみ
-document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
-  document.getElementById('charPopup').style.display = 'block';
-});
-
-async function saveSelections(matchId) {
-  if (!selectedChar || !selectedStage) {
-    alert('キャラクターとステージを選択してください');
-    return;
-  }
-  const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-  const data = { character: selectedChar, stage: selectedStage };
-  if (miiMoves) data.miiMoves = miiMoves;
-
-  try {
-    const response = await fetch('/api/solo/setup/' + matchId, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (response.ok) {
-      window.location.href = '/api/solo';
-    } else {
-      const errorText = await response.text();
-      alert('保存に失敗しました: ' + errorText);
-    }
-  } catch (error) {
-    alert('ネットワークエラー: ' + error.message);
-  }
-}
-</script>
+  
+        <script>
+          let selectedChar = '${myChoices.character || ''}';
+          let selectedStage = '${myChoices.stage || ''}';
+  
+          function selectCharacter(id, name) {
+            selectedChar = id;
+            document.getElementById('charPopup').style.display = 'none';
+            const miiInput = document.getElementById('miiInput');
+            if (['54', '55', '56'].includes(id)) {
+              miiInput.style.display = 'block';
+            } else {
+              miiInput.style.display = 'none';
+            }
+            document.querySelectorAll('.char-btn').forEach(btn => {
+              btn.classList.toggle('selected', btn.dataset.id === id);
+            });
+          }
+  
+          function selectStage(id, name) {
+            selectedStage = id;
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+              btn.classList.toggle('selected', btn.dataset.id === id);
+            });
+          }
+  
+          document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
+            document.getElementById('charPopup').style.display = 'block';
+          });
+  
+          async function saveSelections(matchId) {
+            if (!selectedChar || !selectedStage) {
+              alert('キャラクターとステージを選択してください');
+              return;
+            }
+            const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+            const data = { character: selectedChar, stage: selectedStage };
+            if (miiMoves) data.miiMoves = miiMoves;
+  
+            try {
+              const response = await fetch('/api/solo/setup/' + matchId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              if (response.ok) {
+                window.location.reload();
+              } else {
+                const errorText = await response.text();
+                alert('保存に失敗しました: ' + errorText);
+              }
+            } catch (error) {
+              alert('ネットワークエラー: ' + error.message);
+            }
+          }
+        </script>
       </body>
     </html>
   `);
