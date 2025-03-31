@@ -363,7 +363,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   left: 20%; 
   width: 60%; 
   height: 60%; 
-  background: white; /* 不透明な白背景 */
+  background: blue; /* 不透明な白背景 */
   border: none; 
   overflow: auto; 
 }
