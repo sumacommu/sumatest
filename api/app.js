@@ -356,61 +356,27 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-.popup { 
-  display: none; 
-  position: fixed; 
-  top: 20%; 
-  left: 20%; 
-  width: 60%; 
-  height: 60%; 
-  background: blue; /* 不透明な白背景 */
-  border: none; 
-  overflow: auto; 
-}
-.popup img { 
-  width: 64px; 
-  height: 64px; 
-  margin: 5px; 
-}
-.section { 
-  margin: 20px 0; 
-}
-#miiInput { 
-  display: none; 
-}
-.char-btn { 
-  opacity: 0.3; 
-  transition: opacity 0.3s; 
-  border: none; 
-  background: none; 
-  padding: 0; 
-}
-.char-btn.selected { 
-  opacity: 1; 
-}
-.stage-btn { 
-  opacity: 0.3; 
-  transition: opacity 0.3s; 
-  border: none; 
-  background: none; 
-  padding: 0; 
-}
-.stage-btn.selected { 
-  opacity: 1; 
-}
-button:not(.char-btn):not(.stage-btn) { 
-  opacity: 1 !important; 
-}
+          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; }
+          .popup img { width: 64px; height: 64px; margin: 5px; }
+          .section { margin: 20px 0; }
+          #miiInput { display: none; }
+          .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
+          .char-btn.selected { opacity: 1; }
+          .stage-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
+          .stage-btn.selected { opacity: 1; }
+          button:not(.char-btn):not(.stage-btn) { opacity: 1 !important; }
         </style>
+        <!-- Firebase SDKを追加 -->
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
       </head>
       <body>
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
-        <p>あなたの選択: ${myChoices.character ? '完了' : '未選択'}</p>
-        <p>相手の選択: ${opponentChoices.character ? '完了' : '未選択'}</p>
-        ${myChoices.character && !opponentChoices.character ? '<p>相手の選択を待っています...</p>' : ''}
-        ${myChoices.character && opponentChoices.character ? '<p>次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a></p>' : ''}
+        <p id="myStatus">あなたの選択: ${myChoices.character ? '完了' : '未選択'}</p>
+        <p id="opponentStatus">相手の選択: ${opponentChoices.character ? '完了' : '未選択'}</p>
+        <p id="guide">${myChoices.character && !opponentChoices.character ? '相手の選択を待っています...' : (myChoices.character && opponentChoices.character ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' : 'キャラクターを選んでください')}</p>
   
         <div class="section">
           <h2>キャラクター選択</h2>
@@ -447,6 +413,19 @@ button:not(.char-btn):not(.stage-btn) {
         <p><a href="/api/solo">戻る</a></p>
   
         <script>
+          // Firebase初期化
+          const firebaseConfig = {
+            apiKey: "${process.env.FIREBASE_API_KEY}",
+            authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+            projectId: "${process.env.FIREBASE_PROJECT_ID}",
+            storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+            messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+            appId: "${process.env.FIREBASE_APP_ID}",
+            measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+          };
+          firebase.initializeApp(firebaseConfig);
+          const db = firebase.firestore();
+  
           let selectedChar = '${myChoices.character || ''}';
           let selectedStage = '${myChoices.stage || ''}';
   
@@ -490,9 +469,7 @@ button:not(.char-btn):not(.stage-btn) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
               });
-              if (response.ok) {
-                window.location.reload();
-              } else {
+              if (!response.ok) {
                 const errorText = await response.text();
                 alert('保存に失敗しました: ' + errorText);
               }
@@ -500,6 +477,22 @@ button:not(.char-btn):not(.stage-btn) {
               alert('ネットワークエラー: ' + error.message);
             }
           }
+  
+          // リアルタイムリスナー
+          db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
+            const data = doc.data();
+            const isPlayer1 = '${userId}' === data.userId;
+            const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+            const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+  
+            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices?.character ? '完了' : '未選択');
+            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices?.character ? '完了' : '未選択');
+            document.getElementById('guide').innerHTML = myChoices?.character && !opponentChoices?.character 
+              ? '相手の選択を待っています...' 
+              : (myChoices?.character && opponentChoices?.character 
+                ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
+                : 'キャラクターを選んでください');
+          });
         </script>
       </body>
     </html>
