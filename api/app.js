@@ -356,15 +356,51 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; }
-          .popup img { width: 64px; height: 64px; margin: 5px; }
-          .section { margin: 20px 0; }
-          #miiInput { display: none; }
-          .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
-          .char-btn.selected { opacity: 1; }
-          .stage-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
-          .stage-btn.selected { opacity: 1; }
-          button:not(.char-btn):not(.stage-btn) { opacity: 1 !important; }
+.popup { 
+  display: none; 
+  position: fixed; 
+  top: 20%; 
+  left: 20%; 
+  width: 60%; 
+  height: 60%; 
+  background: white; /* 不透明な白背景 */
+  border: none; 
+  overflow: auto; 
+}
+.popup img { 
+  width: 64px; 
+  height: 64px; 
+  margin: 5px; 
+}
+.section { 
+  margin: 20px 0; 
+}
+#miiInput { 
+  display: none; 
+}
+.char-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; 
+  background: none; 
+  padding: 0; 
+}
+.char-btn.selected { 
+  opacity: 1; 
+}
+.stage-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; 
+  background: none; 
+  padding: 0; 
+}
+.stage-btn.selected { 
+  opacity: 1; 
+}
+button:not(.char-btn):not(.stage-btn) { 
+  opacity: 1 !important; 
+}
         </style>
       </head>
       <body>
