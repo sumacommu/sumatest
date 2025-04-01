@@ -356,69 +356,68 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-.overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5); /* 半透明の黒で背後を遮断 */
-  z-index: 1; /* ポップアップより下 */
-}
-.popup { 
-  display: none; 
-  position: fixed; 
-  top: 20%; 
-  left: 20%; 
-  width: 60%; 
-  height: 60%; 
-  background: white; /* 不透明な白背景 */
-  border: none; 
-  overflow: auto; 
-  z-index: 2; /* オーバーレイより上 */
-}
-.popup img { 
-  width: 64px; 
-  height: 64px; 
-  margin: 5px; 
-}
-.section { 
-  margin: 20px 0; 
-}
-#miiInput { 
-  display: none; 
-}
-.char-btn { 
-  opacity: 0.3; 
-  transition: opacity 0.3s; 
-  border: none; 
-  background: none; 
-  padding: 0; 
-}
-.char-btn.selected { 
-  opacity: 1; 
-}
-.stage-btn { 
-  opacity: 0.3; 
-  transition: opacity 0.3s; 
-  border: none; 
-  background: none; 
-  padding: 0; 
-}
-.stage-btn.selected { 
-  opacity: 1; 
-}
-button:not(.char-btn):not(.stage-btn) { 
-  opacity: 1 !important; 
-}
+          .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* 半透明の黒で背後を遮断 */
+            z-index: 1; /* ポップアップより下 */
+          }
+          .popup { 
+            display: none; 
+            position: fixed; 
+            top: 20%; 
+            left: 20%; 
+            width: 60%; 
+            height: 60%; 
+            background: white; /* 不透明な白背景 */
+            border: none; 
+            overflow: auto; 
+            z-index: 2; /* オーバーレイより上 */
+          }
+          .popup img { 
+            width: 64px; 
+            height: 64px; 
+            margin: 5px; 
+          }
+          .section { 
+            margin: 20px 0; 
+          }
+          #miiInput { 
+            display: none; 
+          }
+          .char-btn { 
+            opacity: 0.3; 
+            transition: opacity 0.3s; 
+            border: none; 
+            background: none; 
+            padding: 0; 
+          }
+          .char-btn.selected { 
+            opacity: 1; 
+          }
+          .stage-btn { 
+            opacity: 0.3; 
+            transition: opacity 0.3s; 
+            border: none; 
+            background: none; 
+            padding: 0; 
+          }
+          .stage-btn.selected { 
+            opacity: 1; 
+          }
+          button:not(.char-btn):not(.stage-btn) { 
+            opacity: 1 !important; 
+          }
         </style>
-        <!-- Firebase SDKを追加 -->
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
       </head>
       <body>
-        <div class="overlay" id="overlay">
+        <div class="overlay" id="overlay"></div>
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
@@ -433,7 +432,7 @@ button:not(.char-btn):not(.stage-btn) {
               <img src="/characters/${char.id}.png">
             </button>
           `).join('')}
-          <button onclick="document.getElementById('charPopup').style.display='block'">全キャラから選ぶ</button>
+          <button onclick="document.getElementById('charPopup').style.display='block';document.getElementById('overlay').style.display='block';">全キャラから選ぶ</button>
           <div id="charPopup" class="popup">
             ${allCharacters.map(char => `
               <button class="char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
@@ -461,7 +460,6 @@ button:not(.char-btn):not(.stage-btn) {
         <p><a href="/api/solo">戻る</a></p>
   
         <script>
-          // Firebase初期化
           const firebaseConfig = {
             apiKey: "${process.env.FIREBASE_API_KEY}",
             authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
@@ -477,20 +475,20 @@ button:not(.char-btn):not(.stage-btn) {
           let selectedChar = '${myChoices.character || ''}';
           let selectedStage = '${myChoices.stage || ''}';
   
-function selectCharacter(id, name) {
-  selectedChar = id;
-  document.getElementById('charPopup').style.display = 'none';
-  document.getElementById('overlay').style.display = 'none'; // 選択時にオーバーレイも消す
-  const miiInput = document.getElementById('miiInput');
-  if (['54', '55', '56'].includes(id)) {
-    miiInput.style.display = 'block';
-  } else {
-    miiInput.style.display = 'none';
-  }
-  document.querySelectorAll('.char-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.id === id);
-  });
-}
+          function selectCharacter(id, name) {
+            selectedChar = id;
+            document.getElementById('charPopup').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            const miiInput = document.getElementById('miiInput');
+            if (['54', '55', '56'].includes(id)) {
+              miiInput.style.display = 'block';
+            } else {
+              miiInput.style.display = 'none';
+            }
+            document.querySelectorAll('.char-btn').forEach(btn => {
+              btn.classList.toggle('selected', btn.dataset.id === id);
+            });
+          }
   
           function selectStage(id, name) {
             selectedStage = id;
@@ -499,10 +497,10 @@ function selectCharacter(id, name) {
             });
           }
   
-document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
-  document.getElementById('charPopup').style.display = 'block';
-  document.getElementById('overlay').style.display = 'block';
-});
+          document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
+            document.getElementById('charPopup').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+          });
   
           async function saveSelections(matchId) {
             if (!selectedChar || !selectedStage) {
@@ -528,7 +526,6 @@ document.querySelector('button[onclick*="charPopup"]').addEventListener('click',
             }
           }
   
-          // リアルタイムリスナー
           db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
             const data = doc.data();
             const isPlayer1 = '${userId}' === data.userId;
@@ -544,7 +541,6 @@ document.querySelector('button[onclick*="charPopup"]').addEventListener('click',
                 : 'キャラクターを選んでください');
           });
         </script>
-        </div>
       </body>
     </html>
   `);
