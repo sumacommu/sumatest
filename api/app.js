@@ -352,6 +352,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     { id: 'Small Battlefield', name: '小戦場' }
   ];
 
+  const firebaseConfigScript = `
+    const firebaseConfig = {
+      apiKey: "${process.env.FIREBASE_API_KEY}",
+      authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+      projectId: "${process.env.FIREBASE_PROJECT_ID}",
+      storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+      messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+      appId: "${process.env.FIREBASE_APP_ID}",
+      measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  `;
+
   res.send(`
     <html>
       <head>
@@ -363,8 +377,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5); /* 半透明の黒で背後を遮断 */
-            z-index: 1; /* ポップアップより下 */
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1;
           }
           .popup { 
             display: none; 
@@ -373,10 +387,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             left: 20%; 
             width: 60%; 
             height: 60%; 
-            background: white; /* 不透明な白背景 */
+            background: white;
             border: none; 
             overflow: auto; 
-            z-index: 2; /* オーバーレイより上 */
+            z-index: 2;
           }
           .popup img { 
             width: 64px; 
@@ -415,6 +429,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         </style>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script>${firebaseConfigScript}</script>
       </head>
       <body>
         <div class="overlay" id="overlay"></div>
@@ -460,18 +475,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <p><a href="/api/solo">戻る</a></p>
   
         <script>
-          const firebaseConfig = {
-            apiKey: "${process.env.FIREBASE_API_KEY}",
-            authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
-            projectId: "${process.env.FIREBASE_PROJECT_ID}",
-            storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
-            messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-            appId: "${process.env.FIREBASE_APP_ID}",
-            measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
-          };
-          firebase.initializeApp(firebaseConfig);
-          const db = firebase.firestore();
-  
           let selectedChar = '${myChoices.character || ''}';
           let selectedStage = '${myChoices.stage || ''}';
   
