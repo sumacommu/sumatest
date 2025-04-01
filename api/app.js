@@ -2,6 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const FirestoreStore = require('connect-firestore')(session); // 追加
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 require('dotenv').config();
@@ -22,13 +23,22 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 // Express設定
-app.use(express.json()); // JSONボディ解析を確実に
-app.use(express.urlencoded({ extended: true })); // POST用
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'your-secret-key',
+  store: new FirestoreStore({
+    database: db,
+    collection: 'sessions' // Firestoreにセッションを保存するコレクション
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key', // .envで管理推奨
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7日有効
+  cookie: { 
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7日有効
+    secure: process.env.NODE_ENV === 'production', // 本番ではHTTPS必須
+    httpOnly: true,
+    sameSite: 'lax'
+  }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -121,23 +131,16 @@ app.get('/api/', async (req, res) => {
 // Google認証ルート
 app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/api/auth/google/callback', passport.authenticate('google', { failureRedirect: '/api/' }), (req, res) => {
-  console.log('コールバック成功、リダイレクト');
-  res.redirect('/api/');
+  console.log('コールバック成功:', req.user.id);
+  res.redirect('/api/solo'); // 直接タイマン用へ
 });
 
 // ログアウトルート
 app.get('/api/logout', (req, res) => {
   req.logout((err) => {
-    if (err) {
-      console.error('ログアウトエラー:', err);
-      return res.status(500).send('ログアウトに失敗しました');
-    }
+    if (err) return res.status(500).send('ログアウトに失敗しました');
     req.session.destroy((err) => {
-      if (err) {
-        console.error('セッション破棄エラー:', err);
-        return res.status(500).send('セッション破棄に失敗しました');
-      }
-      console.log('ログアウト成功');
+      if (err) return res.status(500).send('セッション破棄に失敗しました');
       res.redirect('/api/');
     });
   });
