@@ -356,21 +356,69 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; }
-          .popup img { width: 64px; height: 64px; margin: 5px; }
-          .section { margin: 20px 0; }
-          #miiInput { display: none; }
-          .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
-          .char-btn.selected { opacity: 1; }
-          .stage-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
-          .stage-btn.selected { opacity: 1; }
-          button:not(.char-btn):not(.stage-btn) { opacity: 1 !important; }
+.overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* 半透明の黒で背後を遮断 */
+  z-index: 1; /* ポップアップより下 */
+}
+.popup { 
+  display: none; 
+  position: fixed; 
+  top: 20%; 
+  left: 20%; 
+  width: 60%; 
+  height: 60%; 
+  background: white; /* 不透明な白背景 */
+  border: none; 
+  overflow: auto; 
+  z-index: 2; /* オーバーレイより上 */
+}
+.popup img { 
+  width: 64px; 
+  height: 64px; 
+  margin: 5px; 
+}
+.section { 
+  margin: 20px 0; 
+}
+#miiInput { 
+  display: none; 
+}
+.char-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; 
+  background: none; 
+  padding: 0; 
+}
+.char-btn.selected { 
+  opacity: 1; 
+}
+.stage-btn { 
+  opacity: 0.3; 
+  transition: opacity 0.3s; 
+  border: none; 
+  background: none; 
+  padding: 0; 
+}
+.stage-btn.selected { 
+  opacity: 1; 
+}
+button:not(.char-btn):not(.stage-btn) { 
+  opacity: 1 !important; 
+}
         </style>
         <!-- Firebase SDKを追加 -->
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
       </head>
       <body>
+        <div class="overlay" id="overlay">
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
         <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
@@ -429,19 +477,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           let selectedChar = '${myChoices.character || ''}';
           let selectedStage = '${myChoices.stage || ''}';
   
-          function selectCharacter(id, name) {
-            selectedChar = id;
-            document.getElementById('charPopup').style.display = 'none';
-            const miiInput = document.getElementById('miiInput');
-            if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block';
-            } else {
-              miiInput.style.display = 'none';
-            }
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
+function selectCharacter(id, name) {
+  selectedChar = id;
+  document.getElementById('charPopup').style.display = 'none';
+  document.getElementById('overlay').style.display = 'none'; // 選択時にオーバーレイも消す
+  const miiInput = document.getElementById('miiInput');
+  if (['54', '55', '56'].includes(id)) {
+    miiInput.style.display = 'block';
+  } else {
+    miiInput.style.display = 'none';
+  }
+  document.querySelectorAll('.char-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.id === id);
+  });
+}
   
           function selectStage(id, name) {
             selectedStage = id;
@@ -450,9 +499,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             });
           }
   
-          document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
-            document.getElementById('charPopup').style.display = 'block';
-          });
+document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
+  document.getElementById('charPopup').style.display = 'block';
+  document.getElementById('overlay').style.display = 'block';
+});
   
           async function saveSelections(matchId) {
             if (!selectedChar || !selectedStage) {
@@ -494,6 +544,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 : 'キャラクターを選んでください');
           });
         </script>
+        </div>
       </body>
     </html>
   `);
@@ -503,8 +554,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  console.log('リクエスト受信:', { matchId, userId, body: req.body });
-
   if (!userId) return res.status(401).send('ログインが必要です');
 
   const { character, stage, miiMoves } = req.body;
@@ -530,14 +579,8 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     updateData.step = 'stage_ban_1';
   }
 
-  try {
-    await updateDoc(matchRef, updateData);
-    console.log('保存成功:', updateData);
-    res.status(200).send('OK');
-  } catch (error) {
-    console.error('保存エラー:', error.message, error.stack);
-    res.status(500).send('保存に失敗しました: ' + error.message);
-  }
+  await updateDoc(matchRef, updateData);
+  res.status(200).send('OK');
 });
 
 // ID更新処理
