@@ -2,10 +2,10 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const RedisStore = require('connect-redis').default; // 修正
+const RedisStore = require('connect-redis').default;
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -25,8 +25,8 @@ const db = getFirestore(firebaseApp);
 const redisClient = createClient({
   url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379'
 });
-console.log('Redis URLをハードコード');
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
+redisClient.on('connect', () => console.log('Redisに接続成功'));
 redisClient.connect().catch(console.error);
 
 app.use(express.json());
@@ -43,8 +43,16 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+app.use((req, res, next) => {
+  console.log('セッション初期化後:', req.session);
+  next();
+});
 app.use(passport.initialize());
 app.use(passport.session());
+app.use((req, res, next) => {
+  console.log('Passport後: req.session.passport:', req.session.passport);
+  next();
+});
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
