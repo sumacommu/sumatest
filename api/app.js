@@ -762,6 +762,234 @@ app.post('/api/solo/update', async (req, res) => {
   }
 });
 
+// ステージ拒否画面を表示するルート
+app.get('/api/solo/ban/:matchId', async (req, res) => {
+  const matchId = req.params.matchId; // URLからマッチIDを取得
+  const userId = req.user?.id; // ログインユーザーのID
+  if (!userId) return res.redirect('/api/solo'); // 未ログインならリダイレクト
+
+  const matchRef = doc(db, 'matches', matchId); // Firestoreのマッチドキュメント参照
+  const matchSnap = await getDoc(matchRef); // マッチデータを取得
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.send('マッチが見つかりません'); // マッチが存在しないか権限がない場合
+  }
+
+  const matchData = matchSnap.data(); // マッチデータ
+  const isPlayer1 = matchData.userId === userId; // 自分がPlayer1かどうか
+  const opponentId = isPlayer1 ? matchData.opponentId : matchData.userId; // 対戦相手のID
+  const opponentRef = doc(db, 'users', opponentId); // 対戦相手のユーザーデータ参照
+  const opponentSnap = await getDoc(opponentRef); // 対戦相手のデータ取得
+  const opponentName = opponentSnap.data().displayName || '不明'; // 対戦相手の名前
+
+  // 各プレイヤーの選択状況
+  const player1Choices = matchData.player1Choices || {};
+  const player2Choices = matchData.player2Choices || {};
+  const myChoices = isPlayer1 ? player1Choices : player2Choices; // 自分の選択
+  const opponentChoices = isPlayer1 ? player2Choices : player1Choices; // 相手の選択
+
+  // ステージ一覧
+  const stages = [
+    { id: 'BattleField', name: '戦場' },
+    { id: 'Final Destination', name: '終点' },
+    { id: 'Hollow Bastion', name: 'ホロウバスティオン' },
+    { id: 'Pokemon Stadium 2', name: 'ポケモンスタジアム2' },
+    { id: 'Small Battlefield', name: '小戦場' }
+  ];
+
+  // 拒否されたステージを統合
+  const bannedStages = [
+    ...(player1Choices.bannedStages || []),
+    ...(player2Choices.bannedStages || [])
+  ];
+  const availableStages = stages.filter(stage => !bannedStages.includes(stage.id)); // 残りのステージ
+
+  // 状況に応じたガイドテキスト
+  let guideText = '';
+  if (isPlayer1 && !player1Choices.bannedStages) {
+    guideText = '拒否ステージを1つ選んでください。'; // Player1が最初に1つ拒否
+  } else if (isPlayer1 && player1Choices.bannedStages && !player2Choices.bannedStages) {
+    guideText = '相手が拒否ステージを選んでいます...'; // Player1待機中
+  } else if (!isPlayer1 && player1Choices.bannedStages && !player2Choices.bannedStages) {
+    guideText = '拒否ステージを2つ選んでください。'; // Player2が2つ拒否
+  } else if (player1Choices.bannedStages && player2Choices.bannedStages) {
+    guideText = isPlayer1
+      ? '表示されている残りのステージから選び、対戦を開始してください。' // Player1が最終選択
+      : 'ステージを「おまかせ」に設定し、対戦を開始してください。'; // Player2はおまかせ
+  }
+
+  // Firebase設定スクリプト
+  const firebaseConfigScript = `
+    const firebaseConfig = {
+      apiKey: "${process.env.FIREBASE_API_KEY}",
+      authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+      projectId: "${process.env.FIREBASE_PROJECT_ID}",
+      storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+      messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+      appId: "${process.env.FIREBASE_APP_ID}",
+      measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  `;
+
+  // HTMLレスポンスを送信
+  res.send(`
+    <html>
+      <head>
+        <style>
+          .stage-btn { 
+            opacity: 0.3; 
+            transition: opacity 0.3s; 
+            border: none; 
+            background: none; 
+            padding: 0; 
+          }
+          .stage-btn.selected { 
+            opacity: 1; 
+          }
+          .stage-btn.banned { 
+            opacity: 0.1; 
+            pointer-events: none; 
+          }
+        </style>
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script>${firebaseConfigScript}</script>
+      </head>
+      <body>
+        <h1>ステージ拒否</h1>
+        <p>相手: ${opponentName}</p>
+        <p id="guide">${guideText}</p>
+        <div class="section">
+          ${stages.map(stage => `
+            <button class="stage-btn ${bannedStages.includes(stage.id) ? 'banned' : (myChoices.finalStage === stage.id ? 'selected' : '')}" 
+                    data-id="${stage.id}" 
+                    onclick="${!bannedStages.includes(stage.id) && guideText.includes('選んでください') ? `selectStage('${stage.id}')` : ''}">
+              <img src="/stages/${stage.id}.png">
+            </button>
+          `).join('')}
+        </div>
+        <button id="submitBtn" onclick="saveBan('${matchId}')" ${guideText.includes('待っています') ? 'disabled' : ''}>決定</button>
+        <p><a href="/api/solo">戻る</a></p>
+
+        <script>
+          let selectedStages = ${JSON.stringify(myChoices.bannedStages || [])}; // 自分が拒否したステージ
+          let finalStage = '${myChoices.finalStage || ''}'; // 最終選択ステージ
+
+          // ステージ選択処理
+          function selectStage(id) {
+            const isPlayer1 = ${isPlayer1};
+            if (isPlayer1 && !${JSON.stringify(player1Choices.bannedStages)} && selectedStages.length < 1) {
+              selectedStages = [id]; // Player1は1つ選択
+            } else if (!isPlayer1 && ${JSON.stringify(player1Choices.bannedStages)} && !${JSON.stringify(player2Choices.bannedStages)} && selectedStages.length < 2) {
+              if (!selectedStages.includes(id)) selectedStages.push(id); // Player2は2つ選択
+            } else if (isPlayer1 && ${JSON.stringify(player2Choices.bannedStages)}) {
+              finalStage = id; // Player1が最終ステージを選択
+            }
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+              btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id) || btn.dataset.id === finalStage);
+            });
+          }
+
+          // 選択を保存する処理
+          async function saveBan(matchId) {
+            const data = ${isPlayer1} && ${JSON.stringify(player2Choices.bannedStages)} 
+              ? { finalStage: finalStage } 
+              : { bannedStages: selectedStages };
+            if ((!${isPlayer1} && selectedStages.length !== 2) || (${isPlayer1} && !${JSON.stringify(player1Choices.bannedStages)} && selectedStages.length !== 1)) {
+              alert('必要な数のステージを選択してください');
+              return;
+            }
+            if (${isPlayer1} && ${JSON.stringify(player2Choices.bannedStages)} && !finalStage) {
+              alert('最終ステージを選択してください');
+              return;
+            }
+
+            try {
+              const response = await fetch('/api/solo/ban/' + matchId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              if (!response.ok) throw new Error(await response.text());
+            } catch (error) {
+              alert('保存に失敗しました: ' + error.message);
+            }
+          }
+
+          // Firestoreのリアルタイム更新
+          db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
+            const data = doc.data();
+            const isPlayer1 = '${userId}' === data.userId;
+            const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+            const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+            const bannedStages = [...(myChoices?.bannedStages || []), ...(opponentChoices?.bannedStages || [])];
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+              btn.classList.toggle('banned', bannedStages.includes(btn.dataset.id));
+              btn.classList.toggle('selected', myChoices?.finalStage === btn.dataset.id);
+            });
+            let newGuide = '';
+            if (isPlayer1 && !myChoices?.bannedStages) {
+              newGuide = '拒否ステージを1つ選んでください。';
+            } else if (isPlayer1 && myChoices?.bannedStages && !opponentChoices?.bannedStages) {
+              newGuide = '相手が拒否ステージを選んでいます...';
+            } else if (!isPlayer1 && opponentChoices?.bannedStages && !myChoices?.bannedStages) {
+              newGuide = '拒否ステージを2つ選んでください。';
+            } else if (myChoices?.bannedStages && opponentChoices?.bannedStages) {
+              newGuide = isPlayer1 
+                ? '表示されている残りのステージから選び、対戦を開始してください。' 
+                : 'ステージを「おまかせ」に設定し、対戦を開始してください。';
+            }
+            document.getElementById('guide').innerText = newGuide;
+            document.getElementById('submitBtn').disabled = newGuide.includes('待っています');
+          });
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+// ステージ拒否の選択を保存する処理
+app.post('/api/solo/ban/:matchId', async (req, res) => {
+  const matchId = req.params.matchId; // URLからマッチIDを取得
+  const userId = req.user?.id; // ログインユーザーのID
+  if (!userId) return res.status(401).send('ログインが必要です'); // 未ログインならエラー
+
+  const { bannedStages, finalStage } = req.body; // リクエストボディからデータ取得
+  if (!bannedStages && !finalStage) return res.status(400).send('ステージ情報が必要です'); // データがない場合
+
+  const matchRef = doc(db, 'matches', matchId); // Firestoreのマッチドキュメント参照
+  const matchSnap = await getDoc(matchRef); // マッチデータを取得
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    return res.status(404).send('マッチが見つかりません'); // マッチが存在しないか権限がない場合
+  }
+
+  const matchData = matchSnap.data(); // マッチデータ
+  const isPlayer1 = matchData.userId === userId; // 自分がPlayer1かどうか
+  const updateData = {}; // 更新用データ
+
+  // ステージ拒否または最終選択の処理
+  if (bannedStages) {
+    if (isPlayer1 && !matchData.player1Choices.bannedStages && bannedStages.length === 1) {
+      updateData.player1Choices = { ...matchData.player1Choices, bannedStages }; // Player1の拒否を保存
+      updateData.step = 'stage_ban_2'; // 次のステップへ
+    } else if (!isPlayer1 && matchData.player1Choices.bannedStages && !matchData.player2Choices.bannedStages && bannedStages.length === 2) {
+      updateData.player2Choices = { ...matchData.player2Choices, bannedStages }; // Player2の拒否を保存
+      updateData.step = 'final_stage'; // 次のステップへ
+    } else {
+      return res.status(400).send('不正なステージ拒否数です'); // 拒否数が不正な場合
+    }
+  } else if (finalStage && isPlayer1 && matchData.player2Choices.bannedStages) {
+    updateData.player1Choices = { ...matchData.player1Choices, finalStage }; // Player1の最終ステージを保存
+    updateData.step = 'completed'; // 完了ステップへ
+  } else {
+    return res.status(400).send('不正な操作です'); // 不正な操作の場合
+  }
+
+  await updateDoc(matchRef, updateData); // Firestoreを更新
+  res.status(200).send('OK'); // 成功レスポンス
+});
+
 // チーム用ページ（仮）
 app.get('/api/team', async (req, res) => {
   res.send(`
