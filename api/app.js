@@ -72,6 +72,19 @@ class CustomRedisStore extends EventEmitter {
       cb(err);
     }
   }
+
+  async regenerate(req, cb) {
+    console.log('Regenerate開始:', req.sessionID);
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Regenerateエラー:', err);
+        return cb(err);
+      }
+      req.sessionStore.generate(req); // 新しいセッションを生成
+      console.log('Regenerate成功:', req.sessionID);
+      cb(null);
+    });
+  }
 }
 
 const redisStore = new CustomRedisStore(redisClient);
