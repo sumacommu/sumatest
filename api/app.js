@@ -457,30 +457,33 @@ app.post('/api/solo/match', async (req, res) => {
 });
 
 // セットアップ画面
+// セットアップ画面（キャラクター選択）
 app.get('/api/solo/setup/:matchId', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  if (!userId) return res.redirect('/api/solo');
+  const matchId = req.params.matchId; // URLからマッチIDを取得
+  const userId = req.user?.id; // ログインユーザーのID
+  if (!userId) return res.redirect('/api/solo'); // 未ログインならリダイレクト
 
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
+  const matchRef = doc(db, 'matches', matchId); // Firestoreのマッチドキュメント参照
+  const matchSnap = await getDoc(matchRef); // マッチデータを取得
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    return res.send('マッチが見つかりません');
+    return res.send('マッチが見つかりません'); // マッチが存在しないか権限がない場合
   }
 
-  const matchData = matchSnap.data();
-  const isPlayer1 = matchData.userId === userId;
-  const opponentId = isPlayer1 ? matchData.opponentId : matchData.userId;
-  const opponentRef = doc(db, 'users', opponentId);
-  const opponentSnap = await getDoc(opponentRef);
-  const opponentName = opponentSnap.data().displayName || '不明';
-  const opponentRating = opponentSnap.data().rating || 1500;
+  const matchData = matchSnap.data(); // マッチデータ
+  const isPlayer1 = matchData.userId === userId; // 自分がPlayer1かどうか
+  const opponentId = isPlayer1 ? matchData.opponentId : matchData.userId; // 対戦相手のID
+  const opponentRef = doc(db, 'users', opponentId); // 対戦相手のユーザーデータ参照
+  const opponentSnap = await getDoc(opponentRef); // 対戦相手のデータ取得
+  const opponentName = opponentSnap.data().displayName || '不明'; // 対戦相手の名前
+  const opponentRating = opponentSnap.data().rating || 1500; // 対戦相手のレート
 
+  // 各プレイヤーの選択状況
   const player1Choices = matchData.player1Choices || {};
   const player2Choices = matchData.player2Choices || {};
-  const myChoices = isPlayer1 ? player1Choices : player2Choices;
-  const opponentChoices = isPlayer1 ? player2Choices : player1Choices;
+  const myChoices = isPlayer1 ? player1Choices : player2Choices; // 自分の選択
+  const opponentChoices = isPlayer1 ? player2Choices : player1Choices; // 相手の選択
 
+  // キャラクターとステージのデータ
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
     return { id, name: `キャラ${id}` };
@@ -500,6 +503,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     { id: 'Small Battlefield', name: '小戦場' }
   ];
 
+  // Firebase設定スクリプト
   const firebaseConfigScript = `
     const firebaseConfig = {
       apiKey: "${process.env.FIREBASE_API_KEY}",
@@ -514,6 +518,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     const db = firebase.firestore();
   `;
 
+  // HTMLレスポンスを送信
   res.send(`
     <html>
       <head>
@@ -562,17 +567,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 1; 
           }
           .stage-btn { 
-            opacity: 0.3; 
             transition: opacity 0.3s; 
             border: none; 
             background: none; 
             padding: 0; 
-          }
-          .stage-btn.selected { 
-            opacity: 1; 
-          }
-          button:not(.char-btn):not(.stage-btn) { 
-            opacity: 1 !important; 
+            pointer-events: none; /* ステージ選択を無効化 */
           }
         </style>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
@@ -611,9 +610,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         </div>
   
         <div class="section">
-          <h2>ステージ選択</h2>
+          <h2>ステージ（選択不可）</h2>
           ${stages.map(stage => `
-            <button class="stage-btn ${myChoices.stage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
+            <button class="stage-btn" data-id="${stage.id}">
               <img src="/stages/${stage.id}.png">
             </button>
           `).join('')}
@@ -623,16 +622,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <p><a href="/api/solo">戻る</a></p>
   
         <script>
-          let selectedChar = '${myChoices.character || ''}';
-          let selectedStage = '${myChoices.stage || ''}';
-  
+          let selectedChar = '${myChoices.character || ''}'; // 選択中のキャラクター
+
+          // キャラクター選択処理
           function selectCharacter(id, name) {
             selectedChar = id;
             document.getElementById('charPopup').style.display = 'none';
             document.getElementById('overlay').style.display = 'none';
             const miiInput = document.getElementById('miiInput');
             if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block';
+              miiInput.style.display = 'block'; // Miiファイターなら技入力欄を表示
             } else {
               miiInput.style.display = 'none';
             }
@@ -640,28 +639,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               btn.classList.toggle('selected', btn.dataset.id === id);
             });
           }
-  
-          function selectStage(id, name) {
-            selectedStage = id;
-            document.querySelectorAll('.stage-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
-  
-          document.querySelector('button[onclick*="charPopup"]').addEventListener('click', () => {
-            document.getElementById('charPopup').style.display = 'block';
-            document.getElementById('overlay').style.display = 'block';
-          });
-  
+
+          // 選択を保存する処理（ステージは含まない）
           async function saveSelections(matchId) {
-            if (!selectedChar || !selectedStage) {
-              alert('キャラクターとステージを選択してください');
+            if (!selectedChar) {
+              alert('キャラクターを選択してください');
               return;
             }
             const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-            const data = { character: selectedChar, stage: selectedStage };
+            const data = { character: selectedChar };
             if (miiMoves) data.miiMoves = miiMoves;
-  
+
             try {
               const response = await fetch('/api/solo/setup/' + matchId, {
                 method: 'POST',
@@ -676,7 +664,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               alert('ネットワークエラー: ' + error.message);
             }
           }
-  
+
+          // Firestoreのリアルタイム更新
           db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
             const data = doc.data();
             const isPlayer1 = '${userId}' === data.userId;
@@ -698,36 +687,37 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 });
 
 // キャラ・ステージ保存処理
+// キャラ・ステージ保存処理（ステージは削除）
 app.post('/api/solo/setup/:matchId', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).send('ログインが必要です');
+  const matchId = req.params.matchId; // URLからマッチIDを取得
+  const userId = req.user?.id; // ログインユーザーのID
+  if (!userId) return res.status(401).send('ログインが必要です'); // 未ログインならエラー
 
-  const { character, stage, miiMoves } = req.body;
-  if (!character || !stage) return res.status(400).send('キャラクターとステージが必要です');
+  const { character, miiMoves } = req.body; // リクエストボディからデータ取得（ステージ削除）
+  if (!character) return res.status(400).send('キャラクターが必要です'); // キャラが必須
 
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
+  const matchRef = doc(db, 'matches', matchId); // Firestoreのマッチドキュメント参照
+  const matchSnap = await getDoc(matchRef); // マッチデータを取得
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
-    return res.status(404).send('マッチが見つかりません');
+    return res.status(404).send('マッチが見つかりません'); // マッチが存在しないか権限がない場合
   }
 
-  const matchData = matchSnap.data();
-  const isPlayer1 = matchData.userId === userId;
-  const choices = { character, stage };
-  if (miiMoves) choices.miiMoves = miiMoves;
+  const matchData = matchSnap.data(); // マッチデータ
+  const isPlayer1 = matchData.userId === userId; // 自分がPlayer1かどうか
+  const choices = { character }; // 保存するデータ（ステージ削除）
+  if (miiMoves) choices.miiMoves = miiMoves; // Miiの技があれば追加
 
   const updateData = {
-    ...(isPlayer1 ? { player1Choices: choices } : { player2Choices: choices }),
-    step: matchData.step || 'character_selection'
+    ...(isPlayer1 ? { player1Choices: choices } : { player2Choices: choices }), // Player1か2に応じて更新
+    step: matchData.step || 'character_selection' // ステップを維持
   };
 
   if ((isPlayer1 && matchData.player2Choices) || (!isPlayer1 && matchData.player1Choices)) {
-    updateData.step = 'stage_ban_1';
+    updateData.step = 'stage_ban_1'; // 両者が選択済みなら次のステップへ
   }
 
-  await updateDoc(matchRef, updateData);
-  res.status(200).send('OK');
+  await updateDoc(matchRef, updateData); // Firestoreを更新
+  res.status(200).send('OK'); // 成功レスポンス
 });
 
 // ID更新処理
@@ -763,6 +753,7 @@ app.post('/api/solo/update', async (req, res) => {
 });
 
 // ステージ拒否画面を表示するルート
+// ステージ拒否画面
 app.get('/api/solo/ban/:matchId', async (req, res) => {
   const matchId = req.params.matchId; // URLからマッチIDを取得
   const userId = req.user?.id; // ログインユーザーのID
@@ -838,18 +829,16 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
       <head>
         <style>
           .stage-btn { 
-            opacity: 0.3; 
-            transition: opacity 0.3s; 
+            transition: opacity 0.3s, filter 0.3s; /* 透明度とフィルターのトランジション */
             border: none; 
             background: none; 
             padding: 0; 
           }
           .stage-btn.selected { 
-            opacity: 1; 
+            opacity: 0.3; /* 選択中は透明化 */
           }
           .stage-btn.banned { 
-            opacity: 0.1; 
-            pointer-events: none; 
+            filter: grayscale(100%); /* 反映済みは白黒 */
           }
         </style>
         <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
@@ -887,7 +876,8 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
               finalStage = id; // Player1が最終ステージを選択
             }
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id) || btn.dataset.id === finalStage);
+              btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id));
+              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id));
             });
           }
 
@@ -926,7 +916,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
             const bannedStages = [...(myChoices?.bannedStages || []), ...(opponentChoices?.bannedStages || [])];
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.toggle('banned', bannedStages.includes(btn.dataset.id));
-              btn.classList.toggle('selected', myChoices?.finalStage === btn.dataset.id);
+              btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id));
             });
             let newGuide = '';
             if (isPlayer1 && !myChoices?.bannedStages) {
