@@ -111,14 +111,17 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
+  name: 'connect.sid',
   cookie: { 
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/'
   }
 }));
 app.use((req, res, next) => {
+  console.log('受信クッキー:', req.headers.cookie);
   console.log('セッションID:', req.sessionID);
   console.log('Passport前: req.session:', req.session);
   next();
@@ -202,15 +205,9 @@ app.get('/api/auth/google/callback',
         return res.redirect('/api/');
       }
       console.log('セッション保存成功、クッキー更新:', req.sessionID);
-      res.cookie('connect.sid', req.sessionID, {
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/'
-      });
+      res.set('Set-Cookie', `connect.sid=${req.sessionID}; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax`);
       const redirectTo = req.query.state || '/api/';
-      res.redirect(redirectTo);
+      res.status(302).set('Location', redirectTo).end();
     });
   }
 );
