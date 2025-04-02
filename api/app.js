@@ -42,8 +42,9 @@ class CustomRedisStore extends EventEmitter {
 
   async get(key, cb) {
     try {
+      console.log('Redis get開始:', key);
       const data = await this.client.get(key);
-      console.log('Redis get:', key, data);
+      console.log('Redis get結果:', key, data);
       cb(null, data ? JSON.parse(data) : null);
     } catch (err) {
       console.error('Redis getエラー:', err);
@@ -53,8 +54,9 @@ class CustomRedisStore extends EventEmitter {
 
   async set(key, sess, cb) {
     try {
+      console.log('Redis set開始:', key, sess);
       await this.client.set(key, JSON.stringify(sess), { EX: 604800 });
-      console.log('Redis set:', key, sess);
+      console.log('Redis set成功:', key);
       cb(null);
     } catch (err) {
       console.error('Redis setエラー:', err);
@@ -64,8 +66,9 @@ class CustomRedisStore extends EventEmitter {
 
   async destroy(key, cb) {
     try {
+      console.log('Redis destroy開始:', key);
       await this.client.del(key);
-      console.log('Redis destroy:', key);
+      console.log('Redis destroy成功:', key);
       cb(null);
     } catch (err) {
       console.error('Redis destroyエラー:', err);
@@ -80,7 +83,7 @@ class CustomRedisStore extends EventEmitter {
         console.error('Regenerateエラー:', err);
         return cb(err);
       }
-      req.sessionStore.generate(req); // 新しいセッションを生成
+      req.sessionStore.generate(req);
       console.log('Regenerate成功:', req.sessionID);
       cb(null);
     });
@@ -103,6 +106,11 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+app.use((req, res, next) => {
+  console.log('セッションID:', req.sessionID);
+  console.log('Passport前: req.session:', req.session);
+  next();
+});
 app.use(passport.initialize());
 app.use(passport.session());
 app.use((req, res, next) => {
@@ -175,8 +183,14 @@ app.get('/api/auth/google/callback',
   (req, res) => {
     console.log('コールバック成功:', req.user.id);
     console.log('コールバック後: req.session:', req.session);
-    const redirectTo = req.query.state || '/api/';
-    res.redirect(redirectTo);
+    req.session.save((err) => {
+      if (err) {
+        console.error('セッション保存エラー:', err);
+        return res.redirect('/api/');
+      }
+      const redirectTo = req.query.state || '/api/';
+      res.redirect(redirectTo);
+    });
   }
 );
 
