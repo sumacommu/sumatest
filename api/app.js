@@ -2,7 +2,6 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const RedisStore = require('connect-redis').default;
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
@@ -34,12 +33,43 @@ redisClient.on('connect', () => console.log('Redisに接続成功'));
 redisClient.on('ready', () => console.log('Redis準備完了'));
 redisClient.connect().catch(console.error);
 
+const redisStore = {
+  get: async (key, cb) => {
+    try {
+      const data = await redisClient.get(key);
+      console.log('Redis get:', key, data);
+      cb(null, data ? JSON.parse(data) : null);
+    } catch (err) {
+      console.error('Redis getエラー:', err);
+      cb(err);
+    }
+  },
+  set: async (key, sess, cb) => {
+    try {
+      await redisClient.set(key, JSON.stringify(sess), { EX: 604800 });
+      console.log('Redis set:', key, sess);
+      cb(null);
+    } catch (err) {
+      console.error('Redis setエラー:', err);
+      cb(err);
+    }
+  },
+  destroy: async (key, cb) => {
+    try {
+      await redisClient.del(key);
+      console.log('Redis destroy:', key);
+      cb(null);
+    } catch (err) {
+      console.error('Redis destroyエラー:', err);
+      cb(err);
+    }
+  }
+};
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  store: new RedisStore({
-    client: redisClient,
-    prefix: 'sess:', // セッションキーのプレフィックス
-    ttl: 604800 // 7日（秒単位）
-  }),
+  store: redisStore,
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
@@ -53,7 +83,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 app.use((req, res, next) => {
-  console.log('Passport後: req.session:', req.session); // 修正
+  console.log('Passport後: req.session:', req.session);
   console.log('Passport後: req.session.passport:', req.session.passport);
   next();
 });
@@ -91,7 +121,6 @@ passport.use(new GoogleStrategy({
 passport.serializeUser((user, done) => {
   console.log('serializeUser:', user.id);
   done(null, user.id);
-  // req.sessionのログはコールバック外で
 });
 
 passport.deserializeUser(async (id, done) => {
