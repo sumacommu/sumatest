@@ -25,8 +25,9 @@ const db = getFirestore(firebaseApp);
 const redisClient = createClient({
   url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379',
   socket: {
-    connectTimeout: 10000,
-    keepAlive: 5000
+    connectTimeout: 20000,
+    keepAlive: 10000,
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
   }
 });
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
@@ -87,6 +88,13 @@ class CustomRedisStore extends EventEmitter {
       console.log('Regenerate成功:', req.sessionID);
       cb(null);
     });
+  }
+
+  generate(req) {
+    console.log('セッション生成開始');
+    req.session = new session.Session(req);
+    req.sessionID = req.session.id;
+    console.log('セッション生成成功:', req.sessionID);
   }
 }
 
@@ -183,11 +191,13 @@ app.get('/api/auth/google/callback',
   (req, res) => {
     console.log('コールバック成功:', req.user.id);
     console.log('コールバック後: req.session:', req.session);
+    console.log('コールバック後: セッションID:', req.sessionID);
     req.session.save((err) => {
       if (err) {
         console.error('セッション保存エラー:', err);
         return res.redirect('/api/');
       }
+      console.log('セッション保存成功、クッキー更新:', req.sessionID);
       const redirectTo = req.query.state || '/api/';
       res.redirect(redirectTo);
     });
