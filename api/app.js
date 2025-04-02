@@ -23,8 +23,9 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 const redisClient = createClient({
-  url: process.env.REDIS_URL // rediss://を確認
+  url: process.env.REDIS_URL
 });
+console.log('使用中のREDIS_URL:', process.env.REDIS_URL); // 追加
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
 redisClient.connect().catch(console.error);
 
