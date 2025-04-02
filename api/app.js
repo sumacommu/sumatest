@@ -621,90 +621,95 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <button onclick="saveSelections('${matchId}')">決定</button>
         <p><a href="/api/solo">戻る</a></p>
   
-        <script>
-          let selectedChar = '${myChoices.character || ''}'; // 選択中のキャラクター
+<script>
+  let selectedChar = '${myChoices.character || ''}'; // 選択中のキャラクター
 
-          // キャラクター選択処理
-          function selectCharacter(id, name) {
-            selectedChar = id;
-            document.getElementById('charPopup').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-            const miiInput = document.getElementById('miiInput');
-            if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block'; // Miiファイターなら技入力欄を表示
-            } else {
-              miiInput.style.display = 'none';
-            }
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
+  // キャラクター選択処理
+  function selectCharacter(id, name) {
+    selectedChar = id;
+    document.getElementById('charPopup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+    const miiInput = document.getElementById('miiInput');
+    if (['54', '55', '56'].includes(id)) {
+      miiInput.style.display = 'block'; // Miiファイターなら技入力欄を表示
+    } else {
+      miiInput.style.display = 'none';
+    }
+    document.querySelectorAll('.char-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.id === id);
+    });
+  }
 
-          // 選択を保存する処理（ステージは含まない）
-          async function saveSelections(matchId) {
-            if (!selectedChar) {
-              alert('キャラクターを選択してください');
-              return;
-            }
-            const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-            const data = { character: selectedChar };
-            if (miiMoves) data.miiMoves = miiMoves;
+  // 選択を保存し、成功したら遷移する処理
+  async function saveSelections(matchId) {
+    if (!selectedChar) {
+      alert('キャラクターを選択してください');
+      return;
+    }
+    const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+    const data = { character: selectedChar };
+    if (miiMoves) data.miiMoves = miiMoves;
 
-            try {
-              const response = await fetch('/api/solo/setup/' + matchId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-              });
-              if (!response.ok) {
-                const errorText = await response.text();
-                alert('保存に失敗しました: ' + errorText);
-              }
-            } catch (error) {
-              alert('ネットワークエラー: ' + error.message);
-            }
-          }
+    try {
+      const response = await fetch('/api/solo/setup/' + matchId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        alert('保存に失敗しました: ' + errorText);
+        return;
+      }
+      // 保存成功後、両者が選択済みか確認せずに一旦遷移（サーバー側で制御済み）
+      window.location.href = '/api/solo/ban/' + matchId; // 明示的に遷移
+    } catch (error) {
+      alert('ネットワークエラー: ' + error.message);
+    }
+  }
 
-          // Firestoreのリアルタイム更新
-          db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
-            const data = doc.data();
-            const isPlayer1 = '${userId}' === data.userId;
-            const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-            const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+  // Firestoreのリアルタイム更新
+  db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
+    const data = doc.data();
+    const isPlayer1 = '${userId}' === data.userId;
+    const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+    const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
   
-            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices?.character ? '完了' : '未選択');
-            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices?.character ? '完了' : '未選択');
-            document.getElementById('guide').innerHTML = myChoices?.character && !opponentChoices?.character 
-              ? '相手の選択を待っています...' 
-              : (myChoices?.character && opponentChoices?.character 
-                ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
-                : 'キャラクターを選んでください');
-          });
-        </script>
+    document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices?.character ? '完了' : '未選択');
+    document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices?.character ? '完了' : '未選択');
+    document.getElementById('guide').innerHTML = myChoices?.character && !opponentChoices?.character 
+      ? '相手の選択を待っています...' 
+      : (myChoices?.character && opponentChoices?.character 
+        ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
+        : 'キャラクターを選んでください');
+  });
+</script>
       </body>
     </html>
   `);
 });
 
-// キャラ・ステージ保存処理
 // キャラ・ステージ保存処理（ステージは削除）
+// キャラ保存処理（ログ追加）
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId; // URLからマッチIDを取得
   const userId = req.user?.id; // ログインユーザーのID
   if (!userId) return res.status(401).send('ログインが必要です'); // 未ログインならエラー
 
-  const { character, miiMoves } = req.body; // リクエストボディからデータ取得（ステージ削除）
+  const { character, miiMoves } = req.body; // リクエストボディからデータ取得
+  console.log(`POST /api/solo/setup/${matchId} 受信データ:`, { character, miiMoves, userId });
   if (!character) return res.status(400).send('キャラクターが必要です'); // キャラが必須
 
   const matchRef = doc(db, 'matches', matchId); // Firestoreのマッチドキュメント参照
   const matchSnap = await getDoc(matchRef); // マッチデータを取得
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    console.error(`マッチが見つかりません: matchId=${matchId}, userId=${userId}`);
     return res.status(404).send('マッチが見つかりません'); // マッチが存在しないか権限がない場合
   }
 
   const matchData = matchSnap.data(); // マッチデータ
   const isPlayer1 = matchData.userId === userId; // 自分がPlayer1かどうか
-  const choices = { character }; // 保存するデータ（ステージ削除）
+  const choices = { character }; // 保存するデータ
   if (miiMoves) choices.miiMoves = miiMoves; // Miiの技があれば追加
 
   const updateData = {
@@ -714,9 +719,11 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
 
   if ((isPlayer1 && matchData.player2Choices) || (!isPlayer1 && matchData.player1Choices)) {
     updateData.step = 'stage_ban_1'; // 両者が選択済みなら次のステップへ
+    console.log(`両者選択済み、ステップ更新: step=stage_ban_1, matchId=${matchId}`);
   }
 
   await updateDoc(matchRef, updateData); // Firestoreを更新
+  console.log(`マッチデータ更新成功: matchId=${matchId}, updateData=`, updateData);
   res.status(200).send('OK'); // 成功レスポンス
 });
 
