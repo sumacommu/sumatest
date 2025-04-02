@@ -83,11 +83,13 @@ class CustomRedisStore extends EventEmitter {
 
   async regenerate(req, cb) {
     console.log('Regenerate開始:', req.sessionID);
+    const oldSessionId = req.sessionID;
     req.session.destroy((err) => {
       if (err) {
         console.error('Regenerateエラー:', err);
         return cb(err);
       }
+      console.log('Regenerate: 古いセッション削除:', oldSessionId);
       req.sessionStore.generate(req);
       console.log('Regenerate成功:', req.sessionID);
       cb(null);
@@ -133,12 +135,22 @@ app.use((req, res, next) => {
     const receivedSid = cookies['connect.sid'];
     if (receivedSid && receivedSid !== req.sessionID) {
       console.log('セッションIDをクッキーに同期:', receivedSid);
-      req.sessionID = receivedSid.split('.')[0]; // 署名部分を除去
+      req.sessionID = receivedSid.split('.')[0];
     }
   }
   console.log('セッションID:', req.sessionID);
-  console.log('Passport前: req.session:', req.session);
-  next();
+  req.sessionStore.get(req.sessionID, (err, session) => {
+    if (err) {
+      console.error('セッション取得エラー:', err);
+      return next();
+    }
+    if (session) {
+      console.log('セッション手動ロード:', session);
+      req.session = session;
+    }
+    console.log('Passport前: req.session:', req.session);
+    next();
+  });
 });
 app.use(passport.initialize());
 app.use(passport.session());
