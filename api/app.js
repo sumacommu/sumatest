@@ -2,8 +2,9 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const FirestoreStore = require('connect-firestore')(session);
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -23,28 +24,29 @@ const db = getFirestore(firebaseApp);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
+  store: new FirestoreStore({
+    database: db,
+    collection: 'sessions'
+  }),
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
   cookie: { 
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production' ? true : false, // Vercelではtrue
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax',
-    path: '/', // 明示的に指定
-    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined // Vercel用にドメイン指定
+    sameSite: 'lax'
   }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Google認証設定（既存のまま）
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  console.log('Google認証開始:', profile.id); // デバッグ用
+  console.log('Google認証開始:', profile.id);
   try {
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
@@ -61,7 +63,7 @@ passport.use(new GoogleStrategy({
         rating: 1500
       });
     }
-    console.log('認証成功:', profile.id); // デバッグ用
+    console.log('認証成功:', profile.id);
     return done(null, profile);
   } catch (error) {
     console.error('認証エラー:', error.message, error.stack);
@@ -100,26 +102,22 @@ app.get('/api/', async (req, res) => {
   if (req.user) {
     const userData = req.user;
     res.send(`
-      <html>
-        <body>
-          <h1>こんにちは、${userData.displayName}さん！</h1>
-          <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-          <p><a href="/api/solo">タイマン用</a></p>
-          <p><a href="/api/team">チーム用</a></p>
-          <p><a href="/api/logout">ログアウト</a></p>
-        </body>
-      </html>
+      <html><body>
+        <h1>こんにちは、${userData.displayName}さん！</h1>
+        <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+        <p><a href="/api/solo">タイマン用</a></p>
+        <p><a href="/api/team">チーム用</a></p>
+        <p><a href="/api/logout">ログアウト</a></p>
+      </body></html>
     `);
   } else {
     res.send(`
-      <html>
-        <body>
-          <h1>スマブラマッチング</h1>
-          <p><a href="/api/solo">タイマン用</a></p>
-          <p><a href="/api/team">チーム用</a></p>
-          <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
-        </body>
-      </html>
+      <html><body>
+        <h1>スマブラマッチング</h1>
+        <p><a href="/api/solo">タイマン用</a></p>
+        <p><a href="/api/team">チーム用</a></p>
+        <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
+      </body></html>
     `);
   }
 });
@@ -128,17 +126,14 @@ app.get('/api/', async (req, res) => {
 // Google認証ルート
 app.get('/api/auth/google', (req, res, next) => {
   const redirectTo = req.query.redirect || '/api/';
-  console.log('認証開始、リダイレクト先:', redirectTo); // デバッグ用
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'],
-    state: redirectTo
-  })(req, res, next);
+  console.log('認証開始、リダイレクト先:', redirectTo);
+  passport.authenticate('google', { scope: ['profile', 'email'], state: redirectTo })(req, res, next);
 });
 
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/' }), 
   (req, res) => {
-    console.log('コールバック成功:', req.user ? req.user.id : 'req.user undefined');
+    console.log('コールバック成功:', req.user.id);
     const redirectTo = req.query.state || '/api/';
     res.redirect(redirectTo);
   }
@@ -146,13 +141,7 @@ app.get('/api/auth/google/callback',
 
 // ログアウトルート
 app.get('/api/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) return res.status(500).send('ログアウトに失敗しました');
-    req.session.destroy((err) => {
-      if (err) return res.status(500).send('セッション破棄に失敗しました');
-      res.redirect('/api/');
-    });
-  });
+  req.logout(() => res.redirect('/api/'));
 });
 
 // タイマン用ページ
