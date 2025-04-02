@@ -23,9 +23,9 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 const redisClient = createClient({
-  url: process.env.REDIS_URL
+  url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379'
 });
-console.log('使用中のREDIS_URL:', process.env.REDIS_URL); // 追加
+console.log('Redis URLをハードコード');
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
 redisClient.connect().catch(console.error);
 
