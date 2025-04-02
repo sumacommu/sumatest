@@ -146,7 +146,7 @@ app.use((req, res, next) => {
     }
     if (session) {
       console.log('セッション手動ロード:', session);
-      req.session = session;
+      Object.assign(req.session, session);
     }
     console.log('Passport前: req.session:', req.session);
     next();
@@ -216,7 +216,12 @@ passport.deserializeUser(async (id, done) => {
 app.get('/api/auth/google', (req, res, next) => {
   const redirectTo = req.query.redirect || '/api/';
   console.log('認証開始、リダイレクト先:', redirectTo);
-  passport.authenticate('google', { scope: ['profile', 'email'], state: redirectTo })(req, res, next);
+  passport.authenticate('google', { scope: ['profile', 'email'], state: redirectTo }, (err) => {
+    if (err) {
+      console.error('認証エラー:', err);
+      return res.redirect('/api/');
+    }
+  })(req, res, next);
 });
 
 app.get('/api/auth/google/callback', 
