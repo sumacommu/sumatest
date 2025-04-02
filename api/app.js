@@ -6,8 +6,6 @@ const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 require('dotenv').config();
 
-const FirestoreStore = require('@google-cloud/connect-firestore')(session); // 変更
-
 const app = express();
 
 const firebaseConfig = {
@@ -25,10 +23,6 @@ const db = getFirestore(firebaseApp);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  store: new FirestoreStore({
-    database: db,
-    collection: 'sessions'
-  }),
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
@@ -41,21 +35,17 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-// 以下、既存のコードはそのまま
 
-// Google認証
+// Google認証設定（既存のまま）
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  console.log('Google認証開始:', { clientID: process.env.GOOGLE_CLIENT_ID, callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback' });
   try {
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
-
     if (!userSnap.exists()) {
-      console.log(`新規ユーザー作成: ${profile.id}`);
       await setDoc(userRef, {
         displayName: profile.displayName,
         email: profile.emails[0].value,
@@ -65,11 +55,9 @@ passport.use(new GoogleStrategy({
         reportCount: 0,
         validReportCount: 0,
         penalty: false,
-        rating: 1500 // 初期レート
+        rating: 1500
       });
-      console.log(`ユーザー作成完了: ${profile.id}`);
     }
-    console.log('プロフィール取得成功:', profile.id);
     return done(null, profile);
   } catch (error) {
     console.error('認証エラー:', error.message, error.stack);
@@ -81,12 +69,9 @@ passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
     const userSnap = await getDoc(doc(db, 'users', id));
-    if (!userSnap.exists()) {
-      console.error(`ユーザー見つからず: ${id}`);
-      return done(new Error('ユーザーが見つかりません'));
-    }
+    if (!userSnap.exists()) return done(new Error('ユーザーが見つかりません'));
     const userData = userSnap.data();
-    userData.id = id; // IDを追加
+    userData.id = id;
     done(null, userData);
   } catch (error) {
     console.error('deserializeUserエラー:', error.message, error.stack);
