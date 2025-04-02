@@ -2,14 +2,14 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const FirestoreStore = require('connect-firestore')(session); // 追加
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc } = require('firebase/firestore');
 require('dotenv').config();
 
+const FirestoreStore = require('@google-cloud/connect-firestore')(session); // 変更
+
 const app = express();
 
-// Firebase初期化
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -22,26 +22,26 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Express設定
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
   store: new FirestoreStore({
     database: db,
-    collection: 'sessions' // Firestoreにセッションを保存するコレクション
+    collection: 'sessions'
   }),
-  secret: process.env.SESSION_SECRET || 'your-secret-key', // .envで管理推奨
+  secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7日有効
-    secure: process.env.NODE_ENV === 'production', // 本番ではHTTPS必須
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'lax'
   }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// 以下、既存のコードはそのまま
 
 // Google認証
 passport.use(new GoogleStrategy({
@@ -96,44 +96,51 @@ passport.deserializeUser(async (id, done) => {
 
 // ルート（トップページ）
 app.get('/api/', async (req, res) => {
-  try {
-    if (req.user) {
-      const userData = req.user;
-      res.send(`
-        <html>
-          <body>
-            <h1>こんにちは、${userData.displayName}さん！</h1>
-            <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-            <p><a href="/api/solo">タイマン用</a></p>
-            <p><a href="/api/team">チーム用</a></p>
-            <p><a href="/api/logout">ログアウト</a></p>
-          </body>
-        </html>
-      `);
-    } else {
-      res.send(`
-        <html>
-          <body>
-            <h1>スマブラマッチング</h1>
-            <p><a href="/api/solo">タイマン用</a></p>
-            <p><a href="/api/team">チーム用</a></p>
-            <p><a href="/api/auth/google">Googleでログイン</a></p>
-          </body>
-        </html>
-      `);
-    }
-  } catch (error) {
-    console.error('ルートエラー:', error.message, error.stack);
-    res.status(500).send('サーバーエラーが発生しました');
+  if (req.user) {
+    const userData = req.user;
+    res.send(`
+      <html>
+        <body>
+          <h1>こんにちは、${userData.displayName}さん！</h1>
+          <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+          <p><a href="/api/solo">タイマン用</a></p>
+          <p><a href="/api/team">チーム用</a></p>
+          <p><a href="/api/logout">ログアウト</a></p>
+        </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <html>
+        <body>
+          <h1>スマブラマッチング</h1>
+          <p><a href="/api/solo">タイマン用</a></p>
+          <p><a href="/api/team">チーム用</a></p>
+          <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
+        </body>
+      </html>
+    `);
   }
 });
 
+
 // Google認証ルート
-app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/api/auth/google/callback', passport.authenticate('google', { failureRedirect: '/api/' }), (req, res) => {
-  console.log('コールバック成功:', req.user.id);
-  res.redirect('/api/solo'); // 直接タイマン用へ
+app.get('/api/auth/google', (req, res, next) => {
+  const redirectTo = req.query.redirect || '/api/';
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    state: redirectTo
+  })(req, res, next);
 });
+
+app.get('/api/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/api/' }), 
+  (req, res) => {
+    console.log('コールバック成功:', req.user.id);
+    const redirectTo = req.query.state || '/api/';
+    res.redirect(redirectTo);
+  }
+);
 
 // ログアウトルート
 app.get('/api/logout', (req, res) => {
@@ -148,35 +155,30 @@ app.get('/api/logout', (req, res) => {
 
 // タイマン用ページ
 app.get('/api/solo', async (req, res) => {
-  try {
-    const matchesRef = collection(db, 'matches');
-    const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
-    const waitingSnapshot = await getDocs(waitingQuery);
-    const waitingCount = waitingSnapshot.size;
+  const matchesRef = collection(db, 'matches');
+  const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
+  const waitingSnapshot = await getDocs(waitingQuery);
+  const waitingCount = waitingSnapshot.size;
 
-    let html = `
-      <html>
-        <body>
-          <h1>タイマン用ページ</h1>
-          <p>待機中: ${waitingCount}人</p>
+  let html = `
+    <html>
+      <body>
+        <h1>タイマン用ページ</h1>
+        <p>待機中: ${waitingCount}人</p>
+  `;
+  if (req.user) {
+    const rating = req.user.rating || 1500;
+    html += `
+      <form action="/api/solo/match" method="POST">
+        <button type="submit">マッチング開始</button>
+      </form>
+      <p>現在のレート: ${rating}</p>
     `;
-    if (req.user) {
-      const rating = req.user.rating || 1500;
-      html += `
-        <form action="/api/solo/match" method="POST">
-          <button type="submit">マッチング開始</button>
-        </form>
-        <p>現在のレート: ${rating}</p>
-      `;
-    } else {
-      html += `<p>マッチングするには<a href="/api/auth/google">ログイン</a>してください</p>`;
-    }
-    html += `<p><a href="/api/">戻る</a></p></body></html>`;
-    res.send(html);
-  } catch (error) {
-    console.error('タイマン用ページエラー:', error.message, error.stack);
-    res.status(500).send('エラーが発生しました');
+  } else {
+    html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
   }
+  html += `<p><a href="/api/">戻る</a></p></body></html>`;
+  res.send(html);
 });
 
 // マッチング状態チェック用ルート
