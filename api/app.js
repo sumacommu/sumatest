@@ -5,6 +5,7 @@ const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const EventEmitter = require('events');
 require('dotenv').config();
 
 const app = express();
@@ -33,30 +34,37 @@ redisClient.on('connect', () => console.log('Redisに接続成功'));
 redisClient.on('ready', () => console.log('Redis準備完了'));
 redisClient.connect().catch(console.error);
 
-const redisStore = {
-  get: async (key, cb) => {
+class CustomRedisStore extends EventEmitter {
+  constructor(client) {
+    super();
+    this.client = client;
+  }
+
+  async get(key, cb) {
     try {
-      const data = await redisClient.get(key);
+      const data = await this.client.get(key);
       console.log('Redis get:', key, data);
       cb(null, data ? JSON.parse(data) : null);
     } catch (err) {
       console.error('Redis getエラー:', err);
       cb(err);
     }
-  },
-  set: async (key, sess, cb) => {
+  }
+
+  async set(key, sess, cb) {
     try {
-      await redisClient.set(key, JSON.stringify(sess), { EX: 604800 });
+      await this.client.set(key, JSON.stringify(sess), { EX: 604800 });
       console.log('Redis set:', key, sess);
       cb(null);
     } catch (err) {
       console.error('Redis setエラー:', err);
       cb(err);
     }
-  },
-  destroy: async (key, cb) => {
+  }
+
+  async destroy(key, cb) {
     try {
-      await redisClient.del(key);
+      await this.client.del(key);
       console.log('Redis destroy:', key);
       cb(null);
     } catch (err) {
@@ -64,7 +72,9 @@ const redisStore = {
       cb(err);
     }
   }
-};
+}
+
+const redisStore = new CustomRedisStore(redisClient);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
