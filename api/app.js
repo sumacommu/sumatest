@@ -270,7 +270,30 @@ app.get('/api/', async (req, res) => {
 });
 
 app.get('/api/logout', (req, res) => {
-  req.logout(() => res.redirect('/api/'));
+  if (req.user) {
+    req.logout((err) => {
+      if (err) {
+        console.error('ログアウトエラー:', err);
+        return res.redirect('/api/');
+      }
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('セッション破棄エラー:', err);
+          return res.redirect('/api/');
+        }
+        console.log('セッション破棄成功、クッキー削除');
+        res.clearCookie('connect.sid', {
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+          httpOnly: true,
+          sameSite: 'lax'
+        });
+        res.redirect('/api/');
+      });
+    });
+  } else {
+    res.redirect('/api/');
+  }
 });
 
 // タイマン用ページ
@@ -591,7 +614,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <h2>ステージ選択</h2>
           ${stages.map(stage => `
             <button class="stage-btn ${myChoices.stage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
-              pubg
               <img src="/stages/${stage.id}.png">
             </button>
           `).join('')}
