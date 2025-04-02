@@ -28,10 +28,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production' ? true : false, // Vercelではtrue
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax',
-    path: '/' // 明示的に指定
+    sameSite: 'lax'
   }
 }));
 app.use(passport.initialize());
@@ -43,6 +42,7 @@ passport.use(new GoogleStrategy({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
+  console.log('Google認証開始:', profile.id); // デバッグ用
   try {
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
@@ -59,6 +59,7 @@ passport.use(new GoogleStrategy({
         rating: 1500
       });
     }
+    console.log('認証成功:', profile.id); // デバッグ用
     return done(null, profile);
   } catch (error) {
     console.error('認証エラー:', error.message, error.stack);
@@ -66,13 +67,21 @@ passport.use(new GoogleStrategy({
   }
 }));
 
-passport.serializeUser((user, done) => done(null, user.id));
+passport.serializeUser((user, done) => {
+  console.log('serializeUser:', user.id); // デバッグ用
+  done(null, user.id);
+});
 passport.deserializeUser(async (id, done) => {
+  console.log('deserializeUser開始:', id); // デバッグ用
   try {
     const userSnap = await getDoc(doc(db, 'users', id));
-    if (!userSnap.exists()) return done(new Error('ユーザーが見つかりません'));
+    if (!userSnap.exists()) {
+      console.error('ユーザーが見つかりません:', id);
+      return done(new Error('ユーザーが見つかりません'));
+    }
     const userData = userSnap.data();
     userData.id = id;
+    console.log('deserializeUser成功:', userData); // デバッグ用
     done(null, userData);
   } catch (error) {
     console.error('deserializeUserエラー:', error.message, error.stack);
@@ -82,6 +91,7 @@ passport.deserializeUser(async (id, done) => {
 
 // ルート（トップページ）
 app.get('/api/', async (req, res) => {
+  console.log('ルートアクセス、req.user:', req.user); // デバッグ用
   if (req.user) {
     const userData = req.user;
     res.send(`
@@ -113,6 +123,7 @@ app.get('/api/', async (req, res) => {
 // Google認証ルート
 app.get('/api/auth/google', (req, res, next) => {
   const redirectTo = req.query.redirect || '/api/';
+  console.log('認証開始、リダイレクト先:', redirectTo); // デバッグ用
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
     state: redirectTo
@@ -122,7 +133,7 @@ app.get('/api/auth/google', (req, res, next) => {
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/' }), 
   (req, res) => {
-    console.log('コールバック成功:', req.user.id);
+    console.log('コールバック成功:', req.user.id); // デバッグ用
     const redirectTo = req.query.state || '/api/';
     res.redirect(redirectTo);
   }
