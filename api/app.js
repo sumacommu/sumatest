@@ -4,7 +4,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
 const EventEmitter = require('events');
 require('dotenv').config();
 
@@ -591,6 +591,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <h2>ステージ選択</h2>
           ${stages.map(stage => `
             <button class="stage-btn ${myChoices.stage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}', '${stage.name}')">
+              pubg
               <img src="/stages/${stage.id}.png">
             </button>
           `).join('')}
