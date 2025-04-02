@@ -2,7 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const { RedisStore } = require('connect-redis'); // 修正
+const RedisStore = require('connect-redis').default; // 修正
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs } = require('firebase/firestore');
@@ -23,7 +23,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 const redisClient = createClient({
-  url: process.env.REDIS_URL // rediss://を推奨
+  url: process.env.REDIS_URL // rediss://を確認
 });
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
 redisClient.connect().catch(console.error);
@@ -31,7 +31,7 @@ redisClient.connect().catch(console.error);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  store: new RedisStore({ client: redisClient }), // 修正
+  store: new RedisStore({ client: redisClient }),
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
