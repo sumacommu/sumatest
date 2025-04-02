@@ -118,10 +118,24 @@ app.use(session({
     httpOnly: true,
     sameSite: 'lax',
     path: '/'
-  }
+  },
+  rolling: true
 }));
 app.use((req, res, next) => {
-  console.log('受信クッキー:', req.headers.cookie);
+  const cookieHeader = req.headers.cookie;
+  console.log('受信クッキー:', cookieHeader);
+  if (cookieHeader) {
+    const cookies = cookieHeader.split('; ').reduce((acc, cookie) => {
+      const [name, value] = cookie.split('=');
+      acc[name] = value;
+      return acc;
+    }, {});
+    const receivedSid = cookies['connect.sid'];
+    if (receivedSid && receivedSid !== req.sessionID) {
+      console.log('セッションIDをクッキーに同期:', receivedSid);
+      req.sessionID = receivedSid.split('.')[0]; // 署名部分を除去
+    }
+  }
   console.log('セッションID:', req.sessionID);
   console.log('Passport前: req.session:', req.session);
   next();
