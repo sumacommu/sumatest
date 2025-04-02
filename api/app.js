@@ -39,13 +39,15 @@ class CustomRedisStore extends EventEmitter {
   constructor(client) {
     super();
     this.client = client;
+    this.prefix = 'sess:';
   }
 
   async get(key, cb) {
     try {
-      console.log('Redis get開始:', key);
-      const data = await this.client.get(key);
-      console.log('Redis get結果:', key, data);
+      const fullKey = this.prefix + key;
+      console.log('Redis get開始:', fullKey);
+      const data = await this.client.get(fullKey);
+      console.log('Redis get結果:', fullKey, data);
       cb(null, data ? JSON.parse(data) : null);
     } catch (err) {
       console.error('Redis getエラー:', err);
@@ -55,9 +57,10 @@ class CustomRedisStore extends EventEmitter {
 
   async set(key, sess, cb) {
     try {
-      console.log('Redis set開始:', key, sess);
-      await this.client.set(key, JSON.stringify(sess), { EX: 604800 });
-      console.log('Redis set成功:', key);
+      const fullKey = this.prefix + key;
+      console.log('Redis set開始:', fullKey, sess);
+      await this.client.set(fullKey, JSON.stringify(sess), { EX: 604800 });
+      console.log('Redis set成功:', fullKey);
       cb(null);
     } catch (err) {
       console.error('Redis setエラー:', err);
@@ -67,9 +70,10 @@ class CustomRedisStore extends EventEmitter {
 
   async destroy(key, cb) {
     try {
-      console.log('Redis destroy開始:', key);
-      await this.client.del(key);
-      console.log('Redis destroy成功:', key);
+      const fullKey = this.prefix + key;
+      console.log('Redis destroy開始:', fullKey);
+      await this.client.del(fullKey);
+      console.log('Redis destroy成功:', fullKey);
       cb(null);
     } catch (err) {
       console.error('Redis destroyエラー:', err);
@@ -198,6 +202,13 @@ app.get('/api/auth/google/callback',
         return res.redirect('/api/');
       }
       console.log('セッション保存成功、クッキー更新:', req.sessionID);
+      res.cookie('connect.sid', req.sessionID, {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/'
+      });
       const redirectTo = req.query.state || '/api/';
       res.redirect(redirectTo);
     });
