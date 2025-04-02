@@ -761,7 +761,7 @@ app.post('/api/solo/update', async (req, res) => {
   }
 });
 
-// ステージ拒否画面（構文エラー修正）
+// ステージ拒否画面（①②明確化＋キャラ表示）
 app.get('/api/solo/ban/:matchId', async (req, res) => {
   const matchId = req.params.matchId; // URLからマッチIDを取得
   const userId = req.user?.id; // ログインユーザーのID
@@ -929,20 +929,18 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
             const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
             const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
             const bannedStages = [...(myChoices?.bannedStages || []), ...(opponentChoices?.bannedStages || [])];
-
-            // ステージボタンの更新
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.toggle('banned', bannedStages.includes(btn.dataset.id));
               btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id));
             });
-
-            // キャラクター表示の更新
-            document.querySelector('.char-display').innerHTML = `
-              <p>あなたのキャラクター: <img src="/characters/${myChoices?.character || 'default'}.png" width="64" height="64"> ${myChoices?.miiMoves || ''}</p>
-              <p>相手のキャラクター: <img src="/characters/${opponentChoices?.character || 'default'}.png" width="64" height="64"> ${opponentChoices?.miiMoves || ''}</p>
-            `;
-
-            // ガイドテキストの更新
+            // テンプレートリテラルを避け、変数を直接使用してHTMLを構築
+            const myChar = myChoices?.character || 'default';
+            const myMoves = myChoices?.miiMoves || '';
+            const oppChar = opponentChoices?.character || 'default';
+            const oppMoves = opponentChoices?.miiMoves || '';
+            document.querySelector('.char-display').innerHTML = 
+              '<p>あなたのキャラクター: <img src="/characters/' + myChar + '.png" width="64" height="64"> ' + myMoves + '</p>' +
+              '<p>相手のキャラクター: <img src="/characters/' + oppChar + '.png" width="64" height="64"> ' + oppMoves + '</p>';
             let newGuide = '';
             if (isPlayer1 && !myChoices?.bannedStages) {
               newGuide = '拒否ステージを1つ選んでください（①側）。';
