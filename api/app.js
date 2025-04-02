@@ -31,11 +31,15 @@ const redisClient = createClient({
 });
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
 redisClient.on('connect', () => console.log('Redisに接続成功'));
-redisClient.on('ready', () => console.log('Redis準備完了')); // 追加
+redisClient.on('ready', () => console.log('Redis準備完了'));
 redisClient.connect().catch(console.error);
 
 app.use(session({
-  store: new RedisStore({ client: redisClient }),
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'sess:', // セッションキーのプレフィックス
+    ttl: 604800 // 7日（秒単位）
+  }),
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
