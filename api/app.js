@@ -28,9 +28,10 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' ? true : false, // Vercelではtrue
     httpOnly: true,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/' // 明示的に指定
   }
 }));
 app.use(passport.initialize());
