@@ -23,7 +23,11 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 const redisClient = createClient({
-  url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379'
+  url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379',
+  socket: {
+    connectTimeout: 10000, // 10秒
+    keepAlive: 5000 // 5秒ごとにキープアライブ
+  }
 });
 redisClient.on('error', (err) => console.error('Redisエラー:', err));
 redisClient.on('connect', () => console.log('Redisに接続成功'));
@@ -87,6 +91,7 @@ passport.use(new GoogleStrategy({
 passport.serializeUser((user, done) => {
   console.log('serializeUser:', user.id);
   done(null, user.id);
+  console.log('serializeUser後: req.session:', req.session); // 追加
 });
 
 passport.deserializeUser(async (id, done) => {
@@ -117,6 +122,7 @@ app.get('/api/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/api/' }), 
   (req, res) => {
     console.log('コールバック成功:', req.user.id);
+    console.log('コールバック後: req.session:', req.session); // 追加
     const redirectTo = req.query.state || '/api/';
     res.redirect(redirectTo);
   }
