@@ -28,9 +28,11 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' ? true : false, // Vercelではtrue
     httpOnly: true,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/', // 明示的に指定
+    domain: process.env.NODE_ENV === 'production' ? '.vercel.app' : undefined // Vercel用にドメイン指定
   }
 }));
 app.use(passport.initialize());
@@ -68,11 +70,12 @@ passport.use(new GoogleStrategy({
 }));
 
 passport.serializeUser((user, done) => {
-  console.log('serializeUser:', user.id); // デバッグ用
+  console.log('serializeUser:', user.id);
   done(null, user.id);
 });
+
 passport.deserializeUser(async (id, done) => {
-  console.log('deserializeUser開始:', id); // デバッグ用
+  console.log('deserializeUser開始:', id);
   try {
     const userSnap = await getDoc(doc(db, 'users', id));
     if (!userSnap.exists()) {
@@ -81,7 +84,7 @@ passport.deserializeUser(async (id, done) => {
     }
     const userData = userSnap.data();
     userData.id = id;
-    console.log('deserializeUser成功:', userData); // デバッグ用
+    console.log('deserializeUser成功:', userData);
     done(null, userData);
   } catch (error) {
     console.error('deserializeUserエラー:', error.message, error.stack);
@@ -89,9 +92,11 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+
 // ルート（トップページ）
 app.get('/api/', async (req, res) => {
-  console.log('ルートアクセス、req.user:', req.user); // デバッグ用
+  console.log('ルートアクセス、req.session:', req.session);
+  console.log('ルートアクセス、req.user:', req.user);
   if (req.user) {
     const userData = req.user;
     res.send(`
@@ -133,7 +138,7 @@ app.get('/api/auth/google', (req, res, next) => {
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/' }), 
   (req, res) => {
-    console.log('コールバック成功:', req.user.id); // デバッグ用
+    console.log('コールバック成功:', req.user ? req.user.id : 'req.user undefined');
     const redirectTo = req.query.state || '/api/';
     res.redirect(redirectTo);
   }
