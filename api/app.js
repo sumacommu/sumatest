@@ -313,7 +313,11 @@ app.get('/api/solo', async (req, res) => {
     const rating = req.user.rating || 1500;
     html += `
       <form action="/api/solo/match" method="POST">
-        <button type="submit">マッチング開始</button>
+        <button type="submit">マッチング開始（部屋建て）</button>
+      </form>
+      <form action="/api/solo/match" method="POST">
+        <label>部屋ID: <input type="text" name="roomId"></label>
+        <button type="submit">部屋に参加</button>
       </form>
       <p>現在のレート: ${rating}</p>
     `;
@@ -337,7 +341,7 @@ app.get('/api/solo/check', async (req, res) => {
   if (!userMatchSnapshot.empty) {
     const matchData = userMatchSnapshot.docs[0].data();
     const matchId = userMatchSnapshot.docs[0].id;
-    res.redirect(`/api/solo/setup/${matchId}`); // 成立したらセットアップ画面へ
+    res.redirect(`/api/solo/setup/${matchId}`);
   } else {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
     const waitingSnapshot = await getDocs(waitingQuery);
@@ -347,9 +351,10 @@ app.get('/api/solo/check', async (req, res) => {
         <body>
           <h1>マッチング待機中</h1>
           <p>相手を待っています... あなたのレート: ${req.user.rating || 1500}</p>
+          <p>部屋ID: ${roomId}（これを相手に伝えてください）</p>
           <form action="/api/solo/update" method="POST">
             <label>専用部屋ID: <input type="text" name="roomId" value="${roomId}"></label>
-            <button type="submit">IDを設定して更新</button>
+            <button type="submit">IDを更新</button>
           </form>
           <p><a href="/api/solo/cancel">キャンセル</a></p>
         </body>
@@ -387,60 +392,60 @@ app.get('/api/solo/cancel', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理
+// タイマン用マッチング処理（改良版）
 app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
     return res.redirect('/api/solo');
   }
   const userId = req.user.id;
-  const userRating = req.user.rating || 1500;
+  const { roomId } = req.body; // 部屋IDが入力された場合（②側）
 
   try {
     const matchesRef = collection(db, 'matches');
-    const waitingQuery = query(
-      matchesRef,
-      where('type', '==', 'solo'),
-      where('status', '==', 'waiting'),
-      where('userId', '!=', userId)
-    );
-    const waitingSnapshot = await getDocs(waitingQuery);
 
-    let matched = false;
-    for (const docSnap of waitingSnapshot.docs) {
-      const opponentData = docSnap.data();
-      const opponentRef = doc(db, 'users', opponentData.userId);
-      const opponentSnap = await getDoc(opponentRef);
-      const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
-      if (Math.abs(userRating - opponentRating) <= 200 && opponentData.roomId) {
-        await updateDoc(docSnap.ref, { 
-          status: 'matched', 
-          opponentId: userId
-        });
-        const newMatchDoc = await addDoc(matchesRef, {
-          userId: userId,
-          type: 'solo',
-          status: 'matched',
-          opponentId: opponentData.userId,
-          roomId: '',
-          opponentRoomId: opponentData.roomId,
-          timestamp: new Date().toISOString()
-        });
-        matched = true;
-        res.redirect(`/api/solo/setup/${newMatchDoc.id}`);
-        break;
+    if (roomId) {
+      // 部屋に入る側（②側）
+      const waitingQuery = query(
+        matchesRef,
+        where('type', '==', 'solo'),
+        where('status', '==', 'waiting'),
+        where('roomId', '==', roomId)
+      );
+      const waitingSnapshot = await getDocs(waitingQuery);
+      if (waitingSnapshot.empty) {
+        return res.send(`
+          <html>
+            <body>
+              <h1>部屋が見つかりません</h1>
+              <p><a href="/api/solo">戻る</a></p>
+            </body>
+          </html>
+        `);
       }
-    }
 
-    if (!matched) {
-      await addDoc(matchesRef, {
+      const matchDoc = waitingSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      await updateDoc(doc(db, 'matches', matchDoc.id), {
+        opponentId: userId,
+        status: 'matched',
+        step: 'character_selection',
+        timestamp: new Date().toISOString()
+      });
+      console.log(`マッチ参加: matchId=${matchDoc.id}, userId=${userId}（②側）`);
+      res.redirect(`/api/solo/setup/${matchDoc.id}`);
+    } else {
+      // 部屋建て側（①側）
+      const newRoomId = `${Math.random().toString(36).substring(2, 7)}-${Date.now()}`; // 一意の部屋ID
+      const matchRef = await addDoc(matchesRef, {
         userId: userId,
         type: 'solo',
         status: 'waiting',
-        roomId: '',
+        roomId: newRoomId,
         timestamp: new Date().toISOString()
       });
-      res.redirect('/api/solo/check');
+      console.log(`マッチ作成: matchId=${matchRef.id}, userId=${userId}（①側）, roomId=${newRoomId}`);
+      res.redirect(`/api/solo/check`);
     }
   } catch (error) {
     console.error('マッチングエラー:', error.message, error.stack);
@@ -456,7 +461,7 @@ app.post('/api/solo/match', async (req, res) => {
   }
 });
 
-// セットアップ画面（遷移制御強化）
+// セットアップ画面（遷移制御をサーバーに移行）
 app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
@@ -511,6 +516,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
     };
     firebase.initializeApp(firebaseConfig);
+    console.log('Firebase初期化完了');
     const db = firebase.firestore();
   `;
 
@@ -607,22 +613,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
               });
+              const result = await response.text();
               if (!response.ok) {
-                const errorText = await response.text();
-                alert('保存に失敗しました: ' + errorText);
+                alert('保存に失敗しました: ' + result);
                 return;
               }
-              // Firestoreから最新データを取得して両者選択済みか確認
-              const matchRef = db.collection('matches').doc(matchId);
-              const matchSnap = await matchRef.get();
-              const matchData = matchSnap.data();
-              const player1HasChosen = matchData.player1Choices?.character;
-              const player2HasChosen = matchData.player2Choices?.character;
-              console.log('遷移前確認: player1HasChosen=', player1HasChosen, 'player2HasChosen=', player2HasChosen);
-              if (player1HasChosen && player2HasChosen) {
+              if (result === 'NEXT') {
                 window.location.href = '/api/solo/ban/' + matchId;
-              } else {
-                console.log('両者選択未完了、遷移せず');
               }
             } catch (error) {
               alert('ネットワークエラー: ' + error.message);
@@ -630,6 +627,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
 
           db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
+            console.log('onSnapshot発火');
             const data = doc.data();
             const isPlayer1 = '${userId}' === data.userId;
             const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
@@ -642,6 +640,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               : (myChoices?.character && opponentChoices?.character 
                 ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
                 : 'キャラクターを選んでください');
+          }, (error) => {
+            console.error('onSnapshotエラー:', error);
           });
         </script>
       </body>
@@ -649,7 +649,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   `);
 });
 
-// キャラ保存処理（ステップ更新とデバッグ強化）
+// POST（サーバー側で遷移制御）
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
@@ -669,7 +669,6 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchData = matchSnap.data();
   console.log(`マッチデータ:`, matchData);
   const isPlayer1 = matchData.userId === userId;
-  console.log(`isPlayer1判定: userId=${userId}, matchData.userId=${matchData.userId}, isPlayer1=${isPlayer1}`);
   const choices = { character };
   if (miiMoves) choices.miiMoves = miiMoves;
 
@@ -678,10 +677,10 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     step: matchData.step || 'character_selection'
   };
 
-  const player1HasChosen = matchData.player1Choices?.character;
-  const player2HasChosen = matchData.player2Choices?.character;
-  console.log(`選択状況: player1HasChosen=${player1HasChosen}, player2HasChosen=${player2HasChosen}`);
-  if ((isPlayer1 && player2HasChosen) || (!isPlayer1 && player1HasChosen)) {
+  const player1HasChosen = (isPlayer1 ? choices.character : matchData.player1Choices?.character);
+  const player2HasChosen = (!isPlayer1 ? choices.character : matchData.player2Choices?.character);
+  console.log(`選択状況: player1HasChosen=${player1HasChosen}, player2HasChosen=${player2HasChosen}, isPlayer1=${isPlayer1}`);
+  if (player1HasChosen && player2HasChosen) {
     updateData.step = 'stage_ban_1';
     console.log(`両者選択済み、ステップ更新: step=stage_ban_1, matchId=${matchId}`);
   } else {
@@ -690,7 +689,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
 
   await updateDoc(matchRef, updateData);
   console.log(`マッチデータ更新成功: matchId=${matchId}, updateData=`, updateData);
-  res.status(200).send('OK');
+  res.send(player1HasChosen && player2HasChosen ? 'NEXT' : 'OK');
 });
 
 // ID更新処理
