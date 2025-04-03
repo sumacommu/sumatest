@@ -313,11 +313,7 @@ app.get('/api/solo', async (req, res) => {
     const rating = req.user.rating || 1500;
     html += `
       <form action="/api/solo/match" method="POST">
-        <button type="submit">マッチング開始（部屋建て）</button>
-      </form>
-      <form action="/api/solo/match" method="POST">
-        <label>部屋ID: <input type="text" name="roomId"></label>
-        <button type="submit">部屋に参加</button>
+        <button type="submit">マッチング開始</button>
       </form>
       <p>現在のレート: ${rating}</p>
     `;
@@ -351,9 +347,9 @@ app.get('/api/solo/check', async (req, res) => {
         <body>
           <h1>マッチング待機中</h1>
           <p>相手を待っています... あなたのレート: ${req.user.rating || 1500}</p>
-          <p>部屋ID: ${roomId}（これを相手に伝えてください）</p>
+          <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
           <form action="/api/solo/update" method="POST">
-            <label>専用部屋ID: <input type="text" name="roomId" value="${roomId}"></label>
+            <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
             <button type="submit">IDを更新</button>
           </form>
           <p><a href="/api/solo/cancel">キャンセル</a></p>
@@ -392,60 +388,56 @@ app.get('/api/solo/cancel', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理（改良版）
+// タイマン用マッチング処理
 app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
     return res.redirect('/api/solo');
   }
   const userId = req.user.id;
-  const { roomId } = req.body; // 部屋IDが入力された場合（②側）
+  const userRating = req.user.rating || 1500;
 
   try {
     const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(
+      matchesRef,
+      where('type', '==', 'solo'),
+      where('status', '==', 'waiting'),
+      where('userId', '!=', userId)
+    );
+    const waitingSnapshot = await getDocs(waitingQuery);
 
-    if (roomId) {
-      // 部屋に入る側（②側）
-      const waitingQuery = query(
-        matchesRef,
-        where('type', '==', 'solo'),
-        where('status', '==', 'waiting'),
-        where('roomId', '==', roomId)
-      );
-      const waitingSnapshot = await getDocs(waitingQuery);
-      if (waitingSnapshot.empty) {
-        return res.send(`
-          <html>
-            <body>
-              <h1>部屋が見つかりません</h1>
-              <p><a href="/api/solo">戻る</a></p>
-            </body>
-          </html>
-        `);
+    let matched = false;
+    for (const docSnap of waitingSnapshot.docs) {
+      const opponentData = docSnap.data();
+      if (!opponentData.roomId) continue; // 部屋IDが未設定ならスキップ
+      const opponentRef = doc(db, 'users', opponentData.userId);
+      const opponentSnap = await getDoc(opponentRef);
+      const opponentRating = opponentSnap.exists() ? (opponentSnap.data().rating || 1500) : 1500;
+      if (Math.abs(userRating - opponentRating) <= 200) {
+        await updateDoc(docSnap.ref, {
+          opponentId: userId,
+          status: 'matched',
+          step: 'character_selection',
+          timestamp: new Date().toISOString()
+        });
+        console.log(`マッチ成立: matchId=${docSnap.id}, userId=${userId}（②側）, opponentId=${opponentData.userId}（①側）`);
+        matched = true;
+        res.redirect(`/api/solo/setup/${docSnap.id}`);
+        break;
       }
+    }
 
-      const matchDoc = waitingSnapshot.docs[0];
-      const matchData = matchDoc.data();
-      await updateDoc(doc(db, 'matches', matchDoc.id), {
-        opponentId: userId,
-        status: 'matched',
-        step: 'character_selection',
-        timestamp: new Date().toISOString()
-      });
-      console.log(`マッチ参加: matchId=${matchDoc.id}, userId=${userId}（②側）`);
-      res.redirect(`/api/solo/setup/${matchDoc.id}`);
-    } else {
-      // 部屋建て側（①側）
-      const newRoomId = `${Math.random().toString(36).substring(2, 7)}-${Date.now()}`; // 一意の部屋ID
+    if (!matched) {
       const matchRef = await addDoc(matchesRef, {
         userId: userId,
         type: 'solo',
         status: 'waiting',
-        roomId: newRoomId,
+        roomId: '', // 初期値は空、後に更新
         timestamp: new Date().toISOString()
       });
-      console.log(`マッチ作成: matchId=${matchRef.id}, userId=${userId}（①側）, roomId=${newRoomId}`);
-      res.redirect(`/api/solo/check`);
+      console.log(`マッチ作成: matchId=${matchRef.id}, userId=${userId}（①側）`);
+      res.redirect('/api/solo/check');
     }
   } catch (error) {
     console.error('マッチングエラー:', error.message, error.stack);
