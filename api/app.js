@@ -353,9 +353,39 @@ app.get('/api/solo/check', async (req, res) => {
             <button type="submit">IDを更新</button>
           </form>
           <p><a href="/api/solo/cancel">キャンセル</a></p>
+          <script>
+            setInterval(() => {
+              fetch('/api/solo/check/status')
+                .then(response => response.json())
+                .then(data => {
+                  if (data.matched) {
+                    window.location.href = '/api/solo/setup/' + data.matchId;
+                  }
+                })
+                .catch(error => console.error('ポーリングエラー:', error));
+            }, 2000); // 2秒ごとにチェック
+          </script>
         </body>
       </html>
     `);
+  }
+});
+
+// ポーリング用エンドポイント
+app.get('/api/solo/check/status', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ matched: false });
+  }
+  const userId = req.user.id;
+  const matchesRef = collection(db, 'matches');
+  const userMatchQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'matched'));
+  const userMatchSnapshot = await getDocs(userMatchQuery);
+
+  if (!userMatchSnapshot.empty) {
+    const matchId = userMatchSnapshot.docs[0].id;
+    res.json({ matched: true, matchId });
+  } else {
+    res.json({ matched: false });
   }
 });
 
@@ -498,7 +528,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   ];
 
   const firebaseConfigScript = `
-    const firebaseConfig = {
+    var firebaseConfig = {
       apiKey: "${process.env.FIREBASE_API_KEY}",
       authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
       projectId: "${process.env.FIREBASE_PROJECT_ID}",
@@ -509,7 +539,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     };
     firebase.initializeApp(firebaseConfig);
     console.log('Firebase初期化完了');
-    const db = firebase.firestore();
+    var db = firebase.firestore();
   `;
 
   res.send(`
@@ -533,7 +563,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <div class="overlay" id="overlay"></div>
         <h1>マッチング成立！</h1>
         <p>相手: ${opponentName} (レート: ${opponentRating})</p>
-        <p>相手の専用部屋ID: ${matchData.opponentRoomId || '未設定'}</p>
+        <p>対戦部屋のID: ${matchData.roomId || '未設定'}</p>
         <p id="myStatus">あなたの選択: ${myChoices.character ? '完了' : '未選択'}</p>
         <p id="opponentStatus">相手の選択: ${opponentChoices.character ? '完了' : '未選択'}</p>
         <p id="guide">${myChoices.character && !opponentChoices.character ? '相手の選択を待っています...' : (myChoices.character && opponentChoices.character ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' : 'キャラクターを選んでください')}</p>
@@ -759,6 +789,8 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
     guideText = '相手（②側）が拒否ステージを選んでいます...';
   } else if (!isPlayer1 && player1Choices.bannedStages && !player2Choices.bannedStages) {
     guideText = '拒否ステージを2つ選んでください（②側）。';
+  } else if (!isPlayer1 && !player1Choices.bannedStages) {
+    guideText = '相手が拒否ステージを選んでいます...（②側）';
   } else if (player1Choices.bannedStages && player2Choices.bannedStages) {
     guideText = isPlayer1
       ? '表示されている残りのステージから選び、対戦を開始してください（①側）。'
@@ -766,7 +798,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
   }
 
   const firebaseConfigScript = `
-    const firebaseConfig = {
+    var firebaseConfig = {
       apiKey: "${process.env.FIREBASE_API_KEY}",
       authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
       projectId: "${process.env.FIREBASE_PROJECT_ID}",
@@ -776,8 +808,8 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
       measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
     };
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
     console.log('Firebase初期化完了');
+    var db = firebase.firestore();
   `;
 
   res.send(`
@@ -796,6 +828,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
       <body>
         <h1>ステージ拒否</h1>
         <p>相手: ${opponentName}</p>
+        <p>対戦部屋のID: ${matchData.roomId || '未設定'}</p>
         <div class="char-display">
           <p>あなたのキャラクター: <img src="/characters/${myChoices.character || 'default'}.png" width="64" height="64"> ${myChoices.miiMoves || ''}</p>
           <p>相手のキャラクター: <img src="/characters/${opponentChoices.character || 'default'}.png" width="64" height="64"> ${opponentChoices.miiMoves || ''}</p>
