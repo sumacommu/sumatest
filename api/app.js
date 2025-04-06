@@ -547,8 +547,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .char-btn.selected { opacity: 1; }
           .stage-btn { transition: opacity 0.3s; border: none; background: none; padding: 0; pointer-events: none; }
         </style>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
         <script>
           var firebaseConfig = {
             apiKey: "${process.env.FIREBASE_API_KEY}",
@@ -818,8 +818,8 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
           .char-display { margin: 10px 0; }
           .char-display img { width: 64px; height: 64px; }
         </style>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
         <script>
           var firebaseConfig = {
             apiKey: "${process.env.FIREBASE_API_KEY}",
