@@ -880,7 +880,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
           console.log('リスナー登録開始: matchId=${matchId}');
           db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
             console.log('onSnapshot発火');
-            if (!doc.exists()) {
+            if (!doc.exists) {  // ここを修正: doc.exists() → doc.exists
               console.error('ドキュメントが存在しません');
               return;
             }
