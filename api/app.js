@@ -547,30 +547,33 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .char-btn.selected { opacity: 1; }
           .stage-btn { transition: opacity 0.3s; border: none; background: none; padding: 0; pointer-events: none; }
         </style>
-        <script type="module">
-          import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
-          import { getFirestore, onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js';
-
-          const firebaseConfig = {
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script>
+          var firebaseConfig = {
             apiKey: "${process.env.FIREBASE_API_KEY}",
             authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
             projectId: "${process.env.FIREBASE_PROJECT_ID}",
             storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
             messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-            app DeficiencyId: "${process.env.FIREBASE_APP_ID}",
+            appId: "${process.env.FIREBASE_APP_ID}",
             measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
           };
-          const app = initializeApp(firebaseConfig);
-          console.log('Firebase初期化完了');
-          const db = getFirestore(app);
+          try {
+            firebase.initializeApp(firebaseConfig);
+            console.log('Firebase初期化完了');
+          } catch (error) {
+            console.error('Firebase初期化エラー:', error);
+          }
+          var db = firebase.firestore();
 
-          let selectedChar = '${myChoices.character || ''}';
+          var selectedChar = '${myChoices.character || ''}';
 
           function selectCharacter(id, name) {
             selectedChar = id;
             document.getElementById('charPopup').style.display = 'none';
             document.getElementById('overlay').style.display = 'none';
-            const miiInput = document.getElementById('miiInput');
+            var miiInput = document.getElementById('miiInput');
             if (['54', '55', '56'].includes(id)) {
               miiInput.style.display = 'block';
             } else {
@@ -586,17 +589,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               alert('キャラクターを選択してください');
               return;
             }
-            const miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-            const data = { character: selectedChar };
+            var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+            var data = { character: selectedChar };
             if (miiMoves) data.miiMoves = miiMoves;
 
             try {
-              const response = await fetch('/api/solo/setup/' + matchId, {
+              var response = await fetch('/api/solo/setup/' + matchId, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
               });
-              const result = await response.text();
+              var result = await response.text();
               if (!response.ok) {
                 alert('保存に失敗しました: ' + result);
                 return;
@@ -609,24 +612,24 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
           }
 
-          onSnapshot(doc(db, 'matches', '${matchId}'), (doc) => {
+          db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
             console.log('onSnapshot発火');
-            const data = doc.data();
-            const isPlayer1 = '${userId}' === data.userId;
-            const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-            const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+            var data = doc.data();
+            var isPlayer1 = '${userId}' === data.userId;
+            var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+            var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
 
-            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices?.character ? '完了' : '未選択');
-            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices?.character ? '完了' : '未選択');
-            document.getElementById('guide').innerHTML = myChoices?.character && !opponentChoices?.character 
+            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
+            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices && opponentChoices.character ? '完了' : '未選択');
+            document.getElementById('guide').innerHTML = myChoices && myChoices.character && (!opponentChoices || !opponentChoices.character) 
               ? '相手の選択を待っています...' 
-              : (myChoices?.character && opponentChoices?.character 
+              : (myChoices && myChoices.character && opponentChoices && opponentChoices.character 
                 ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
                 : 'キャラクターを選んでください');
-            if (myChoices?.character && opponentChoices?.character) {
+            if (myChoices && myChoices.character && opponentChoices && opponentChoices.character) {
               window.location.href = '/api/solo/ban/${matchId}';
             }
-          }, (error) => {
+          }, function(error) {
             console.error('onSnapshotエラー:', error);
           });
         </script>
