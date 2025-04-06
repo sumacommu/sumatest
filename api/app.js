@@ -498,6 +498,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    console.error(`マッチが見つかりません: matchId=${matchId}, userId=${userId}`);
     return res.send('マッチが見つかりません');
   }
 
@@ -533,21 +534,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     { id: 'Small Battlefield', name: '小戦場' }
   ];
 
-  const firebaseConfigScript = `
-    var firebaseConfig = {
-      apiKey: "${process.env.FIREBASE_API_KEY}",
-      authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
-      projectId: "${process.env.FIREBASE_PROJECT_ID}",
-      storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
-      messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-      appId: "${process.env.FIREBASE_APP_ID}",
-      measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
-    };
-    firebase.initializeApp(firebaseConfig);
-    console.log('Firebase初期化完了');
-    var db = firebase.firestore();
-  `;
-
   res.send(`
     <html>
       <head>
@@ -571,7 +557,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             projectId: "${process.env.FIREBASE_PROJECT_ID}",
             storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
             messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-            appId: "${process.env.FIREBASE_APP_ID}",
+            app DeficiencyId: "${process.env.FIREBASE_APP_ID}",
             measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
           };
           const app = initializeApp(firebaseConfig);
@@ -653,7 +639,38 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <p id="myStatus">あなたの選択: ${myChoices.character ? '完了' : '未選択'}</p>
         <p id="opponentStatus">相手の選択: ${opponentChoices.character ? '完了' : '未選択'}</p>
         <p id="guide">${myChoices.character && !opponentChoices.character ? '相手の選択を待っています...' : (myChoices.character && opponentChoices.character ? '次のステップへ: <a href="/api/solo/ban/' + matchId + '">ステージ拒否</a>' : 'キャラクターを選んでください')}</p>
-        <!-- 残りのHTMLはそのまま -->
+
+        <div class="section">
+          <h2>キャラクター選択</h2>
+          ${popularCharacters.map(char => `
+            <button class="popular char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+              <img src="/characters/${char.id}.png">
+            </button>
+          `).join('')}
+          <button onclick="document.getElementById('charPopup').style.display='block';document.getElementById('overlay').style.display='block';">全キャラから選ぶ</button>
+          <div id="charPopup" class="popup">
+            ${allCharacters.map(char => `
+              <button class="char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+                <img src="/characters/${char.id}.png">
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="section" id="miiInput">
+          <h2>Miiファイター設定</h2>
+          <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4" value="${myChoices.miiMoves || ''}"></label>
+        </div>
+
+        <div class="section">
+          <h2>ステージ（選択不可）</h2>
+          ${stages.map(stage => `
+            <button class="stage-btn" data-id="${stage.id}">
+              <img src="/stages/${stage.id}.png">
+            </button>
+          `).join('')}
+        </div>
+
         <button onclick="saveSelections('${matchId}')">決定</button>
         <p><a href="/api/solo">戻る</a></p>
       </body>
