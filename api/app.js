@@ -612,26 +612,30 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
           }
 
-          db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
-            console.log('onSnapshot発火');
-            var data = doc.data();
-            var isPlayer1 = '${userId}' === data.userId;
-            var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-            var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+          try {
+            db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
+              console.log('onSnapshot発火');
+              var data = doc.data();
+              var isPlayer1 = '${userId}' === data.userId;
+              var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+              var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
 
-            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
-            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices && opponentChoices.character ? '完了' : '未選択');
-            document.getElementById('guide').innerHTML = myChoices && myChoices.character && (!opponentChoices || !opponentChoices.character) 
-              ? '相手の選択を待っています...' 
-              : (myChoices && myChoices.character && opponentChoices && opponentChoices.character 
-                ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
-                : 'キャラクターを選んでください');
-            if (myChoices && myChoices.character && opponentChoices && opponentChoices.character) {
-              window.location.href = '/api/solo/ban/${matchId}';
-            }
-          }, function(error) {
-            console.error('onSnapshotエラー:', error);
-          });
+              document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
+              document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices && opponentChoices.character ? '完了' : '未選択');
+              document.getElementById('guide').innerHTML = myChoices && myChoices.character && (!opponentChoices || !opponentChoices.character) 
+                ? '相手の選択を待っています...' 
+                : (myChoices && myChoices.character && opponentChoices && opponentChoices.character 
+                  ? '次のステップへ: <a href="/api/solo/ban/${matchId}">ステージ拒否</a>' 
+                  : 'キャラクターを選んでください');
+              if (myChoices && myChoices.character && opponentChoices && opponentChoices.character) {
+                window.location.href = '/api/solo/ban/${matchId}';
+              }
+            }, function(error) {
+              console.error('onSnapshotエラー:', error);
+            });
+          } catch (error) {
+            console.error('onSnapshot設定エラー:', error);
+          }
         </script>
       </head>
       <body>
@@ -765,12 +769,12 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
   if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().opponentId !== userId)) {
+    console.error(`マッチが見つかりません: matchId=${matchId}, userId=${userId}`);
     return res.send('マッチが見つかりません');
   }
 
   const matchData = matchSnap.data();
-  const isPlayer1 = matchData.userId === userId; // ①側: userId, ②側: opponentId
-  console.log(`ban画面: userId=${userId}, matchData.userId=${matchData.userId}, matchData.opponentId=${matchData.opponentId}, isPlayer1=${isPlayer1}`);
+  const isPlayer1 = matchData.userId === userId;
   const opponentId = isPlayer1 ? matchData.opponentId : matchData.userId;
   const opponentRef = doc(db, 'users', opponentId);
   const opponentSnap = await getDoc(opponentRef);
@@ -780,7 +784,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
   const player2Choices = matchData.player2Choices || {};
   const myChoices = isPlayer1 ? player1Choices : player2Choices;
   const opponentChoices = isPlayer1 ? player2Choices : player1Choices;
-
+  const bannedStages = [...(myChoices.bannedStages || []), ...(opponentChoices.bannedStages || [])];
   const stages = [
     { id: 'BattleField', name: '戦場' },
     { id: 'Final Destination', name: '終点' },
@@ -788,9 +792,6 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
     { id: 'Pokemon Stadium 2', name: 'ポケモンスタジアム2' },
     { id: 'Small Battlefield', name: '小戦場' }
   ];
-
-  const bannedStages = [...(player1Choices.bannedStages || []), ...(player2Choices.bannedStages || [])];
-  const availableStages = stages.filter(stage => !bannedStages.includes(stage.id));
 
   let guideText = '';
   if (isPlayer1 && !player1Choices.bannedStages) {
@@ -807,21 +808,6 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
       : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）。';
   }
 
-  const firebaseConfigScript = `
-    var firebaseConfig = {
-      apiKey: "${process.env.FIREBASE_API_KEY}",
-      authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
-      projectId: "${process.env.FIREBASE_PROJECT_ID}",
-      storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
-      messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-      appId: "${process.env.FIREBASE_APP_ID}",
-      measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
-    };
-    firebase.initializeApp(firebaseConfig);
-    console.log('Firebase初期化完了');
-    var db = firebase.firestore();
-  `;
-
   res.send(`
     <html>
       <head>
@@ -830,12 +816,12 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
           .stage-btn.selected { opacity: 0.3; }
           .stage-btn.banned { filter: grayscale(100%); }
           .char-display { margin: 10px 0; }
+          .char-display img { width: 64px; height: 64px; }
         </style>
-        <script type="module">
-          import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
-          import { getFirestore, onSnapshot, doc } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js';
-
-          const firebaseConfig = {
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+        <script>
+          var firebaseConfig = {
             apiKey: "${process.env.FIREBASE_API_KEY}",
             authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
             projectId: "${process.env.FIREBASE_PROJECT_ID}",
@@ -844,15 +830,15 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
             appId: "${process.env.FIREBASE_APP_ID}",
             measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
           };
-          const app = initializeApp(firebaseConfig);
+          firebase.initializeApp(firebaseConfig);
           console.log('Firebase初期化完了');
-          const db = getFirestore(app);
+          var db = firebase.firestore();
 
-          let selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
-          let finalStage = '${myChoices.finalStage || ''}';
+          var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
+          var finalStage = '${myChoices.finalStage || ''}';
 
           function selectStage(id) {
-            const isPlayer1 = ${isPlayer1};
+            var isPlayer1 = ${isPlayer1};
             if (isPlayer1 && !${JSON.stringify(player1Choices.bannedStages)} && selectedStages.length < 1) {
               selectedStages = [id];
             } else if (!isPlayer1 && ${JSON.stringify(player1Choices.bannedStages)} && !${JSON.stringify(player2Choices.bannedStages)} && selectedStages.length < 2) {
@@ -867,7 +853,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
           }
 
           async function saveBan(matchId) {
-            const data = ${isPlayer1} && ${JSON.stringify(player2Choices.bannedStages)} 
+            var data = ${isPlayer1} && ${JSON.stringify(player2Choices.bannedStages)} 
               ? { finalStage: finalStage } 
               : { bannedStages: selectedStages };
             if ((!${isPlayer1} && selectedStages.length !== 2) || (${isPlayer1} && !${JSON.stringify(player1Choices.bannedStages)} && selectedStages.length !== 1)) {
@@ -880,7 +866,7 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
             }
 
             try {
-              const response = await fetch('/api/solo/ban/' + matchId, {
+              var response = await fetch('/api/solo/ban/' + matchId, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -892,53 +878,69 @@ app.get('/api/solo/ban/:matchId', async (req, res) => {
           }
 
           console.log('リスナー登録開始: matchId=${matchId}');
-          onSnapshot(doc(db, 'matches', '${matchId}'), (doc) => {
+          db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
             console.log('onSnapshot発火');
-            if (!doc.exists) {
+            if (!doc.exists()) {
               console.error('ドキュメントが存在しません');
               return;
             }
-            const data = doc.data();
+            var data = doc.data();
             console.log('取得データ:', data);
-            const isPlayer1 = '${userId}' === data.userId;
-            const myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-            const opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
-            const bannedStages = [...(myChoices?.bannedStages || []), ...(opponentChoices?.bannedStages || [])];
+            var isPlayer1 = '${userId}' === data.userId;
+            var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+            var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+            var bannedStages = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.toggle('banned', bannedStages.includes(btn.dataset.id));
               btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id));
             });
-            const myChar = myChoices?.character || 'default';
-            const myMoves = myChoices?.miiMoves || '';
-            const oppChar = opponentChoices?.character || 'default';
-            const oppMoves = opponentChoices?.miiMoves || '';
+            var myChar = myChoices && myChoices.character || 'default';
+            var myMoves = myChoices && myChoices.miiMoves || '';
+            var oppChar = opponentChoices && opponentChoices.character || 'default';
+            var oppMoves = opponentChoices && opponentChoices.miiMoves || '';
             console.log('キャラクター更新: myChar=', myChar, 'oppChar=', oppChar);
             document.querySelector('.char-display').innerHTML = 
               '<p>あなたのキャラクター: <img src="/characters/' + myChar + '.png" width="64" height="64"> ' + myMoves + '</p>' +
               '<p>相手のキャラクター: <img src="/characters/' + oppChar + '.png" width="64" height="64"> ' + oppMoves + '</p>';
-            let newGuide = '';
-            if (isPlayer1 && !myChoices?.bannedStages) {
+            var newGuide = '';
+            if (isPlayer1 && !myChoices.bannedStages) {
               newGuide = '拒否ステージを1つ選んでください（①側）。';
-            } else if (isPlayer1 && myChoices?.bannedStages && !opponentChoices?.bannedStages) {
+            } else if (isPlayer1 && myChoices.bannedStages && !opponentChoices.bannedStages) {
               newGuide = '相手（②側）が拒否ステージを選んでいます...';
-            } else if (!isPlayer1 && opponentChoices?.bannedStages && !myChoices?.bannedStages) {
+            } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages) {
               newGuide = '拒否ステージを2つ選んでください（②側）。';
-            } else if (!isPlayer1 && !opponentChoices?.bannedStages) {
+            } else if (!isPlayer1 && !opponentChoices.bannedStages) {
               newGuide = '相手が拒否ステージを選んでいます...（②側）';
-            } else if (myChoices?.bannedStages && opponentChoices?.bannedStages) {
+            } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
               newGuide = isPlayer1 
                 ? '表示されている残りのステージから選び、対戦を開始してください（①側）。' 
                 : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）。';
             }
             document.getElementById('guide').innerText = newGuide;
             document.getElementById('submitBtn').disabled = newGuide.includes('待っています');
-          }, (error) => {
+          }, function(error) {
             console.error('onSnapshotエラー:', error);
           });
         </script>
       </head>
       <body>
-        <!-- 既存のHTMLはそのまま -->
+        <h1>ステージ拒否</h1>
+        <p>相手: ${opponentName}</p>
+        <p>対戦部屋のID: ${matchData.roomId || '未設定'}</p>
+        <div class="char-display">
+          <p>あなたのキャラクター: <img src="/characters/${myChoices.character || 'default'}.png" width="64" height="64"> ${myChoices.miiMoves || ''}</p>
+          <p>相手のキャラクター: <img src="/characters/${opponentChoices.character || 'default'}.png" width="64" height="64"> ${opponentChoices.miiMoves || ''}</p>
+        </div>
+        <div class="section">
+          ${stages.map(stage => `
+            <button class="stage-btn ${bannedStages.includes(stage.id) ? 'banned' : ''} ${myChoices.finalStage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}')">
+              <img src="/stages/${stage.id}.png">
+            </button>
+          `).join('')}
+        </div>
+        <p id="guide">${guideText}</p>
+        <button id="submitBtn" onclick="saveBan('${matchId}')">決定</button>
+        <p><a href="/api/solo">戻る</a></p>
       </body>
     </html>
   `);
