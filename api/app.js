@@ -554,6 +554,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .stage-btn.enabled { opacity: 1; pointer-events: auto; }
           .stage-btn.selected { opacity: 0.3; }
           .stage-btn.banned { filter: grayscale(100%); }
+          .stage-btn.extra { filter: grayscale(100%); } /* 白黒 */
           .char-display { margin: 10px 0; }
           .char-display img { width: 64px; height: 64px; opacity: 0; }
           .char-display img.selected { opacity: 1; }
@@ -577,7 +578,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           var selectedChar = '${myChoices.character || ''}';
           var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
           var finalStage = '${myChoices.finalStage || ''}';
-          var matchResult = '${myChoices.result || ''}'; // 勝ち/負け
+          var matchResult = '${myChoices.result || ''}';
 
           function selectCharacter(id, name) {
             selectedChar = id;
@@ -601,7 +602,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             var myChoices = isPlayer1 ? player1Choices : player2Choices;
             var opponentChoices = isPlayer1 ? player2Choices : player1Choices;
 
-            if (!myChoices.character || !opponentChoices.character) return; // 初戦キャラ未選択時
+            if (!myChoices.character || !opponentChoices.character) return;
             if (!myChoices.result) { // 初戦
               if (isPlayer1 && !myChoices.bannedStages && selectedStages.length < 1) {
                 selectedStages = [id];
@@ -696,10 +697,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else if (!isPlayer1 && !opponentChoices.bannedStages) {
                 guideText = '相手が拒否ステージを選んでいます...（②側）';
               } else if (isPlayer1 && opponentChoices.bannedStages && !myChoices.finalStage) {
-                guideText = '最終ステージを選んでください（①側）。';
+                guideText = '表示されている残りのステージから選び、対戦を開始してください（①側）。';
                 canSelectStage = true;
-              } else if (myChoices.bannedStages && opponentChoices.bannedStages && myChoices.finalStage) {
-                guideText = '結果を報告してください';
+              } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
+                guideText = isPlayer1 
+                  ? (myChoices.finalStage ? 'ステージを決定したものに設定し、対戦を開始してください（①側）' : '結果を報告してください') 
+                  : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）';
               }
             } else { // 2戦目以降
               if (isWinner && !myChoices.bannedStages) {
@@ -735,6 +738,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               btn.classList.toggle('selected', (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || (myChoices && myChoices.finalStage === btn.dataset.id));
               var isFirstMatch = !myChoices.result && !opponentChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
+              btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
               btn.classList.toggle('disabled', !canSelectStage || (isFirstMatch && extraStages.includes(btn.dataset.id)));
               btn.classList.toggle('enabled', canSelectStage && !(isFirstMatch && extraStages.includes(btn.dataset.id)));
             });
@@ -790,17 +794,15 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <div class="section">
           <h2>ステージ選択</h2>
           ${stages.map(stage => `
-            <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${myChoices.finalStage === stage.id ? 'selected' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}')">
+            <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${myChoices.finalStage === stage.id ? 'selected' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}')">
               <img src="/stages/${stage.id}.png">
             </button>
           `).join('')}
         </div>
 
         <button onclick="saveSelections('${matchId}')">決定</button>
-        ${(myChoices.bannedStages && opponentChoices.bannedStages && myChoices.finalStage && !myChoices.result) ? `
-          <button onclick="saveSelections('${matchId}', 'win')">勝ち</button>
-          <button onclick="saveSelections('${matchId}', 'lose')">負け</button>
-        ` : ''}
+        <button onclick="saveSelections('${matchId}', 'win')">勝ち</button>
+        <button onclick="saveSelections('${matchId}', 'lose')">負け</button>
         <p><a href="/api/solo">戻る</a></p>
       </body>
     </html>
