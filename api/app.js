@@ -549,10 +549,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
           .char-btn.selected { opacity: 1; }
           .char-btn.disabled { opacity: 0.5; pointer-events: none; }
-          .stage-btn { transition: filter 0.3s; border: none; background: none; padding: 0; } /* opacity削除 */
-          .stage-btn.disabled { filter: grayscale(50%); pointer-events: none; } /* 薄さ削除、グレーで区別 */
-          .stage-btn.enabled { filter: none; pointer-events: auto; }
-          .stage-btn.selected { border: 2px solid blue; } /* 薄くせず枠線で表示 */
+          .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
+          .stage-btn.disabled { pointer-events: none; } /* 待機時は薄くしない */
+          .stage-btn.enabled { pointer-events: auto; }
+          .stage-btn.selected { opacity: 0.3; } /* 選択時に薄く */
           .stage-btn.banned { filter: grayscale(100%); }
           .stage-btn.extra { filter: grayscale(100%); }
           .char-display { margin: 10px 0; }
@@ -628,10 +628,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              var isSelected = selectedStages.includes(btn.dataset.id);
-              var isFinal = finalStage === btn.dataset.id;
-              btn.classList.toggle('selected', isSelected || isFinal);
-              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) && !isFinal);
+              var isSelected = selectedStages.includes(btn.dataset.id) || finalStage === btn.dataset.id;
+              btn.classList.toggle('selected', isSelected);
+              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) && !isSelected);
             });
           }
 
@@ -741,13 +740,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             });
             document.querySelectorAll('.stage-btn').forEach(btn => {
               var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
-              var isFinalStage = myChoices && myChoices.finalStage === btn.dataset.id;
-              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinalStage);
-              btn.classList.toggle('selected', (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || isFinalStage);
+              var isSelected = (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || (myChoices && myChoices.finalStage === btn.dataset.id);
+              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isSelected);
+              btn.classList.toggle('selected', isSelected);
               var isFirstMatch = !myChoices.result && !opponentChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
               btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
-              btn.classList.remove('disabled'); // まずリセット
+              btn.classList.remove('disabled');
               btn.classList.remove('enabled');
               if (canSelectStage && !(isFirstMatch && extraStages.includes(btn.dataset.id))) {
                 btn.classList.add('enabled');
