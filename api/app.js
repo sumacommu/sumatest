@@ -550,7 +550,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .char-btn.selected { opacity: 1; }
           .char-btn.disabled { opacity: 0.5; pointer-events: none; }
           .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
-          .stage-btn.disabled { pointer-events: none; } /* 待機時は薄くしない */
+          .stage-btn.disabled { pointer-events: none; }
           .stage-btn.enabled { pointer-events: auto; }
           .stage-btn.selected { opacity: 0.3; } /* 選択時に薄く */
           .stage-btn.banned { filter: grayscale(100%); }
@@ -628,9 +628,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              var isSelected = selectedStages.includes(btn.dataset.id) || finalStage === btn.dataset.id;
-              btn.classList.toggle('selected', isSelected);
-              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) && !isSelected);
+              var isSelected = selectedStages.includes(btn.dataset.id);
+              var isFinal = finalStage === btn.dataset.id;
+              btn.classList.toggle('selected', isSelected && !isFinal); // 選択中は薄く
+              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || isFinal); // 送信後は白黒
             });
           }
 
@@ -662,6 +663,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 alert('保存に失敗しました: ' + result);
                 return;
               }
+              updateStageButtons(); // 送信後に更新
             } catch (error) {
               alert('ネットワークエラー: ' + error.message);
             }
@@ -715,6 +717,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 canSelectStage = true;
               } else if (isWinner && myChoices.bannedStages && !opponentChoices.finalStage) {
                 guideText = '相手がステージを選んでいます...（③側）';
+              } else if (!isWinner && !opponentChoices.bannedStages) { // 追加条件
+                guideText = '相手がステージを選んでいます...（④側）';
+                canSelectStage = false;
               } else if (!isWinner && opponentChoices.bannedStages && !myChoices.finalStage) {
                 guideText = '対戦するステージを選んでください（④側）。';
                 canSelectStage = true;
@@ -753,6 +758,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else {
                 btn.classList.add('disabled');
               }
+              console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString()); // デバッグ用
             });
 
             var myChar = myChoices && myChoices.character || '00';
