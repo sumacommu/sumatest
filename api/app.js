@@ -628,7 +628,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              btn.classList.toggle('selected', selectedStages.includes(btn.dataset.id) || finalStage === btn.dataset.id);
+              var isSelected = selectedStages.includes(btn.dataset.id) || finalStage === btn.dataset.id;
+              btn.classList.toggle('selected', isSelected && !finalStage); // 最終ステージは白黒にしない
               btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id));
             });
           }
@@ -638,6 +639,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             var data = {};
             if (result) {
               data.result = result;
+              data.character = ''; // キャラクリア
+              data.miiMoves = '';
+              data.bannedStages = [];
+              data.finalStage = '';
             } else {
               if (selectedChar) data.character = selectedChar;
               var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
@@ -728,14 +733,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
             document.getElementById('guide').innerText = guideText;
+            console.log('canSelectStage:', canSelectStage); // デバッグ用ログ
 
             document.querySelectorAll('.char-btn').forEach(btn => {
               btn.classList.toggle('disabled', !canSelectChar);
             });
             document.querySelectorAll('.stage-btn').forEach(btn => {
               var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
-              btn.classList.toggle('banned', banned.includes(btn.dataset.id));
-              btn.classList.toggle('selected', (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || (myChoices && myChoices.finalStage === btn.dataset.id));
+              var isFinalStage = myChoices && myChoices.finalStage === btn.dataset.id;
+              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinalStage); // 最終ステージは白黒にしない
+              btn.classList.toggle('selected', (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || isFinalStage);
               var isFirstMatch = !myChoices.result && !opponentChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
               btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
@@ -826,22 +833,15 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const updateData = {};
 
   if (result) {
-    updateData[myChoicesKey] = { ...matchData[myChoicesKey], result };
+    updateData[myChoicesKey] = { result, character: '', miiMoves: '', bannedStages: [], finalStage: '' };
     if (matchData[opponentChoicesKey].result && matchData[opponentChoicesKey].result !== result) {
-      // 勝敗が一致したらリセット
-      updateData[myChoicesKey] = { result };
-      updateData[opponentChoicesKey] = { result: matchData[opponentChoicesKey].result };
+      updateData[opponentChoicesKey] = { result: matchData[opponentChoicesKey].result, character: '', miiMoves: '', bannedStages: [], finalStage: '' };
     }
   } else {
-    if (character) updateData[myChoicesKey] = { ...matchData[myChoicesKey], character };
-    if (miiMoves) updateData[myChoicesKey] = { ...updateData[myChoicesKey], miiMoves };
-    if (bannedStages) updateData[myChoicesKey] = { ...updateData[myChoicesKey], bannedStages };
-    if (finalStage) updateData[myChoicesKey] = { ...updateData[myChoicesKey], finalStage };
-  }
-
-  if (result && matchData[opponentChoicesKey].result && matchData[opponentChoicesKey].result !== result) {
-    updateData[myChoicesKey] = { result };
-    updateData[opponentChoicesKey] = { result: matchData[opponentChoicesKey].result };
+    if (character !== undefined) updateData[myChoicesKey] = { ...matchData[myChoicesKey], character };
+    if (miiMoves !== undefined) updateData[myChoicesKey] = { ...updateData[myChoicesKey] || matchData[myChoicesKey], miiMoves };
+    if (bannedStages) updateData[myChoicesKey] = { ...updateData[myChoicesKey] || matchData[myChoicesKey], bannedStages };
+    if (finalStage) updateData[myChoicesKey] = { ...updateData[myChoicesKey] || matchData[myChoicesKey], finalStage };
   }
 
   await updateDoc(matchRef, updateData);
