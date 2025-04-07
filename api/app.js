@@ -549,12 +549,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
           .char-btn.selected { opacity: 1; }
           .char-btn.disabled { opacity: 0.5; pointer-events: none; }
-          .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
-          .stage-btn.disabled { opacity: 0.5; pointer-events: none; }
-          .stage-btn.enabled { opacity: 1; pointer-events: auto; }
-          .stage-btn.selected { opacity: 0.3; }
+          .stage-btn { transition: filter 0.3s; border: none; background: none; padding: 0; } /* opacity削除 */
+          .stage-btn.disabled { filter: grayscale(50%); pointer-events: none; } /* 薄さ削除、グレーで区別 */
+          .stage-btn.enabled { filter: none; pointer-events: auto; }
+          .stage-btn.selected { border: 2px solid blue; } /* 薄くせず枠線で表示 */
           .stage-btn.banned { filter: grayscale(100%); }
-          .stage-btn.extra { filter: grayscale(100%); } /* 白黒 */
+          .stage-btn.extra { filter: grayscale(100%); }
           .char-display { margin: 10px 0; }
           .char-display img { width: 64px; height: 64px; opacity: 0; }
           .char-display img.selected { opacity: 1; }
@@ -628,9 +628,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              var isSelected = selectedStages.includes(btn.dataset.id) || finalStage === btn.dataset.id;
-              btn.classList.toggle('selected', isSelected && !finalStage); // 最終ステージは白黒にしない
-              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id));
+              var isSelected = selectedStages.includes(btn.dataset.id);
+              var isFinal = finalStage === btn.dataset.id;
+              btn.classList.toggle('selected', isSelected || isFinal);
+              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) && !isFinal);
             });
           }
 
@@ -639,7 +640,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             var data = {};
             if (result) {
               data.result = result;
-              data.character = ''; // キャラクリア
+              data.character = '';
               data.miiMoves = '';
               data.bannedStages = [];
               data.finalStage = '';
@@ -685,10 +686,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             var canSelectChar = false;
             var canSelectStage = false;
 
-            if (!myChoices.character) {
+            if (!myChoices.character && !myChoices.result) {
               guideText = 'キャラクターを選択してください';
               canSelectChar = true;
-            } else if (myChoices.character && !opponentChoices.character) {
+            } else if (myChoices.character && !opponentChoices.character && !myChoices.result) {
               guideText = '相手のキャラクター選択を待っています...';
             } else if (!myChoices.result) { // 初戦
               if (isPlayer1 && !myChoices.bannedStages) {
@@ -733,7 +734,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
             document.getElementById('guide').innerText = guideText;
-            console.log('canSelectStage:', canSelectStage); // デバッグ用ログ
+            console.log('canSelectStage:', canSelectStage);
 
             document.querySelectorAll('.char-btn').forEach(btn => {
               btn.classList.toggle('disabled', !canSelectChar);
@@ -741,13 +742,18 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             document.querySelectorAll('.stage-btn').forEach(btn => {
               var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
               var isFinalStage = myChoices && myChoices.finalStage === btn.dataset.id;
-              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinalStage); // 最終ステージは白黒にしない
+              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinalStage);
               btn.classList.toggle('selected', (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || isFinalStage);
               var isFirstMatch = !myChoices.result && !opponentChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
               btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
-              btn.classList.toggle('disabled', !canSelectStage || (isFirstMatch && extraStages.includes(btn.dataset.id)));
-              btn.classList.toggle('enabled', canSelectStage && !(isFirstMatch && extraStages.includes(btn.dataset.id)));
+              btn.classList.remove('disabled'); // まずリセット
+              btn.classList.remove('enabled');
+              if (canSelectStage && !(isFirstMatch && extraStages.includes(btn.dataset.id))) {
+                btn.classList.add('enabled');
+              } else {
+                btn.classList.add('disabled');
+              }
             });
 
             var myChar = myChoices && myChoices.character || '00';
