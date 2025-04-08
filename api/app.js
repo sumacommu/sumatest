@@ -552,9 +552,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
           .stage-btn.disabled { pointer-events: none; }
           .stage-btn.enabled { pointer-events: auto; }
-          .stage-btn.selected { opacity: 0.3; } /* 選択時に薄く */
+          .stage-btn.selected { opacity: 0.3; } /* 選択中は薄く */
           .stage-btn.banned { filter: grayscale(100%); }
           .stage-btn.extra { filter: grayscale(100%); }
+          .stage-btn.final { opacity: 1; filter: none; border: 2px solid blue; } /* 最終ステージは通常 */
           .char-display { margin: 10px 0; }
           .char-display img { width: 64px; height: 64px; opacity: 0; }
           .char-display img.selected { opacity: 1; }
@@ -628,10 +629,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
-              var isSelected = selectedStages.includes(btn.dataset.id);
+              var isBanned = selectedStages.includes(btn.dataset.id);
               var isFinal = finalStage === btn.dataset.id;
-              btn.classList.toggle('selected', isSelected && !isFinal); // 選択中は薄く
-              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || isFinal); // 送信後は白黒
+              btn.classList.toggle('selected', isBanned && !isFinal); // 選択中は薄く
+              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || isBanned);
+              btn.classList.toggle('final', isFinal); // 最終ステージは通常
             });
           }
 
@@ -644,6 +646,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               data.miiMoves = '';
               data.bannedStages = [];
               data.finalStage = '';
+              selectedStages = [];
+              finalStage = '';
             } else {
               if (selectedChar) data.character = selectedChar;
               var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
@@ -717,7 +721,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 canSelectStage = true;
               } else if (isWinner && myChoices.bannedStages && !opponentChoices.finalStage) {
                 guideText = '相手がステージを選んでいます...（③側）';
-              } else if (!isWinner && !opponentChoices.bannedStages) { // 追加条件
+              } else if (!isWinner && !opponentChoices.bannedStages) {
                 guideText = '相手がステージを選んでいます...（④側）';
                 canSelectStage = false;
               } else if (!isWinner && opponentChoices.bannedStages && !myChoices.finalStage) {
@@ -745,9 +749,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             });
             document.querySelectorAll('.stage-btn').forEach(btn => {
               var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
-              var isSelected = (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id) || (myChoices && myChoices.finalStage === btn.dataset.id);
-              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isSelected);
-              btn.classList.toggle('selected', isSelected);
+              var isSelected = (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id);
+              var isFinal = myChoices && myChoices.finalStage === btn.dataset.id;
+              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinal);
+              btn.classList.toggle('selected', isSelected && !isFinal);
+              btn.classList.toggle('final', isFinal);
               var isFirstMatch = !myChoices.result && !opponentChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
               btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
@@ -758,7 +764,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else {
                 btn.classList.add('disabled');
               }
-              console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString()); // デバッグ用
+              console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString());
             });
 
             var myChar = myChoices && myChoices.character || '00';
@@ -768,6 +774,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             document.querySelector('.char-display').innerHTML = 
               '<p>あなたのキャラクター: <img src="/characters/' + myChar + '.png" class="' + (myChar !== '00' ? 'selected' : '') + '"> ' + myMoves + '</p>' +
               '<p>相手のキャラクター: <img src="/characters/' + oppChar + '.png" class="' + (oppChar !== '00' ? 'selected' : '') + '"> ' + oppMoves + '</p>';
+
+            // イベントリスナーを再設定
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+              btn.removeEventListener('click', selectStage); // 重複防止
+              btn.addEventListener('click', () => selectStage(btn.dataset.id));
+            });
           }, function(error) {
             console.error('onSnapshotエラー:', error);
           });
@@ -812,7 +824,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <div class="section">
           <h2>ステージ選択</h2>
           ${stages.map(stage => `
-            <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${myChoices.finalStage === stage.id ? 'selected' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}" onclick="selectStage('${stage.id}')">
+            <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${myChoices.finalStage === stage.id ? 'final' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
               <img src="/stages/${stage.id}.png">
             </button>
           `).join('')}
