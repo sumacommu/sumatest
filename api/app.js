@@ -580,6 +580,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
   var finalStage = '${myChoices.finalStage || ''}';
   var matchResult = '${myChoices.result || ''}';
+  var myChoices = ${JSON.stringify(myChoices)}; // 初期値
+  var opponentChoices = ${JSON.stringify(opponentChoices)}; // 初期値
 
   function selectCharacter(id, name) {
     selectedChar = id;
@@ -685,8 +687,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     }
     var data = doc.data();
     var isPlayer1 = '${userId}' === data.userId;
-    var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-    var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+    myChoices = isPlayer1 ? data.player1Choices : data.player2Choices; // グローバル更新
+    opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices; // グローバル更新
     var isWinner = myChoices && myChoices.result === 'win';
 
     document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
