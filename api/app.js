@@ -580,8 +580,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
   var finalStage = '${myChoices.finalStage || ''}';
   var matchResult = '${myChoices.result || ''}';
-  var myChoices = ${JSON.stringify(myChoices)}; // 初期値
-  var opponentChoices = ${JSON.stringify(opponentChoices)}; // 初期値
+  var myChoices = ${JSON.stringify(myChoices)};
+  var opponentChoices = ${JSON.stringify(opponentChoices)};
 
   function selectCharacter(id, name) {
     selectedChar = id;
@@ -600,23 +600,23 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
   function selectStage(id) {
     var isPlayer1 = ${isPlayer1};
-    var maxBanned = isPlayer1 ? 1 : 2; // ①は1つ、②は2つ
+    var maxBanned = isPlayer1 ? 1 : 2;
     var index = selectedStages.indexOf(id);
     if (!myChoices.result) { // 初戦
-      if (isPlayer1 && !myChoices.bannedStages && selectedStages.length < 1) {
+      if (isPlayer1 && !myChoices.bannedStages) {
         if (index !== -1) selectedStages.splice(index, 1); // 解除
-        else selectedStages = [id]; // 追加
-      } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages && selectedStages.length < maxBanned) {
+        else if (selectedStages.length < 1) selectedStages = [id]; // 追加
+      } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages) {
         if (index !== -1) selectedStages.splice(index, 1); // 解除
-        else selectedStages.push(id); // 追加
+        else if (selectedStages.length < maxBanned) selectedStages.push(id); // 追加
       } else if (isPlayer1 && opponentChoices.bannedStages && !finalStage) {
         finalStage = id; // 最終ステージ選択
       }
     } else { // 2戦目以降
       var isWinner = myChoices.result === 'win';
-      if (isWinner && !myChoices.bannedStages && selectedStages.length < maxBanned) {
+      if (isWinner && !myChoices.bannedStages) {
         if (index !== -1) selectedStages.splice(index, 1); // 解除
-        else selectedStages.push(id); // 追加
+        else if (selectedStages.length < maxBanned) selectedStages.push(id); // 追加
       } else if (!isWinner && opponentChoices.bannedStages && !finalStage) {
         finalStage = id; // 最終ステージ選択
       } else if (isWinner && opponentChoices.bannedStages && !myChoices.character) {
@@ -631,11 +631,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   function updateStageButtons() {
     document.querySelectorAll('.stage-btn').forEach(btn => {
       btn.classList.remove('selected', 'banned', 'final');
+      var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
       if (selectedStages.includes(btn.dataset.id)) {
         btn.classList.add('selected'); // 選択中は薄く
-      } else if (${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || btn.dataset.id === finalStage) {
-        btn.classList.add('banned'); // 白黒かつ透明
-      } else if (finalStage === btn.dataset.id) {
+      } else if (banned.includes(btn.dataset.id)) {
+        btn.classList.add('banned'); // 保存済みのBANは白黒かつ透明
+      }
+      if (finalStage === btn.dataset.id) {
         btn.classList.add('final'); // 最終ステージは通常
       }
     });
@@ -671,9 +673,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         alert('保存に失敗しました: ' + result);
         return;
       }
-      selectedStages = []; // リセット
-      finalStage = '';
-      updateStageButtons(); // 送信後に更新
+      if (!result) { // 結果報告でない場合のみリセット
+        selectedStages = [];
+        finalStage = '';
+      }
+      updateStageButtons();
     } catch (error) {
       alert('ネットワークエラー: ' + error.message);
     }
@@ -687,8 +691,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     }
     var data = doc.data();
     var isPlayer1 = '${userId}' === data.userId;
-    myChoices = isPlayer1 ? data.player1Choices : data.player2Choices; // グローバル更新
-    opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices; // グローバル更新
+    myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+    opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
     var isWinner = myChoices && myChoices.result === 'win';
 
     document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
