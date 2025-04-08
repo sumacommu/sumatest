@@ -540,250 +540,250 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   res.send(`
     <html>
       <head>
-        <style>
-          .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1; }
-          .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; z-index: 2; }
-          .popup img { width: 64px; height: 64px; margin: 5px; }
-          .section { margin: 20px 0; }
-          #miiInput { display: none; }
-          .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
-          .char-btn.selected { opacity: 1; }
-          .char-btn.disabled { opacity: 0.5; pointer-events: none; }
-          .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
-          .stage-btn.disabled { pointer-events: none; }
-          .stage-btn.enabled { pointer-events: auto; }
-          .stage-btn.selected { opacity: 0.3; } /* 選択中は薄く */
-          .stage-btn.banned { filter: grayscale(100%); }
-          .stage-btn.extra { filter: grayscale(100%); }
-          .stage-btn.final { opacity: 1; filter: none; border: 2px solid blue; } /* 最終ステージは通常 */
-          .char-display { margin: 10px 0; }
-          .char-display img { width: 64px; height: 64px; opacity: 0; }
-          .char-display img.selected { opacity: 1; }
-        </style>
+<style>
+  .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1; }
+  .popup { display: none; position: fixed; top: 20%; left: 20%; width: 60%; height: 60%; background: white; border: none; overflow: auto; z-index: 2; }
+  .popup img { width: 64px; height: 64px; margin: 5px; }
+  .section { margin: 20px 0; }
+  #miiInput { display: none; }
+  .char-btn { opacity: 0.3; transition: opacity 0.3s; border: none; background: none; padding: 0; }
+  .char-btn.selected { opacity: 1; }
+  .char-btn.disabled { opacity: 0.5; pointer-events: none; }
+  .stage-btn { transition: opacity 0.3s, filter 0.3s; border: none; background: none; padding: 0; }
+  .stage-btn.disabled { pointer-events: none; }
+  .stage-btn.enabled { pointer-events: auto; }
+  .stage-btn.selected { opacity: 0.5; } /* 選択中は薄く */
+  .stage-btn.banned { filter: grayscale(100%); opacity: 0.3; } /* 白黒かつ透明 */
+  .stage-btn.extra { filter: grayscale(100%); }
+  .stage-btn.final { opacity: 1; filter: none; } /* 最終ステージは通常 */
+  .char-display { margin: 10px 0; }
+  .char-display img { width: 64px; height: 64px; opacity: 0; }
+  .char-display img.selected { opacity: 1; }
+</style>
         <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
         <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-        <script>
-          var firebaseConfig = {
-            apiKey: "${process.env.FIREBASE_API_KEY}",
-            authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
-            projectId: "${process.env.FIREBASE_PROJECT_ID}",
-            storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
-            messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-            appId: "${process.env.FIREBASE_APP_ID}",
-            measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
-          };
-          firebase.initializeApp(firebaseConfig);
-          console.log('Firebase初期化完了');
-          var db = firebase.firestore();
+<script>
+  var firebaseConfig = {
+    apiKey: "${process.env.FIREBASE_API_KEY}",
+    authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+    projectId: "${process.env.FIREBASE_PROJECT_ID}",
+    storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+    messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+    appId: "${process.env.FIREBASE_APP_ID}",
+    measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+  };
+  firebase.initializeApp(firebaseConfig);
+  console.log('Firebase初期化完了');
+  var db = firebase.firestore();
 
-          var selectedChar = '${myChoices.character || ''}';
-          var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
-          var finalStage = '${myChoices.finalStage || ''}';
-          var matchResult = '${myChoices.result || ''}';
+  var selectedChar = '${myChoices.character || ''}';
+  var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
+  var finalStage = '${myChoices.finalStage || ''}';
+  var matchResult = '${myChoices.result || ''}';
 
-          function selectCharacter(id, name) {
-            selectedChar = id;
-            document.getElementById('charPopup').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-            var miiInput = document.getElementById('miiInput');
-            if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block';
-            } else {
-              miiInput.style.display = 'none';
-            }
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
-          }
+  function selectCharacter(id, name) {
+    selectedChar = id;
+    document.getElementById('charPopup').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+    var miiInput = document.getElementById('miiInput');
+    if (['54', '55', '56'].includes(id)) {
+      miiInput.style.display = 'block';
+    } else {
+      miiInput.style.display = 'none';
+    }
+    document.querySelectorAll('.char-btn').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.id === id);
+    });
+  }
 
-          function selectStage(id) {
-            var isPlayer1 = ${isPlayer1};
-            var player1Choices = ${JSON.stringify(player1Choices)};
-            var player2Choices = ${JSON.stringify(player2Choices)};
-            var myChoices = isPlayer1 ? player1Choices : player2Choices;
-            var opponentChoices = isPlayer1 ? player2Choices : player1Choices;
+  function selectStage(id) {
+    var isPlayer1 = ${isPlayer1};
+    var maxBanned = isPlayer1 ? 1 : 2; // ①は1つ、②は2つ
+    var index = selectedStages.indexOf(id);
+    if (!myChoices.result) { // 初戦
+      if (isPlayer1 && !myChoices.bannedStages && selectedStages.length < 1) {
+        if (index !== -1) selectedStages.splice(index, 1); // 解除
+        else selectedStages = [id]; // 追加
+      } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages && selectedStages.length < maxBanned) {
+        if (index !== -1) selectedStages.splice(index, 1); // 解除
+        else selectedStages.push(id); // 追加
+      } else if (isPlayer1 && opponentChoices.bannedStages && !finalStage) {
+        finalStage = id; // 最終ステージ選択
+      }
+    } else { // 2戦目以降
+      var isWinner = myChoices.result === 'win';
+      if (isWinner && !myChoices.bannedStages && selectedStages.length < maxBanned) {
+        if (index !== -1) selectedStages.splice(index, 1); // 解除
+        else selectedStages.push(id); // 追加
+      } else if (!isWinner && opponentChoices.bannedStages && !finalStage) {
+        finalStage = id; // 最終ステージ選択
+      } else if (isWinner && opponentChoices.bannedStages && !myChoices.character) {
+        selectedChar = id;
+      } else if (!isWinner && opponentChoices.character && !myChoices.character) {
+        selectedChar = id;
+      }
+    }
+    updateStageButtons();
+  }
 
-            if (!myChoices.character || !opponentChoices.character) return;
-            if (!myChoices.result) { // 初戦
-              if (isPlayer1 && !myChoices.bannedStages && selectedStages.length < 1) {
-                selectedStages = [id];
-              } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages && selectedStages.length < 2) {
-                if (!selectedStages.includes(id)) selectedStages.push(id);
-              } else if (isPlayer1 && opponentChoices.bannedStages && !finalStage) {
-                finalStage = id;
-              }
-            } else { // 2戦目以降
-              var isWinner = myChoices.result === 'win';
-              if (isWinner && !myChoices.bannedStages && selectedStages.length < 2) {
-                if (!selectedStages.includes(id)) selectedStages.push(id);
-              } else if (!isWinner && opponentChoices.bannedStages && !finalStage) {
-                finalStage = id;
-              } else if (isWinner && opponentChoices.bannedStages && !myChoices.character) {
-                selectedChar = id;
-              } else if (!isWinner && opponentChoices.character && !myChoices.character) {
-                selectedChar = id;
-              }
-            }
-            updateStageButtons();
-          }
+  function updateStageButtons() {
+    document.querySelectorAll('.stage-btn').forEach(btn => {
+      btn.classList.remove('selected', 'banned', 'final');
+      if (selectedStages.includes(btn.dataset.id)) {
+        btn.classList.add('selected'); // 選択中は薄く
+      } else if (${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || btn.dataset.id === finalStage) {
+        btn.classList.add('banned'); // 白黒かつ透明
+      } else if (finalStage === btn.dataset.id) {
+        btn.classList.add('final'); // 最終ステージは通常
+      }
+    });
+  }
 
-          function updateStageButtons() {
-            document.querySelectorAll('.stage-btn').forEach(btn => {
-              var isBanned = selectedStages.includes(btn.dataset.id);
-              var isFinal = finalStage === btn.dataset.id;
-              btn.classList.toggle('selected', isBanned && !isFinal); // 選択中は薄く
-              btn.classList.toggle('banned', ${JSON.stringify(bannedStages)}.includes(btn.dataset.id) || isBanned);
-              btn.classList.toggle('final', isFinal); // 最終ステージは通常
-            });
-          }
+  async function saveSelections(matchId, result) {
+    var isPlayer1 = ${isPlayer1};
+    var data = {};
+    if (result) {
+      data.result = result;
+      data.character = '';
+      data.miiMoves = '';
+      data.bannedStages = [];
+      data.finalStage = '';
+      selectedStages = [];
+      finalStage = '';
+    } else {
+      if (selectedChar) data.character = selectedChar;
+      var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+      if (miiMoves) data.miiMoves = miiMoves;
+      if (selectedStages.length > 0) data.bannedStages = selectedStages;
+      if (finalStage) data.finalStage = finalStage;
+    }
 
-          async function saveSelections(matchId, result) {
-            var isPlayer1 = ${isPlayer1};
-            var data = {};
-            if (result) {
-              data.result = result;
-              data.character = '';
-              data.miiMoves = '';
-              data.bannedStages = [];
-              data.finalStage = '';
-              selectedStages = [];
-              finalStage = '';
-            } else {
-              if (selectedChar) data.character = selectedChar;
-              var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-              if (miiMoves) data.miiMoves = miiMoves;
-              if (selectedStages.length > 0) data.bannedStages = selectedStages;
-              if (finalStage) data.finalStage = finalStage;
-            }
+    try {
+      var response = await fetch('/api/solo/setup/' + matchId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      var result = await response.text();
+      if (!response.ok) {
+        alert('保存に失敗しました: ' + result);
+        return;
+      }
+      selectedStages = []; // リセット
+      finalStage = '';
+      updateStageButtons(); // 送信後に更新
+    } catch (error) {
+      alert('ネットワークエラー: ' + error.message);
+    }
+  }
 
-            try {
-              var response = await fetch('/api/solo/setup/' + matchId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-              });
-              var result = await response.text();
-              if (!response.ok) {
-                alert('保存に失敗しました: ' + result);
-                return;
-              }
-              updateStageButtons(); // 送信後に更新
-            } catch (error) {
-              alert('ネットワークエラー: ' + error.message);
-            }
-          }
+  db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
+    console.log('onSnapshot発火');
+    if (!doc.exists) {
+      console.error('ドキュメントが存在しません');
+      return;
+    }
+    var data = doc.data();
+    var isPlayer1 = '${userId}' === data.userId;
+    var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
+    var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
+    var isWinner = myChoices && myChoices.result === 'win';
 
-          db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
-            console.log('onSnapshot発火');
-            if (!doc.exists) {
-              console.error('ドキュメントが存在しません');
-              return;
-            }
-            var data = doc.data();
-            var isPlayer1 = '${userId}' === data.userId;
-            var myChoices = isPlayer1 ? data.player1Choices : data.player2Choices;
-            var opponentChoices = isPlayer1 ? data.player2Choices : data.player1Choices;
-            var isWinner = myChoices && myChoices.result === 'win';
+    document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
+    document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices && opponentChoices.character ? '完了' : '未選択');
+    var guideText = '';
+    var canSelectChar = false;
+    var canSelectStage = false;
 
-            document.getElementById('myStatus').innerText = 'あなたの選択: ' + (myChoices && myChoices.character ? '完了' : '未選択');
-            document.getElementById('opponentStatus').innerText = '相手の選択: ' + (opponentChoices && opponentChoices.character ? '完了' : '未選択');
-            var guideText = '';
-            var canSelectChar = false;
-            var canSelectStage = false;
+    if (!myChoices.character && !myChoices.result) {
+      guideText = 'キャラクターを選択してください';
+      canSelectChar = true;
+    } else if (myChoices.character && !opponentChoices.character && !myChoices.result) {
+      guideText = '相手のキャラクター選択を待っています...';
+    } else if (!myChoices.result) { // 初戦
+      if (isPlayer1 && !myChoices.bannedStages) {
+        guideText = '拒否ステージを1つ選んでください（①側）。';
+        canSelectStage = true;
+      } else if (isPlayer1 && myChoices.bannedStages && !opponentChoices.bannedStages) {
+        guideText = '相手（②側）が拒否ステージを選んでいます...';
+      } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages) {
+        guideText = '拒否ステージを2つ選んでください（②側）。';
+        canSelectStage = true;
+      } else if (!isPlayer1 && !opponentChoices.bannedStages) {
+        guideText = '相手が拒否ステージを選んでいます...（②側）';
+      } else if (isPlayer1 && opponentChoices.bannedStages && !myChoices.finalStage) {
+        guideText = '表示されている残りのステージから選び、対戦を開始してください（①側）。';
+        canSelectStage = true;
+      } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
+        guideText = isPlayer1 
+          ? (myChoices.finalStage ? 'ステージを決定したものに設定し、対戦を開始してください（①側）' : '結果を報告してください') 
+          : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）';
+      }
+    } else { // 2戦目以降
+      if (isWinner && !myChoices.bannedStages) {
+        guideText = '拒否ステージを2つ選んでください（③側）。';
+        canSelectStage = true;
+      } else if (isWinner && myChoices.bannedStages && !opponentChoices.finalStage) {
+        guideText = '相手がステージを選んでいます...（③側）';
+      } else if (!isWinner && !opponentChoices.bannedStages) {
+        guideText = '相手がステージを選んでいます...（④側）';
+        canSelectStage = false;
+      } else if (!isWinner && opponentChoices.bannedStages && !myChoices.finalStage) {
+        guideText = '対戦するステージを選んでください（④側）。';
+        canSelectStage = true;
+      } else if (!isWinner && myChoices.finalStage && !opponentChoices.character) {
+        guideText = '相手のキャラクター選択を待っています...（④側）';
+      } else if (isWinner && myChoices.bannedStages && opponentChoices.finalStage && !myChoices.character) {
+        guideText = 'キャラクターを選択してください（③側）。';
+        canSelectChar = true;
+      } else if (!isWinner && opponentChoices.character && !myChoices.character) {
+        guideText = 'ステージを決定したものに設定し、任意のキャラクターで対戦を始めてください（④側）。';
+        canSelectChar = true;
+      } else if (myChoices.character && opponentChoices.character) {
+        guideText = isWinner 
+          ? 'ステージを「おまかせ」に設定し、対戦を開始してください（③側）' 
+          : 'ステージを決定したものに設定し、' + (myChoices.character ? '選んだキャラクター' : '任意のキャラクター') + 'で対戦を始めてください（④側）';
+      }
+    }
+    document.getElementById('guide').innerText = guideText;
+    console.log('canSelectStage:', canSelectStage);
 
-            if (!myChoices.character && !myChoices.result) {
-              guideText = 'キャラクターを選択してください';
-              canSelectChar = true;
-            } else if (myChoices.character && !opponentChoices.character && !myChoices.result) {
-              guideText = '相手のキャラクター選択を待っています...';
-            } else if (!myChoices.result) { // 初戦
-              if (isPlayer1 && !myChoices.bannedStages) {
-                guideText = '拒否ステージを1つ選んでください（①側）。';
-                canSelectStage = true;
-              } else if (isPlayer1 && myChoices.bannedStages && !opponentChoices.bannedStages) {
-                guideText = '相手（②側）が拒否ステージを選んでいます...';
-              } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages) {
-                guideText = '拒否ステージを2つ選んでください（②側）。';
-                canSelectStage = true;
-              } else if (!isPlayer1 && !opponentChoices.bannedStages) {
-                guideText = '相手が拒否ステージを選んでいます...（②側）';
-              } else if (isPlayer1 && opponentChoices.bannedStages && !myChoices.finalStage) {
-                guideText = '表示されている残りのステージから選び、対戦を開始してください（①側）。';
-                canSelectStage = true;
-              } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
-                guideText = isPlayer1 
-                  ? (myChoices.finalStage ? 'ステージを決定したものに設定し、対戦を開始してください（①側）' : '結果を報告してください') 
-                  : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）';
-              }
-            } else { // 2戦目以降
-              if (isWinner && !myChoices.bannedStages) {
-                guideText = '拒否ステージを2つ選んでください（③側）。';
-                canSelectStage = true;
-              } else if (isWinner && myChoices.bannedStages && !opponentChoices.finalStage) {
-                guideText = '相手がステージを選んでいます...（③側）';
-              } else if (!isWinner && !opponentChoices.bannedStages) {
-                guideText = '相手がステージを選んでいます...（④側）';
-                canSelectStage = false;
-              } else if (!isWinner && opponentChoices.bannedStages && !myChoices.finalStage) {
-                guideText = '対戦するステージを選んでください（④側）。';
-                canSelectStage = true;
-              } else if (!isWinner && myChoices.finalStage && !opponentChoices.character) {
-                guideText = '相手のキャラクター選択を待っています...（④側）';
-              } else if (isWinner && myChoices.bannedStages && opponentChoices.finalStage && !myChoices.character) {
-                guideText = 'キャラクターを選択してください（③側）。';
-                canSelectChar = true;
-              } else if (!isWinner && opponentChoices.character && !myChoices.character) {
-                guideText = 'ステージを決定したものに設定し、任意のキャラクターで対戦を始めてください（④側）。';
-                canSelectChar = true;
-              } else if (myChoices.character && opponentChoices.character) {
-                guideText = isWinner 
-                  ? 'ステージを「おまかせ」に設定し、対戦を開始してください（③側）' 
-                  : 'ステージを決定したものに設定し、' + (myChoices.character ? '選んだキャラクター' : '任意のキャラクター') + 'で対戦を始めてください（④側）';
-              }
-            }
-            document.getElementById('guide').innerText = guideText;
-            console.log('canSelectStage:', canSelectStage);
+    document.querySelectorAll('.char-btn').forEach(btn => {
+      btn.classList.toggle('disabled', !canSelectChar);
+    });
+    document.querySelectorAll('.stage-btn').forEach(btn => {
+      var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
+      var isFirstMatch = !myChoices.result && !opponentChoices.result;
+      var extraStages = ['Town and City', 'Smashville'];
+      
+      btn.classList.remove('disabled', 'enabled', 'selected', 'banned', 'final');
+      if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
+      if (myChoices.finalStage === btn.dataset.id) btn.classList.add('final');
+      if (isFirstMatch && extraStages.includes(btn.dataset.id)) btn.classList.add('extra');
+      
+      if (canSelectStage && !extraStages.includes(btn.dataset.id)) {
+        btn.classList.add('enabled');
+        btn.style.pointerEvents = 'auto';
+        btn.onclick = () => selectStage(btn.dataset.id);
+      } else {
+        btn.classList.add('disabled');
+        btn.style.pointerEvents = 'none';
+        btn.onclick = null;
+      }
+      console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString());
+    });
 
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('disabled', !canSelectChar);
-            });
-            document.querySelectorAll('.stage-btn').forEach(btn => {
-              var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
-              var isSelected = (myChoices && myChoices.bannedStages || []).includes(btn.dataset.id);
-              var isFinal = myChoices && myChoices.finalStage === btn.dataset.id;
-              btn.classList.toggle('banned', banned.includes(btn.dataset.id) && !isFinal);
-              btn.classList.toggle('selected', isSelected && !isFinal);
-              btn.classList.toggle('final', isFinal);
-              var isFirstMatch = !myChoices.result && !opponentChoices.result;
-              var extraStages = ['Town and City', 'Smashville'];
-              btn.classList.toggle('extra', isFirstMatch && extraStages.includes(btn.dataset.id));
-              btn.classList.remove('disabled');
-              btn.classList.remove('enabled');
-              if (canSelectStage && !(isFirstMatch && extraStages.includes(btn.dataset.id))) {
-                btn.classList.add('enabled');
-              } else {
-                btn.classList.add('disabled');
-              }
-              console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString());
-            });
-
-            var myChar = myChoices && myChoices.character || '00';
-            var myMoves = myChoices && myChoices.miiMoves || '';
-            var oppChar = opponentChoices && opponentChoices.character || '00';
-            var oppMoves = opponentChoices && opponentChoices.miiMoves || '';
-            document.querySelector('.char-display').innerHTML = 
-              '<p>あなたのキャラクター: <img src="/characters/' + myChar + '.png" class="' + (myChar !== '00' ? 'selected' : '') + '"> ' + myMoves + '</p>' +
-              '<p>相手のキャラクター: <img src="/characters/' + oppChar + '.png" class="' + (oppChar !== '00' ? 'selected' : '') + '"> ' + oppMoves + '</p>';
-
-            // イベントリスナーを再設定
-            document.querySelectorAll('.stage-btn').forEach(btn => {
-              btn.removeEventListener('click', selectStage); // 重複防止
-              btn.addEventListener('click', () => selectStage(btn.dataset.id));
-            });
-          }, function(error) {
-            console.error('onSnapshotエラー:', error);
-          });
-        </script>
+    var myChar = myChoices && myChoices.character || '00';
+    var myMoves = myChoices && myChoices.miiMoves || '';
+    var oppChar = opponentChoices && opponentChoices.character || '00';
+    var oppMoves = opponentChoices && opponentChoices.miiMoves || '';
+    document.querySelector('.char-display').innerHTML = 
+      '<p>あなたのキャラクター: <img src="/characters/' + myChar + '.png" class="' + (myChar !== '00' ? 'selected' : '') + '"> ' + myMoves + '</p>' +
+      '<p>相手のキャラクター: <img src="/characters/' + oppChar + '.png" class="' + (oppChar !== '00' ? 'selected' : '') + '"> ' + oppMoves + '</p>';
+  }, function(error) {
+    console.error('onSnapshotエラー:', error);
+  });
+</script>
       </head>
       <body>
         <div class="overlay" id="overlay"></div>
