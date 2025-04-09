@@ -641,6 +641,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       data.miiMoves = '';
       data.bannedStages = [];
       selectedStages = [];
+      myChoices = { ...myChoices, bannedStages: [], result: result, character: '', miiMoves: '' }; // ローカル即時更新
     } else {
       if (selectedChar) data.character = selectedChar;
       var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
@@ -702,21 +703,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         canSelectStage = true;
       } else if (!isPlayer1 && !opponentChoices.bannedStages) {
         guideText = '相手が拒否ステージを選んでいます...（②側）';
-      } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
-        guideText = isPlayer1 
-          ? '結果を報告してください（①側）' 
-          : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）';
+      } else if (isPlayer1 && opponentChoices.bannedStages) {
+        guideText = '表示されている残りのステージから選び、対戦を開始してください（①側）。';
+      } else if (!isPlayer1 && myChoices.bannedStages && opponentChoices.bannedStages) {
+        guideText = 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）。';
       }
     } else { // 2戦目以降
       if (isWinner && !myChoices.bannedStages) {
         guideText = '拒否ステージを2つ選んでください（③側）。';
         canSelectStage = true;
-      } else if (isWinner && myChoices.bannedStages && !opponentChoices.finalStage) {
-        guideText = '相手がステージを選んでいます...（③側）';
+      } else if (isWinner && myChoices.bannedStages && !opponentChoices.character) {
+        guideText = '相手がキャラクターを選んでいます...（③側）';
       } else if (!isWinner && !opponentChoices.bannedStages) {
-        guideText = '相手がステージを選んでいます...（④側）';
-        canSelectStage = false;
-      } else if (!isWinner && opponentChoices.character && !myChoices.character) {
+        guideText = '相手が拒否ステージを選んでいます...（④側）';
+      } else if (!isWinner && opponentChoices.bannedStages && !myChoices.character) {
         guideText = 'ステージを「おまかせ」に設定し、任意のキャラクターで対戦を始めてください（④側）。';
         canSelectChar = true;
       } else if (myChoices.character && opponentChoices.character) {
