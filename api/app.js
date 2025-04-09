@@ -555,7 +555,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   .stage-btn.selected { opacity: 0.5; } /* 選択中は薄く */
   .stage-btn.banned { filter: grayscale(100%); opacity: 0.3; } /* 白黒かつ透明 */
   .stage-btn.extra { filter: grayscale(100%); }
-  .stage-btn.final { opacity: 1; filter: none; } /* 最終ステージは通常 */
   .char-display { margin: 10px 0; }
   .char-display img { width: 64px; height: 64px; opacity: 0; }
   .char-display img.selected { opacity: 1; }
@@ -578,7 +577,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
   var selectedChar = '${myChoices.character || ''}';
   var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
-  var finalStage = '${myChoices.finalStage || ''}';
   var matchResult = '${myChoices.result || ''}';
   var myChoices = ${JSON.stringify(myChoices)};
   var opponentChoices = ${JSON.stringify(opponentChoices)};
@@ -609,18 +607,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       } else if (!isPlayer1 && opponentChoices.bannedStages && !myChoices.bannedStages) {
         if (index !== -1) selectedStages.splice(index, 1); // 解除
         else if (selectedStages.length < maxBanned) selectedStages.push(id); // 追加
-      } else if (isPlayer1 && opponentChoices.bannedStages && !finalStage) {
-        finalStage = id; // 最終ステージ選択
       }
     } else { // 2戦目以降
       var isWinner = myChoices.result === 'win';
       if (isWinner && !myChoices.bannedStages) {
         if (index !== -1) selectedStages.splice(index, 1); // 解除
         else if (selectedStages.length < maxBanned) selectedStages.push(id); // 追加
-      } else if (!isWinner && opponentChoices.bannedStages && !finalStage) {
-        finalStage = id; // 最終ステージ選択
-      } else if (isWinner && opponentChoices.bannedStages && !myChoices.character) {
-        selectedChar = id;
       } else if (!isWinner && opponentChoices.character && !myChoices.character) {
         selectedChar = id;
       }
@@ -630,15 +622,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
   function updateStageButtons() {
     document.querySelectorAll('.stage-btn').forEach(btn => {
-      btn.classList.remove('selected', 'banned', 'final');
+      btn.classList.remove('selected', 'banned');
       var banned = [...(myChoices && myChoices.bannedStages || []), ...(opponentChoices && opponentChoices.bannedStages || [])];
       if (selectedStages.includes(btn.dataset.id)) {
         btn.classList.add('selected'); // 選択中は薄く
       } else if (banned.includes(btn.dataset.id)) {
         btn.classList.add('banned'); // 保存済みのBANは白黒かつ透明
-      }
-      if (finalStage === btn.dataset.id) {
-        btn.classList.add('final'); // 最終ステージは通常
       }
     });
   }
@@ -651,15 +640,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       data.character = '';
       data.miiMoves = '';
       data.bannedStages = [];
-      data.finalStage = '';
       selectedStages = [];
-      finalStage = '';
     } else {
       if (selectedChar) data.character = selectedChar;
       var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
       if (miiMoves) data.miiMoves = miiMoves;
       if (selectedStages.length > 0) data.bannedStages = selectedStages;
-      if (finalStage) data.finalStage = finalStage;
     }
 
     try {
@@ -675,7 +661,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       }
       if (!result) { // 結果報告でない場合のみリセット
         selectedStages = [];
-        finalStage = '';
       }
       updateStageButtons();
     } catch (error) {
@@ -717,12 +702,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         canSelectStage = true;
       } else if (!isPlayer1 && !opponentChoices.bannedStages) {
         guideText = '相手が拒否ステージを選んでいます...（②側）';
-      } else if (isPlayer1 && opponentChoices.bannedStages && !myChoices.finalStage) {
-        guideText = '表示されている残りのステージから選び、対戦を開始してください（①側）。';
-        canSelectStage = true;
       } else if (myChoices.bannedStages && opponentChoices.bannedStages) {
         guideText = isPlayer1 
-          ? (myChoices.finalStage ? 'ステージを決定したものに設定し、対戦を開始してください（①側）' : '結果を報告してください') 
+          ? '結果を報告してください（①側）' 
           : 'ステージを「おまかせ」に設定し、対戦を開始してください（②側）';
       }
     } else { // 2戦目以降
@@ -734,21 +716,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       } else if (!isWinner && !opponentChoices.bannedStages) {
         guideText = '相手がステージを選んでいます...（④側）';
         canSelectStage = false;
-      } else if (!isWinner && opponentChoices.bannedStages && !myChoices.finalStage) {
-        guideText = '対戦するステージを選んでください（④側）。';
-        canSelectStage = true;
-      } else if (!isWinner && myChoices.finalStage && !opponentChoices.character) {
-        guideText = '相手のキャラクター選択を待っています...（④側）';
-      } else if (isWinner && myChoices.bannedStages && opponentChoices.finalStage && !myChoices.character) {
-        guideText = 'キャラクターを選択してください（③側）。';
-        canSelectChar = true;
       } else if (!isWinner && opponentChoices.character && !myChoices.character) {
-        guideText = 'ステージを決定したものに設定し、任意のキャラクターで対戦を始めてください（④側）。';
+        guideText = 'ステージを「おまかせ」に設定し、任意のキャラクターで対戦を始めてください（④側）。';
         canSelectChar = true;
       } else if (myChoices.character && opponentChoices.character) {
         guideText = isWinner 
           ? 'ステージを「おまかせ」に設定し、対戦を開始してください（③側）' 
-          : 'ステージを決定したものに設定し、' + (myChoices.character ? '選んだキャラクター' : '任意のキャラクター') + 'で対戦を始めてください（④側）';
+          : 'ステージを「おまかせ」に設定し、' + (myChoices.character ? '選んだキャラクター' : '任意のキャラクター') + 'で対戦を始めてください（④側）';
       }
     }
     document.getElementById('guide').innerText = guideText;
@@ -762,9 +736,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       var isFirstMatch = !myChoices.result && !opponentChoices.result;
       var extraStages = ['Town and City', 'Smashville'];
       
-      btn.classList.remove('disabled', 'enabled', 'selected', 'banned', 'final');
+      btn.classList.remove('disabled', 'enabled', 'selected', 'banned');
       if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
-      if (myChoices.finalStage === btn.dataset.id) btn.classList.add('final');
       if (isFirstMatch && extraStages.includes(btn.dataset.id)) btn.classList.add('extra');
       
       if (canSelectStage && !extraStages.includes(btn.dataset.id)) {
