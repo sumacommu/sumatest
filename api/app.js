@@ -455,7 +455,9 @@ app.post('/api/solo/match', async (req, res) => {
           guestId: userId,
           status: 'matched',
           step: 'character_selection',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          hostChoices: { wins: 0, losses: 0 },
+          guestChoices: { wins: 0, losses: 0 }
         });
         console.log(`マッチ成立: matchId=${docSnap.id}, hostId=${guestData.userId}, guestId=${userId}`);
         matched = true;
@@ -469,8 +471,10 @@ app.post('/api/solo/match', async (req, res) => {
         userId: userId,
         type: 'solo',
         status: 'waiting',
-        roomId: '', // 初期値は空、後に更新
-        timestamp: new Date().toISOString()
+        roomId: '',
+        timestamp: new Date().toISOString(),
+        hostChoices: { wins: 0, losses: 0 },
+        guestChoices: { wins: 0, losses: 0 }
       });
       console.log(`マッチ作成: matchId=${matchRef.id}, hostId=${userId}`);
       res.redirect('/api/solo/check');
@@ -505,7 +509,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchData = matchSnap.data();
   const isHost = matchData.userId === userId;
   const hostId = matchData.userId;
-  const guestId = matchData.guestId;
+  const guestId = matchData.guestId || '';
   const hostRef = doc(db, 'users', hostId);
   const guestRef = doc(db, 'users', guestId);
   const hostSnap = await getDoc(hostRef);
@@ -515,9 +519,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const hostRating = hostSnap.data().rating || 1500;
   const guestRating = guestSnap.data().rating || 1500;
 
-  const hostChoices = matchData.hostChoices || {};
-  const guestChoices = matchData.guestChoices || {};
-  const myChoices = isHost ? hostChoices : guestChoices;
+  const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
+  const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
 
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
@@ -579,8 +582,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           console.log('Firebase初期化完了');
           var db = firebase.firestore();
 
-          var selectedChar = '${myChoices.character || ''}';
-          var selectedStages = ${JSON.stringify(myChoices.bannedStages || [])};
+          var selectedChar = '';
+          var selectedStages = ${JSON.stringify(bannedStages)};
           var hostChoices = ${JSON.stringify(hostChoices)};
           var guestChoices = ${JSON.stringify(guestChoices)};
           var isHost = ${isHost};
@@ -603,22 +606,23 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
 
           function selectStage(id) {
-            var maxBanned = isHost ? 1 : 2;
+            var matchCount = hostChoices.wins + hostChoices.losses;
+            var maxBanned = matchCount === 0 ? (isHost ? 1 : 2) : 2;
             var index = selectedStages.indexOf(id);
-            if (!hostChoices.result) { // 初戦
+            if (matchCount === 0) { // 1戦目
               if (isHost && !hostChoices.bannedStages) {
                 if (index !== -1) selectedStages.splice(index, 1);
                 else if (selectedStages.length < 1) selectedStages = [id];
-              } else if (!isHost && guestChoices.bannedStages && !hostChoices.bannedStages) {
+              } else if (!isHost && hostChoices.bannedStages && !guestChoices.bannedStages) {
                 if (index !== -1) selectedStages.splice(index, 1);
                 else if (selectedStages.length < maxBanned) selectedStages.push(id);
               }
             } else { // 2戦目以降
-              var isHostWinner = hostChoices.result === 'win';
-              if (isHostWinner && !hostChoices.bannedStages) {
+              var isHostWinner = hostChoices.wins > guestChoices.wins;
+              if ((isHost && isHostWinner || !isHost && !isHostWinner) && !hostChoices.bannedStages) {
                 if (index !== -1) selectedStages.splice(index, 1);
                 else if (selectedStages.length < maxBanned) selectedStages.push(id);
-              } else if (!isHostWinner && guestChoices.bannedStages && !hostChoices.character) {
+              } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && guestChoices.bannedStages && !hostChoices.character${matchCount + 1}) {
                 selectedChar = id;
               }
             }
@@ -628,7 +632,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.remove('selected', 'banned');
-              var banned = [...(hostChoices && hostChoices.bannedStages || []), ...(guestChoices && guestChoices.bannedStages || [])];
+              var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
               if (selectedStages.includes(btn.dataset.id)) {
                 btn.classList.add('selected');
               } else if (banned.includes(btn.dataset.id)) {
@@ -642,9 +646,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             if (result) {
               data.result = result;
             } else {
-              if (selectedChar) data.character = selectedChar;
+              var matchCount = hostChoices.wins + hostChoices.losses;
+              if (selectedChar) data['character' + (matchCount + 1)] = selectedChar;
               var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
-              if (miiMoves) data.miiMoves = miiMoves;
+              if (miiMoves) data['miiMoves' + (matchCount + 1)] = miiMoves;
               if (selectedStages.length > 0) data.bannedStages = selectedStages;
             }
 
@@ -675,80 +680,93 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               return;
             }
             var data = doc.data();
-            hostChoices = data.hostChoices || {};
-            guestChoices = data.guestChoices || {};
+            hostChoices = data.hostChoices || { wins: 0, losses: 0 };
+            guestChoices = data.guestChoices || { wins: 0, losses: 0 };
+            var matchCount = hostChoices.wins + hostChoices.losses;
             var bothReported = hostChoices.result && guestChoices.result;
-            var isHostWinner = hostChoices.result === 'win';
 
-            if (bothReported && hostChoices.result === guestChoices.result) {
+            if (bothReported && (hostChoices.result === 'win' && guestChoices.result === 'lose')) {
+              hostChoices.wins++;
+              guestChoices.losses++;
+              hostChoices.result = '';
+              guestChoices.result = '';
               hostChoices.bannedStages = [];
-              hostChoices.character = '';
-              hostChoices.miiMoves = '';
               guestChoices.bannedStages = [];
-              guestChoices.character = '';
-              guestChoices.miiMoves = '';
-              selectedChar = '';
-              selectedStages = [];
+            } else if (bothReported && (hostChoices.result === 'lose' && guestChoices.result === 'win')) {
+              hostChoices.losses++;
+              guestChoices.wins++;
+              hostChoices.result = '';
+              guestChoices.result = '';
+              hostChoices.bannedStages = [];
+              guestChoices.bannedStages = [];
             }
 
-            console.log('isHostWinner:', isHostWinner, 'hostChoices.bannedStages:', hostChoices.bannedStages, 'hostChoices.character:', hostChoices.character, 'guestChoices.bannedStages:', guestChoices.bannedStages);
+            console.log('matchCount:', matchCount, 'hostChoices:', hostChoices, 'guestChoices:', guestChoices);
 
-            document.getElementById('hostStatus').innerText = hostName + 'の選択: ' + (hostChoices.character ? '完了' : '未選択');
-            document.getElementById('guestStatus').innerText = guestName + 'の選択: ' + (guestChoices.character ? '完了' : '未選択');
+            document.getElementById('hostStatus').innerText = hostName + 'の選択: ' + (hostChoices['character' + (matchCount + 1)] ? '完了' : '未選択');
+            document.getElementById('guestStatus').innerText = guestName + 'の選択: ' + (guestChoices['character' + (matchCount + 1)] ? '完了' : '未選択');
             var guideText = '';
             var canSelectChar = false;
             var canSelectStage = false;
 
-            if (!hostChoices.character && !hostChoices.result) {
-              guideText = 'キャラクターを選択してください';
-              canSelectChar = true;
-            } else if (hostChoices.character && !guestChoices.character && !hostChoices.result) {
-              guideText = guestName + 'のキャラクター選択を待っています...';
-            } else if (!hostChoices.result) { // 初戦
-              if (isHost && !hostChoices.bannedStages) {
-                guideText = '拒否ステージを1つ選んでください（' + hostName + '）。';
+            if (matchCount === 0) { // 1戦目
+              if (!hostChoices.character1) {
+                guideText = isHost ? 'キャラクターを選択してください（' + hostName + '）' : guestName + 'のキャラクター選択を待っています...';
+                canSelectChar = isHost;
+              } else if (!guestChoices.character1) {
+                guideText = isHost ? guestName + 'のキャラクター選択を待っています...' : 'キャラクターを選択してください（' + guestName + '）';
+                canSelectChar = !isHost;
+              } else if (isHost && !hostChoices.bannedStages) {
+                guideText = '拒否ステージを1つ選んでください（' + hostName + '）';
                 canSelectStage = true;
               } else if (isHost && hostChoices.bannedStages && !guestChoices.bannedStages) {
                 guideText = guestName + 'が拒否ステージを選んでいます...';
-              } else if (!isHost && guestChoices.bannedStages && !hostChoices.bannedStages) {
-                guideText = '拒否ステージを2つ選んでください（' + guestName + '）。';
+              } else if (!isHost && hostChoices.bannedStages && !guestChoices.bannedStages) {
+                guideText = '拒否ステージを2つ選んでください（' + guestName + '）';
                 canSelectStage = true;
-              } else if (!isHost && !guestChoices.bannedStages) {
+              } else if (!isHost && !hostChoices.bannedStages) {
                 guideText = hostName + 'が拒否ステージを選んでいます...';
               } else if (isHost && guestChoices.bannedStages) {
-                guideText = '表示されている残りのステージから選び、対戦を開始してください（' + hostName + '）。';
+                guideText = '表示されている残りのステージから選び、対戦を開始してください（' + hostName + '）';
               } else if (!isHost && hostChoices.bannedStages && guestChoices.bannedStages) {
-                guideText = 'ステージを「おまかせ」に設定し、対戦を開始してください（' + guestName + '）。';
+                guideText = 'ステージを「おまかせ」に設定し、対戦を開始してください（' + guestName + '）';
               }
             } else { // 2戦目以降
-              if (isHostWinner && !hostChoices.bannedStages) {
-                guideText = '拒否ステージを2つ選んでください（' + hostName + '）。';
+              var isHostWinner = hostChoices.wins > guestChoices.wins;
+              if (isHost && isHostWinner && !hostChoices.bannedStages) {
+                guideText = '拒否ステージを2つ選んでください（' + hostName + '）';
                 canSelectStage = true;
-              } else if (isHostWinner && hostChoices.bannedStages && !guestChoices.character) {
+              } else if (!isHost && !isHostWinner && !guestChoices.bannedStages) {
+                guideText = '拒否ステージを2つ選んでください（' + guestName + '）';
+                canSelectStage = true;
+              } else if (isHost && isHostWinner && hostChoices.bannedStages && !guestChoices.character${matchCount + 1}) {
                 guideText = guestName + 'がキャラクターを選んでいます...';
-              } else if (!isHostWinner && !guestChoices.bannedStages) {
-                guideText = guestName + 'が拒否ステージを選んでいます...';
-              } else if (!isHostWinner && guestChoices.bannedStages && !hostChoices.character) {
-                guideText = 'ステージを「おまかせ」に設定し、任意のキャラクターで対戦を始めてください（' + hostName + '）。';
+              } else if (!isHost && !isHostWinner && guestChoices.bannedStages && !hostChoices.character${matchCount + 1}) {
+                guideText = hostName + 'がキャラクターを選んでいます...';
+              } else if (isHost && !isHostWinner && guestChoices.bannedStages && !hostChoices.character${matchCount + 1}) {
+                guideText = 'ステージを「おまかせ」に設定し、任意のキャラクターで対戦を始めてください（' + hostName + '）';
                 canSelectChar = true;
-              } else if (hostChoices.character && guestChoices.character) {
-                guideText = 'ステージを「おまかせ」に設定し、' + (hostChoices.character ? '選んだキャラクター' : '任意のキャラクター') + 'で対戦を始めてください（' + hostName + '）。';
+              } else if (!isHost && isHostWinner && hostChoices.bannedStages && !guestChoices.character${matchCount + 1}) {
+                guideText = 'ステージを「おまかせ」に設定し、任意のキャラクターで対戦を始めてください（' + guestName + '）';
+                canSelectChar = true;
+              } else if (hostChoices.character${matchCount + 1} && guestChoices.character${matchCount + 1}) {
+                guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + (isHost ? hostName : guestName) + '）';
               }
             }
+
             document.getElementById('guide').innerText = guideText;
-            console.log('canSelectStage:', canSelectStage);
+            console.log('canSelectChar:', canSelectChar, 'canSelectStage:', canSelectStage);
 
             document.querySelectorAll('.char-btn').forEach(btn => {
               btn.classList.toggle('disabled', !canSelectChar);
             });
             document.querySelectorAll('.stage-btn').forEach(btn => {
               var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
-              var isFirstMatch = !hostChoices.result && !guestChoices.result;
               var extraStages = ['Town and City', 'Smashville'];
               
               btn.classList.remove('disabled', 'enabled', 'selected', 'banned');
               if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
-              if (isFirstMatch && extraStages.includes(btn.dataset.id)) btn.classList.add('extra');
+              if (matchCount === 0 && extraStages.includes(btn.dataset.id)) btn.classList.add('extra');
               
               if (canSelectStage && !extraStages.includes(btn.dataset.id)) {
                 btn.classList.add('enabled');
@@ -759,16 +777,15 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 btn.style.pointerEvents = 'none';
                 btn.onclick = null;
               }
-              console.log('Button:', btn.dataset.id, 'Classes:', btn.classList.toString());
             });
 
-            var hostChar = hostChoices.character || '00';
-            var hostMoves = hostChoices.miiMoves || '';
-            var guestChar = guestChoices.character || '00';
-            var guestMoves = guestChoices.miiMoves || '';
+            var displayChar = matchCount === 0 ? (hostChoices.character1 || '00') : (hostChoices['character' + (matchCount + 1)] || '00');
+            var displayMoves = matchCount === 0 ? (hostChoices.miiMoves1 || '') : (hostChoices['miiMoves' + (matchCount + 1)] || '');
+            var guestDisplayChar = matchCount === 0 ? (guestChoices.character1 || '00') : (guestChoices['character' + (matchCount + 1)] || '00');
+            var guestDisplayMoves = matchCount === 0 ? (guestChoices.miiMoves1 || '') : (guestChoices['miiMoves' + (matchCount + 1)] || '');
             document.querySelector('.char-display').innerHTML = 
-              '<p>' + hostName + 'のキャラクター: <img src="/characters/' + hostChar + '.png" class="' + (hostChar !== '00' ? 'selected' : '') + '"> ' + hostMoves + '</p>' +
-              '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestChar + '.png" class="' + (guestChar !== '00' ? 'selected' : '') + '"> ' + guestMoves + '</p>';
+              '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'selected' : '') + '"> ' + displayMoves + '</p>' +
+              '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'selected' : '') + '"> ' + guestDisplayMoves + '</p>';
           }, function(error) {
             console.error('onSnapshotエラー:', error);
           });
@@ -780,21 +797,21 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <p>ホスト: ${hostName} (レート: ${hostRating})</p>
         <p>ゲスト: ${guestName} (レート: ${guestRating})</p>
         <p>対戦部屋のID: ${matchData.roomId || '未設定'}</p>
-        <p id="hostStatus">${hostName}の選択: ${hostChoices.character ? '完了' : '未選択'}</p>
-        <p id="guestStatus">${guestName}の選択: ${guestChoices.character ? '完了' : '未選択'}</p>
+        <p id="hostStatus">${hostName}の選択: ${hostChoices.character1 ? '完了' : '未選択'}</p>
+        <p id="guestStatus">${guestName}の選択: ${guestChoices.character1 ? '完了' : '未選択'}</p>
         <p id="guide"></p>
 
         <div class="section">
           <h2>キャラクター選択</h2>
           ${popularCharacters.map(char => `
-            <button class="popular char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+            <button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
               <img src="/characters/${char.id}.png">
             </button>
           `).join('')}
           <button onclick="document.getElementById('charPopup').style.display='block';document.getElementById('overlay').style.display='block';">全キャラから選ぶ</button>
           <div id="charPopup" class="popup">
             ${allCharacters.map(char => `
-              <button class="char-btn ${myChoices.character === char.id ? 'selected' : ''}" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+              <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
                 <img src="/characters/${char.id}.png">
               </button>
             `).join('')}
@@ -803,12 +820,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
         <div class="section" id="miiInput">
           <h2>Miiファイター設定</h2>
-          <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4" value="${myChoices.miiMoves || ''}"></label>
+          <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4"></label>
         </div>
 
         <div class="char-display">
-          <p>${hostName}のキャラクター: <img src="/characters/${hostChoices.character || '00'}.png" class="${hostChoices.character ? 'selected' : ''}"> ${hostChoices.miiMoves || ''}</p>
-          <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character || '00'}.png" class="${guestChoices.character ? 'selected' : ''}"> ${guestChoices.miiMoves || ''}</p>
+          <p>${hostName}のキャラクター: <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'selected' : ''}"> ${hostChoices.miiMoves1 || ''}</p>
+          <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'selected' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
         </div>
 
         <div class="section">
@@ -833,7 +850,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  const { character, miiMoves, bannedStages, result } = req.body;
+  const { character1, character2, character3, miiMoves1, miiMoves2, miiMoves3, bannedStages, result } = req.body;
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
@@ -845,11 +862,16 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const updateData = {};
 
   if (result) {
-    updateData[choicesKey] = { result, character: '', miiMoves: '', bannedStages: [] };
+    updateData[choicesKey] = { ...matchData[choicesKey], result };
   } else {
-    if (character !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], character };
-    if (miiMoves !== undefined) updateData[choicesKey] = { ...updateData[choicesKey] || matchData[choicesKey], miiMoves };
-    if (bannedStages) updateData[choicesKey] = { ...updateData[choicesKey] || matchData[choicesKey], bannedStages };
+    const matchCount = matchData.hostChoices.wins + matchData.hostChoices.losses;
+    if (character1 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], character1 };
+    if (character2 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], character2 };
+    if (character3 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], character3 };
+    if (miiMoves1 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], miiMoves1 };
+    if (miiMoves2 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], miiMoves2 };
+    if (miiMoves3 !== undefined) updateData[choicesKey] = { ...matchData[choicesKey], miiMoves3 };
+    if (bannedStages) updateData[choicesKey] = { ...matchData[choicesKey], bannedStages };
   }
 
   await updateDoc(matchRef, updateData);
