@@ -519,8 +519,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const hostRating = hostSnap.data().rating || 1500;
   const guestRating = guestSnap.data().rating || 1500;
 
+  // デフォルト値でwinsとlossesを保証
   const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
   const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
+  console.log('初期hostChoices:', hostChoices, '初期guestChoices:', guestChoices);
 
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
@@ -606,7 +608,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
 
           function selectStage(id) {
-            var matchCount = hostChoices.wins + hostChoices.losses;
+            var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
             var maxBanned = matchCount === 0 ? (isHost ? 1 : 2) : 2;
             var index = selectedStages.indexOf(id);
             if (matchCount === 0) { // 1戦目
@@ -618,11 +620,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 else if (selectedStages.length < maxBanned) selectedStages.push(id);
               }
             } else { // 2戦目以降
-              var isHostWinner = hostChoices.wins > guestChoices.wins;
+              var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
               if ((isHost && isHostWinner || !isHost && !isHostWinner) && !hostChoices.bannedStages) {
                 if (index !== -1) selectedStages.splice(index, 1);
                 else if (selectedStages.length < maxBanned) selectedStages.push(id);
-              } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && guestChoices.bannedStages && !hostChoices.character${matchCount + 1}) {
+              } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && guestChoices.bannedStages && !hostChoices['character' + (matchCount + 1)]) {
                 selectedChar = id;
               }
             }
