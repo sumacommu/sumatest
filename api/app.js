@@ -166,6 +166,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// Google認証ストラテジー
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -176,7 +177,7 @@ passport.use(new GoogleStrategy({
     const userRef = doc(db, 'users', profile.id);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
-      await setDoc(userRef, {
+      const userData = {
         displayName: profile.displayName,
         email: profile.emails[0].value,
         photoUrl: profile.photos[0].value,
@@ -186,7 +187,11 @@ passport.use(new GoogleStrategy({
         validReportCount: 0,
         penalty: false,
         rating: 1500
-      });
+      };
+      await setDoc(userRef, userData);
+      console.log('新規ユーザー登録成功:', profile.id, userData);
+    } else {
+      console.log('既存ユーザー確認:', profile.id, userSnap.data());
     }
     console.log('認証成功:', profile.id);
     return done(null, profile);
@@ -201,13 +206,14 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
+// デシリアライズ修正
 passport.deserializeUser(async (id, done) => {
   console.log('deserializeUser開始:', id);
   try {
     const userSnap = await getDoc(doc(db, 'users', id));
     if (!userSnap.exists()) {
       console.error('ユーザーが見つかりません:', id);
-      return done(new Error('ユーザーが見つかりません'));
+      return done(null, false); // エラーではなく未認証状態として扱う
     }
     const userData = userSnap.data();
     userData.id = id;
@@ -494,10 +500,14 @@ app.post('/api/solo/match', async (req, res) => {
 });
 
 // セットアップ画面
+// セットアップ画面（matchCountエラー対策）
 app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  if (!userId) return res.redirect('/api/solo');
+  if (!userId) {
+    console.log('ユーザー未認証、リダイレクト:', matchId);
+    return res.redirect('/api/solo');
+  }
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
@@ -608,7 +618,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
 
           function selectStage(id) {
+            console.log('selectStage開始 - hostChoices:', hostChoices, 'guestChoices:', guestChoices);
             var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
+            console.log('matchCount計算:', matchCount);
             var maxBanned = matchCount === 0 ? (isHost ? 1 : 2) : 2;
             var index = selectedStages.indexOf(id);
             if (matchCount === 0) { // 1戦目
@@ -630,6 +642,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
             updateStageButtons();
           }
+
 
           function updateStageButtons() {
             document.querySelectorAll('.stage-btn').forEach(btn => {
