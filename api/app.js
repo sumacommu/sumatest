@@ -654,7 +654,7 @@ async function saveSelections(matchId, result) {
 }
 
 // クライアント側スクリプトの onSnapshot 部分を修正
-db.collection('matches').doc('${matchId}').onSnapShot(function(doc) {
+db.collection('matches').doc('${matchId}').onSnapshot(function(doc) {
   if (!doc.exists) {
     console.error('ドキュメントが存在しません');
     return;
@@ -667,7 +667,7 @@ db.collection('matches').doc('${matchId}').onSnapShot(function(doc) {
   // 試合終了チェック
   if (data.status === 'finished') {
     var winner = hostChoices.wins >= 2 ? hostName : guestName;
-    document.getElementById('guide').innerText = `試合終了！勝者: ${winner}`;
+    document.getElementById('guide').innerText = '試合終了！勝者: ' + winner;
     document.querySelectorAll('.char-btn, .stage-btn, button').forEach(btn => btn.disabled = true);
     return;
   }
@@ -681,7 +681,6 @@ db.collection('matches').doc('${matchId}').onSnapShot(function(doc) {
   var canSelectStage = false;
 
   if (matchCount === 0) {
-    // 1戦目のロジック（既存）
     if (!hostChoices.characterReady) {
       guideText = isHost ? 'キャラクターを選択してください（' + hostName + '）' : guestName + 'のキャラクター選択を待っています...';
       canSelectChar = isHost;
@@ -704,7 +703,6 @@ db.collection('matches').doc('${matchId}').onSnapShot(function(doc) {
       guideText = 'ステージを「おまかせ」に設定し、対戦を開始してください（' + guestName + '）';
     }
   } else {
-    // 2戦目以降のロジック
     var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
     if ((isHost && isHostWinner || !isHost && !isHostWinner) && !hostChoices.bannedStages) {
       guideText = '拒否ステージを2つ選んでください（' + (isHost ? hostName : guestName) + '）';
