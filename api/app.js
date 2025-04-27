@@ -633,7 +633,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       if ((isHost && isHostWinner || !isHost && !isHostWinner) && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
         if (index !== -1) selectedStages.splice(index, 1);
         else if (selectedStages.length < maxBanned) selectedStages.push(id);
-      } else if ((isHost && !isHostWinner || !isHost && isHostWinner)) {
+      } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
         selectedChar = id; // 敗者がステージを選択
         console.log('Defender selected stage:', selectedChar);
       }
@@ -710,6 +710,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     console.log('hostChoices.bannedStages:', hostChoices.bannedStages || 'undefined');
     console.log('guestChoices.bannedStages:', guestChoices.bannedStages || 'undefined');
     console.log('data.selectedStage:', data.selectedStage || 'undefined');
+    console.log('guideText to be set:', guideText, 'canSelectChar:', canSelectChar, 'canSelectStage:', canSelectStage);
 
     // 試合状況の表示
     document.getElementById('matchStatus').innerText = '現在の試合: ' + (matchCount + 1) + '戦目';
@@ -767,9 +768,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       if ((isHost && isHostWinner || !isHost && !isHostWinner) && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
         guideText = '拒否ステージを2つ選んでください（' + (isHost ? hostName : guestName) + '）';
         canSelectStage = true;
-      } else if ((isHost && isHostWinner || !isHost && !isHostWinner) && hostChoices.bannedStages && (!data.selectedStage || data.selectedStage === '')) {
+      } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
+        guideText = (isHost ? hostName : guestName) + 'が拒否ステージを選んでいます...';
+      } else if ((isHost && isHostWinner || !isHost && !isHostWinner) && hostChoices.bannedStages && hostChoices.bannedStages.length > 0 && (!data.selectedStage || data.selectedStage === '')) {
         guideText = (isHost ? guestName : hostName) + 'が対戦するステージを選んでいます...';
-      } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && hostChoices.bannedStages && (!data.selectedStage || data.selectedStage === '')) {
+      } else if ((isHost && !isHostWinner || !isHost && isHostWinner) && hostChoices.bannedStages && hostChoices.bannedStages.length > 0 && (!data.selectedStage || data.selectedStage === '')) {
         guideText = '対戦するステージを選んでください（' + (isHost ? hostName : guestName) + '）';
         canSelectStage = true;
       } else if ((isHost && isHostWinner || !isHost && !isHostWinner) && data.selectedStage && !hostChoices['character' + (matchCount + 1)]) {
