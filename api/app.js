@@ -659,20 +659,23 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       data.result = result;
     } else {
       var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
-      if (selectedChar && !data.selectedStage) {
-        data.characterReady = true;
-        data['character' + (matchCount + 1)] = selectedChar;
+      if (selectedChar) {
+        if (matchCount > 0 && hostChoices.bannedStages && hostChoices.bannedStages.length > 0 && (!hostChoices['character' + (matchCount + 1)] && !guestChoices['character' + (matchCount + 1)])) {
+          data.selectedStage = selectedChar; // 敗者のステージ選択
+          console.log('Saving selectedStage:', data.selectedStage);
+        } else {
+          data.characterReady = true;
+          data['character' + (matchCount + 1)] = selectedChar;
+          console.log('Saving character:', data['character' + (matchCount + 1)]);
+        }
       }
       var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
       if (miiMoves) data['miiMoves' + (matchCount + 1)] = miiMoves;
       if (selectedStages.length > 0) data.bannedStages = selectedStages;
-      if (matchCount > 0 && selectedChar && !data['character' + (matchCount + 1)]) {
-        data.selectedStage = selectedChar; // 敗者のステージ選択
-        console.log('Saving selectedStage:', data.selectedStage);
-      }
     }
 
     try {
+      console.log('Sending data to server:', data);
       var response = await fetch('/api/solo/setup/' + matchId, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -703,37 +706,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     guestChoices = data.guestChoices || { wins: 0, losses: 0 };
     var matchCount = data.matchCount || (hostChoices.wins || 0) + (hostChoices.losses || 0);
     var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
-
-    // デバッグログ
-    console.log('matchCount:', matchCount);
-    console.log('isHostWinner:', isHostWinner);
-    console.log('hostChoices.bannedStages:', hostChoices.bannedStages || 'undefined');
-    console.log('guestChoices.bannedStages:', guestChoices.bannedStages || 'undefined');
-    console.log('data.selectedStage:', data.selectedStage || 'undefined');
-    console.log('guideText to be set:', guideText, 'canSelectChar:', canSelectChar, 'canSelectStage:', canSelectStage);
-
-    // 試合状況の表示
-    document.getElementById('matchStatus').innerText = '現在の試合: ' + (matchCount + 1) + '戦目';
-    var history = '';
-    if (hostChoices.wins > 0 || guestChoices.wins > 0) {
-      history = '勝敗履歴: ';
-      for (var i = 1; i <= matchCount; i++) {
-        if (hostChoices.wins >= i) {
-          history += i + '戦目の勝者: ' + hostName + ' ';
-        } else if (guestChoices.wins >= i) {
-          history += i + '戦目の勝者: ' + guestName + ' ';
-        }
-      }
-    }
-    document.getElementById('matchHistory').innerText = history;
-
-    // 試合終了チェック
-    if (data.status === 'finished') {
-      var winner = hostChoices.wins >= 2 ? hostName : guestName;
-      document.getElementById('guide').innerText = '試合終了！勝者: ' + winner;
-      document.querySelectorAll('.char-btn, .stage-btn, button').forEach(btn => btn.disabled = true);
-      return;
-    }
 
     var bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
     document.getElementById('hostStatus').innerText = hostName + 'の選択: ' + (hostChoices.characterReady ? '完了' : '未選択');
@@ -784,6 +756,37 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       } else if (hostChoices['character' + (matchCount + 1)] && guestChoices['character' + (matchCount + 1)]) {
         guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + (isHost ? hostName : guestName) + '）';
       }
+    }
+
+    // デバッグログ（変数定義後）
+    console.log('matchCount:', matchCount);
+    console.log('isHostWinner:', isHostWinner);
+    console.log('hostChoices.bannedStages:', hostChoices.bannedStages || 'undefined');
+    console.log('guestChoices.bannedStages:', guestChoices.bannedStages || 'undefined');
+    console.log('data.selectedStage:', data.selectedStage || 'undefined');
+    console.log('guideText set:', guideText, 'canSelectChar:', canSelectChar, 'canSelectStage:', canSelectStage);
+
+    // 試合状況の表示
+    document.getElementById('matchStatus').innerText = '現在の試合: ' + (matchCount + 1) + '戦目';
+    var history = '';
+    if (hostChoices.wins > 0 || guestChoices.wins > 0) {
+      history = '勝敗履歴: ';
+      for (var i = 1; i <= matchCount; i++) {
+        if (hostChoices.wins >= i) {
+          history += i + '戦目の勝者: ' + hostName + ' ';
+        } else if (guestChoices.wins >= i) {
+          history += i + '戦目の勝者: ' + guestName + ' ';
+        }
+      }
+    }
+    document.getElementById('matchHistory').innerText = history;
+
+    // 試合終了チェック
+    if (data.status === 'finished') {
+      var winner = hostChoices.wins >= 2 ? hostName : guestName;
+      document.getElementById('guide').innerText = '試合終了！勝者: ' + winner;
+      document.querySelectorAll('.char-btn, .stage-btn, button').forEach(btn => btn.disabled = true);
+      return;
     }
 
     document.getElementById('guide').innerText = guideText;
@@ -881,6 +884,8 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const userId = req.user?.id;
   const { character1, character2, character3, miiMoves1, miiMoves2, miiMoves3, bannedStages, result, characterReady, selectedStage } = req.body;
 
+  console.log('POST /api/solo/setup/:matchId received:', { matchId, userId, body: req.body });
+
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
   if (!matchSnap.exists()) return res.status(404).send('マッチが見つかりません');
@@ -925,7 +930,10 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
     if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
     if (bannedStages) updateData[choicesKey].bannedStages = bannedStages;
-    if (selectedStage) updateData.selectedStage = selectedStage; // 敗者のステージ選択を保存
+    if (selectedStage) {
+      updateData.selectedStage = selectedStage;
+      console.log('Updating selectedStage:', selectedStage);
+    }
   }
 
   await updateDoc(matchRef, updateData);
