@@ -677,7 +677,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
         } else {
           if (isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-            // ⅱ ゲストかつ勝者
+            // ⅱ ゲストかつ敗者
             if (index !== -1) selectedStages.splice(index, 1);
             else if (selectedStages.length < 2) selectedStages.push(id);
           } else if (
@@ -686,7 +686,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             hostChoices.bannedStages.length > 0 &&
             (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
           ) {
-            // ⅱ ゲストかつ敗者
+            // ⅱ ゲストかつ勝者
             selectedChar = id;
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.toggle('selected', btn.dataset.id === id);
@@ -700,6 +700,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   }
 
   function updateStageButtons() {
+    var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
     document.querySelectorAll('.stage-btn').forEach(btn => {
       btn.classList.remove('banned', 'selected', 'unselected');
       var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
@@ -708,6 +709,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       }
       if (selectedStages.includes(btn.dataset.id)) {
         btn.classList.add('selected');
+      }
+      if (matchCount > 0) {
+        btn.classList.remove('extra'); // 2戦目以降で灰色解除
       }
     });
   }
@@ -798,7 +802,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             isHostWinner &&
             (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
           ) {
-            // ⅱ ゲストかつ勝者
+            // ⅱ ゲストかつ敗者
             if (selectedStages.length > 0) {
               data.bannedStages = selectedStages;
               console.log('Saving bannedStages:', data.bannedStages);
@@ -809,7 +813,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             hostChoices.bannedStages.length > 0 &&
             (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
           ) {
-            // ⅱ ゲストかつ敗者
+            // ⅱ ゲストかつ勝者
             if (selectedChar) {
               data.selectedStage = selectedChar;
               console.log('Saving selectedStage:', data.selectedStage);
@@ -984,10 +988,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             } else {
               // ⅱ 敗者
-              if (
-                !hostChoices.bannedStages ||
-                hostChoices.bannedStages.length === 0
-              ) {
+              if (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) {
                 // α 勝者拒否待ち
                 guideText = guestName + 'が拒否ステージを選んでいます...';
                 canSelectStage = false;
@@ -1001,10 +1002,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             // Ⅱ ゲスト
             if (isHostWinner) {
               // ⅰ 敗者
-              if (
-                !guestChoices.bannedStages ||
-                guestChoices.bannedStages.length === 0
-              ) {
+              if (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) {
                 // α 勝者拒否待ち
                 guideText = hostName + 'が拒否ステージを選んでいます...';
                 canSelectStage = false;
@@ -1015,10 +1013,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             } else {
               // ⅱ 勝者
-              if (
-                !guestChoices.bannedStages ||
-                guestChoices.bannedStages.length === 0
-              ) {
+              if (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) {
                 // α 拒否ステージ
                 guideText = '拒否ステージを2つ選んでください（' + guestName + '）';
                 canSelectStage = true;
@@ -1122,6 +1117,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
         btn.classList.remove('disabled', 'enabled', 'banned');
         if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
+        if (matchCount > 0) {
+          btn.classList.remove('extra'); // 2戦目以降で灰色解除
+        }
         if (canSelectStage) {
           btn.classList.add('enabled');
           btn.style.pointerEvents = 'auto';
