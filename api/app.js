@@ -676,22 +676,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             });
           }
         } else {
-          if (isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+          if (isHostWinner && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
             // ⅱ ゲストかつ敗者
-            if (index !== -1) selectedStages.splice(index, 1);
-            else if (selectedStages.length < 2) selectedStages.push(id);
-          } else if (
-            !isHostWinner &&
-            hostChoices.bannedStages &&
-            hostChoices.bannedStages.length > 0 &&
-            (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
-          ) {
-            // ⅱ ゲストかつ勝者
             selectedChar = id;
             document.querySelectorAll('.stage-btn').forEach(btn => {
               btn.classList.toggle('selected', btn.dataset.id === id);
               btn.classList.toggle('defender', btn.dataset.id === id);
             });
+          } else if (
+            !isHostWinner &&
+            (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
+          ) {
+            // ⅱ ゲストかつ勝者
+            if (index !== -1) selectedStages.splice(index, 1);
+            else if (selectedStages.length < 2) selectedStages.push(id);
           }
         }
       }
@@ -711,15 +709,23 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         btn.classList.add('selected');
       }
       if (matchCount > 0) {
-        btn.classList.remove('extra'); // 2戦目以降で灰色解除
+        btn.classList.remove('extra');
       }
     });
   }
 
   async function saveSelections(matchId, result) {
+    console.log('saveSelections:', { isHost, isHostWinner, selectedChar, selectedStages, hostChoices, guestChoices });
     var data = {};
     var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
     var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
+
+    // 最新データを取得（同期遅延対策）
+    const doc = await db.collection('matches').doc(matchId).get();
+    if (doc.exists) {
+      hostChoices = doc.data().hostChoices || { wins: 0, losses: 0 };
+      guestChoices = doc.data().guestChoices || { wins: 0, losses: 0 };
+    }
 
     if (result) {
       // 勝敗送信時に charStatus をリセット
@@ -800,23 +806,22 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         } else {
           if (
             isHostWinner &&
-            (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
+            hostChoices.bannedStages &&
+            hostChoices.bannedStages.length > 0
           ) {
             // ⅱ ゲストかつ敗者
-            if (selectedStages.length > 0) {
-              data.bannedStages = selectedStages;
-              console.log('Saving bannedStages:', data.bannedStages);
-            }
-          } else if (
-            !isHostWinner &&
-            hostChoices.bannedStages &&
-            hostChoices.bannedStages.length > 0 &&
-            (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
-          ) {
-            // ⅱ ゲストかつ勝者
             if (selectedChar) {
               data.selectedStage = selectedChar;
               console.log('Saving selectedStage:', data.selectedStage);
+            }
+          } else if (
+            !isHostWinner &&
+            (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)
+          ) {
+            // ⅱ ゲストかつ勝者
+            if (selectedStages.length > 0) {
+              data.bannedStages = selectedStages;
+              console.log('Saving bannedStages:', data.bannedStages);
             }
           }
         }
@@ -864,7 +869,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               btn.classList.remove('selected', 'defender');
               btn.classList.add('confirmed');
             } else {
-              btn.classList.add('unselected'); // 選択されていないステージを透明処理
+              btn.classList.add('unselected');
             }
           });
         }
@@ -891,10 +896,19 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
       var bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
 
+      // 2戦目以降で直前のキャラクターをデフォルト選択
+      if (matchCount > 0 && !hostChoices['character' + (matchCount + 1)] && hostChoices['character' + matchCount]) {
+        if (isHost) selectedChar = hostChoices['character' + matchCount];
+      }
+      if (matchCount > 0 && !guestChoices['character' + (matchCount + 1)] && guestChoices['character' + matchCount]) {
+        if (!isHost) selectedChar = guestChoices['character' + matchCount];
+      }
+
       document.getElementById('hostStatus').innerText =
         hostName + 'の選択: ' + (hostChoices.characterReady ? '完了' : '未選択');
       document.getElementById('guestStatus').innerText =
         guestName + 'の選択: ' + (guestChoices.characterReady ? '完了' : '未選択');
+      document.getElementById('matchStatus').innerText = '現在の試合: ' + (matchCount + 1) + '戦目';
 
       var guideText = '';
       var canSelectChar = false;
@@ -1082,16 +1096,30 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           }
         } else {
           // C キャラ・ステージ完了
-          if (isHostWinner) {
-            // Ⅰ 勝者
-            guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + (isHost ? hostName : guestName) + '）';
-            canSelectStage = false;
-            canSelectChar = false;
+          if (isHost) {
+            if (isHostWinner) {
+              // Ⅰ ホストかつ勝者
+              guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + hostName + '）';
+              canSelectStage = false;
+              canSelectChar = false;
+            } else {
+              // Ⅰ ホストかつ敗者
+              guideText = '選んだステージ、キャラクターで対戦を始めてください（' + hostName + '）';
+              canSelectStage = false;
+              canSelectChar = false;
+            }
           } else {
-            // Ⅱ 敗者
-            guideText = '選んだステージ、キャラクターで対戦を始めてください（' + (isHost ? hostName : guestName) + '）';
-            canSelectStage = false;
-            canSelectChar = false;
+            if (isHostWinner) {
+              // Ⅱ ゲストかつ敗者
+              guideText = '選んだステージ、キャラクターで対戦を始めてください（' + guestName + '）';
+              canSelectStage = false;
+              canSelectChar = false;
+            } else {
+              // Ⅱ ゲストかつ勝者
+              guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + guestName + '）';
+              canSelectStage = false;
+              canSelectChar = false;
+            }
           }
         }
       }
@@ -1112,13 +1140,14 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       document.getElementById('guide').innerText = guideText;
       document.querySelectorAll('.char-btn').forEach(btn => {
         btn.classList.toggle('disabled', !canSelectChar);
+        btn.classList.toggle('selected', btn.dataset.id === selectedChar);
       });
       document.querySelectorAll('.stage-btn').forEach(btn => {
         var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
         btn.classList.remove('disabled', 'enabled', 'banned');
         if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
         if (matchCount > 0) {
-          btn.classList.remove('extra'); // 2戦目以降で灰色解除
+          btn.classList.remove('extra');
         }
         if (canSelectStage) {
           btn.classList.add('enabled');
