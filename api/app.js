@@ -700,13 +700,19 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   function updateStageButtons() {
     var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
     document.querySelectorAll('.stage-btn').forEach(btn => {
-      btn.classList.remove('banned', 'selected', 'unselected');
+      btn.classList.remove('banned', 'selected', 'unselected', 'confirmed', 'defender');
       var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
       if (banned.includes(btn.dataset.id)) {
         btn.classList.add('banned');
       }
       if (selectedStages.includes(btn.dataset.id)) {
         btn.classList.add('selected');
+      }
+      if (btn.dataset.id === selectedChar && !hostChoices.selectedStage && !guestChoices.selectedStage) {
+        btn.classList.add('selected');
+      }
+      if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== hostChoices.selectedStage && btn.dataset.id !== guestChoices.selectedStage) {
+        btn.classList.add('unselected');
       }
       if (matchCount > 0) {
         btn.classList.remove('extra');
@@ -728,9 +734,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     }
 
     if (result) {
-      // 勝敗送信時に charStatus をリセット
+      // 勝敗送信時に charStatus と bannedStages をリセット
       document.getElementById('charStatus').innerText = '';
       data.result = result;
+      if (isHost) {
+        data.hostChoices = { ...hostChoices, bannedStages: [] };
+        data.guestChoices = { ...guestChoices, bannedStages: [] };
+      } else {
+        data.guestChoices = { ...guestChoices, bannedStages: [] };
+        data.hostChoices = { ...hostChoices, bannedStages: [] };
+      }
+      selectedStages = [];
     } else if (matchCount === 0) {
       // ① 1戦目
       if (
@@ -799,8 +813,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           ) {
             // ⅰ ホストかつ敗者
             if (selectedChar) {
+              data.bannedStages = [selectedChar];
               data.selectedStage = selectedChar;
-              console.log('Saving selectedStage:', data.selectedStage);
+              console.log('Saving bannedStages:', data.bannedStages, 'selectedStage:', data.selectedStage);
             }
           }
         } else {
@@ -811,8 +826,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           ) {
             // ⅱ ゲストかつ敗者
             if (selectedChar) {
+              data.bannedStages = [selectedChar];
               data.selectedStage = selectedChar;
-              console.log('Saving selectedStage:', data.selectedStage);
+              console.log('Saving bannedStages:', data.bannedStages, 'selectedStage:', data.selectedStage);
             }
           } else if (
             !isHostWinner &&
@@ -868,7 +884,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             if (btn.dataset.id === data.selectedStage) {
               btn.classList.remove('selected', 'defender');
               btn.classList.add('confirmed');
-            } else {
+            } else if (![...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])].includes(btn.dataset.id)) {
               btn.classList.add('unselected');
             }
           });
@@ -1144,8 +1160,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       });
       document.querySelectorAll('.stage-btn').forEach(btn => {
         var banned = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
-        btn.classList.remove('disabled', 'enabled', 'banned');
-        if (banned.includes(btn.dataset.id)) btn.classList.add('banned');
+        btn.classList.remove('disabled', 'enabled', 'banned', 'confirmed');
+        if (banned.includes(btn.dataset.id)) {
+          btn.classList.add('banned');
+        }
+        if (data.selectedStage && btn.dataset.id === data.selectedStage) {
+          btn.classList.add('confirmed');
+        }
+        if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== data.selectedStage) {
+          btn.classList.add('unselected');
+        }
         if (matchCount > 0) {
           btn.classList.remove('extra');
         }
@@ -1199,6 +1223,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         '"> ' +
         guestDisplayMoves +
         '</p>';
+
+      console.log('Transition to char selection:', { canSelectChar, canSelectStage, guideText });
     },
     function (error) {
       console.error('onSnapshotエラー:', error);
