@@ -708,11 +708,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       if (selectedStages.includes(btn.dataset.id)) {
         btn.classList.add('selected');
       }
-      if (btn.dataset.id === selectedChar && !hostChoices.selectedStage && !guestChoices.selectedStage) {
+      if (btn.dataset.id === selectedChar && !data.selectedStage) {
         btn.classList.add('selected');
       }
-      if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== hostChoices.selectedStage && btn.dataset.id !== guestChoices.selectedStage) {
+      if (matchCount === 0 && selectedStages.length === 0 && !data.selectedStage) {
+        btn.classList.add('enabled');
+      } else if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== data.selectedStage) {
         btn.classList.add('unselected');
+      }
+      if (data.selectedStage && btn.dataset.id === data.selectedStage) {
+        btn.classList.add('confirmed');
+        btn.style.opacity = '1';
       }
       if (matchCount > 0) {
         btn.classList.remove('extra');
@@ -734,17 +740,22 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     }
 
     if (result) {
-      // 勝敗送信時に charStatus と bannedStages をリセット
+      // 勝敗送信時に charStatus と bannedStages、selectedStage をリセット
       document.getElementById('charStatus').innerText = '';
       data.result = result;
+      data.selectedStage = null;
       if (isHost) {
-        data.hostChoices = { ...hostChoices, bannedStages: [] };
-        data.guestChoices = { ...guestChoices, bannedStages: [] };
+        data.hostChoices = { ...hostChoices, characterReady: false, bannedStages: [] };
+        data.guestChoices = { ...guestChoices, characterReady: false, bannedStages: [] };
       } else {
-        data.guestChoices = { ...guestChoices, bannedStages: [] };
-        data.hostChoices = { ...hostChoices, bannedStages: [] };
+        data.guestChoices = { ...guestChoices, characterReady: false, bannedStages: [] };
+        data.hostChoices = { ...hostChoices, characterReady: false, bannedStages: [] };
       }
       selectedStages = [];
+      document.querySelectorAll('.stage-btn').forEach(btn => {
+        btn.classList.remove('confirmed', 'selected', 'defender');
+        btn.style.opacity = '';
+      });
     } else if (matchCount === 0) {
       // ① 1戦目
       if (
@@ -884,6 +895,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             if (btn.dataset.id === data.selectedStage) {
               btn.classList.remove('selected', 'defender');
               btn.classList.add('confirmed');
+              btn.style.opacity = '1';
             } else if (![...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])].includes(btn.dataset.id)) {
               btn.classList.add('unselected');
             }
@@ -1166,8 +1178,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         }
         if (data.selectedStage && btn.dataset.id === data.selectedStage) {
           btn.classList.add('confirmed');
+          btn.style.opacity = '1';
         }
-        if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== data.selectedStage) {
+        if (matchCount === 0 && selectedStages.length === 0 && !data.selectedStage) {
+          btn.classList.add('enabled');
+        } else if (!banned.includes(btn.dataset.id) && !selectedStages.includes(btn.dataset.id) && btn.dataset.id !== data.selectedStage) {
           btn.classList.add('unselected');
         }
         if (matchCount > 0) {
@@ -1184,26 +1199,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         }
       });
 
-      var displayChar =
-        bothCharsReady ||
-        (matchCount > 0 &&
-          (isHost && !isHostWinner || !isHost && isHostWinner) &&
-          hostChoices['character' + (matchCount + 1)])
-          ? (hostChoices['character' + (matchCount + 1)] || '00')
-          : '00';
-      var displayMoves =
-        bothCharsReady ||
-        (matchCount > 0 &&
-          (isHost && !isHostWinner || !isHost && isHostWinner) &&
-          hostChoices['character' + (matchCount + 1)])
-          ? (hostChoices['miiMoves' + (matchCount + 1)] || '')
-          : '';
-      var guestDisplayChar = bothCharsReady
-        ? (guestChoices['character' + (matchCount + 1)] || '00')
-        : '00';
-      var guestDisplayMoves = bothCharsReady
-        ? (guestChoices['miiMoves' + (matchCount + 1)] || '')
-        : '';
+      var displayChar = hostChoices['character' + (matchCount + 1)] || '00';
+      var guestDisplayChar = guestChoices['character' + (matchCount + 1)] || '00';
+      var displayMoves = hostChoices['miiMoves' + (matchCount + 1)] || '';
+      var guestDisplayMoves = guestChoices['miiMoves' + (matchCount + 1)] || '';
       document.querySelector('.char-display').innerHTML =
         '<p>' +
         hostName +
