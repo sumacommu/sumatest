@@ -80,7 +80,6 @@
 
     let selectedChar = null;
 
-    // キャラクター選択時の処理
     function selectCharacter(id, name) {
       selectedChar = id;
       document.getElementById('charSelected').innerHTML = '<img src="/characters/' + id + '.png" width="64" height="64">';
@@ -91,12 +90,10 @@
       });
     }
 
-    // 「全キャラから選ぶ」ボタン
     document.querySelector('button[onclick*="charPopup"]')?.addEventListener('click', () => {
       document.getElementById('charPopup').style.display = 'block';
     });
 
-    // ログイン状態をチェックし、マイページリンクを表示
     firebase.auth().onAuthStateChanged(user => {
       if (user) {
         const userPageLink = document.getElementById('userPageLink');
