@@ -4,7 +4,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs, runTransaction } = require('firebase/firestore');
 const EventEmitter = require('events');
 require('dotenv').config();
 
@@ -1317,21 +1317,17 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
 
             let hostRatingChange = 0;
             let guestRatingChange = 0;
-            const finalHostWins = updateData.hostChoices.wins;
-            const finalGuestWins = updateData.guestChoices.wins;
 
-            // ルーム全体の勝敗に基づくレーティング計算
-            const ratingDiff = guestRating - hostRating;
-            const ratingChange = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
-            if (finalHostWins >= 2) {
-              // ホスト勝利
-              hostRatingChange = ratingChange * (finalHostWins - finalGuestWins);
-              guestRatingChange = -hostRatingChange;
-            } else if (finalGuestWins >= 2) {
-              // ゲスト勝利
-              guestRatingChange = ratingChange * (finalGuestWins - finalHostWins);
-              hostRatingChange = -guestRatingChange;
-            }
+            // 全試合の勝敗を計算
+            updateData.results.forEach(match => {
+              if (match.winner === matchData.hostName) {
+                hostRatingChange += 16;
+                guestRatingChange -= 16;
+              } else {
+                guestRatingChange += 16;
+                hostRatingChange -= 16;
+              }
+            });
 
             console.log('レーティング更新:', {
               hostId: matchData.userId,
@@ -1418,6 +1414,105 @@ app.post('/api/solo/update', async (req, res) => {
       </html>
     `);
   }
+});
+
+// ユーザーページ
+app.get('/api/user/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    return res.status(404).send('ユーザーが見つかりません');
+  }
+
+  const userData = userSnap.data();
+  const displayName = userData.displayName || '不明';
+  const rating = userData.rating || 1500;
+
+  // キャラクター名マッピング
+  const characterMap = {
+    '01': 'マリオ',
+    '03': 'リンク',
+    '54': '格闘Mii',
+    '55': '剣術Mii',
+    '56': '射撃Mii'
+    // 必要に応じて追加
+  };
+
+  // 対戦履歴の取得
+  const matchesQuery = await db.collection('matches')
+    .where('status', '==', 'finished')
+    .where('userId', 'in', [userId, null]) // userIdがホストの場合
+    .get();
+  const matchesGuestQuery = await db.collection('matches')
+    .where('status', '==', 'finished')
+    .where('guestId', '==', userId)
+    .get();
+
+  const matches = [];
+  matchesQuery.forEach(doc => matches.push(doc.data()));
+  matchesGuestQuery.forEach(doc => matches.push(doc.data()));
+
+  // 対戦履歴テーブル生成
+  let historyHtml = `
+    <table border="1">
+      <thead>
+        <tr>
+          <th>試合番号</th>
+          <th>ホスト（キャラ）</th>
+          <th>ゲスト（キャラ）</th>
+          <th>勝者</th>
+          <th>レーティング変化</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  matches.forEach(match => {
+    const isHost = match.userId === userId;
+    match.results.forEach(result => {
+      const hostChar = characterMap[result.hostCharacter] || `キャラ${result.hostCharacter}`;
+      const guestChar = characterMap[result.guestCharacter] || `キャラ${result.guestCharacter}`;
+      const ratingChange = result.winner === (isHost ? match.hostName : match.guestName) ? 16 : -16;
+      const color = ratingChange > 0 ? 'green' : 'red';
+      historyHtml += `
+        <tr>
+          <td>${result.match}</td>
+          <td>${match.hostName} (${hostChar})</td>
+          <td>${match.guestName} (${guestChar})</td>
+          <td>${result.winner}</td>
+          <td><span style="color: ${color}">${ratingChange > 0 ? '+' : ''}${ratingChange}</span></td>
+        </tr>
+      `;
+    });
+  });
+
+  historyHtml += `
+      </tbody>
+    </table>
+  `;
+
+  res.send(`
+    <html>
+      <head>
+        <style>
+          table { width: 80%; margin: 20px auto; border-collapse: collapse; }
+          th, td { padding: 10px; text-align: center; border: 1px solid #ccc; }
+          th { background-color: #f0f0f0; }
+          h1, h2 { text-align: center; }
+          a { display: block; text-align: center; margin: 20px; }
+        </style>
+      </head>
+      <body>
+        <h1>${displayName}のプロフィール</h1>
+        <h2>現在のレーティング: ${rating}</h2>
+        <h2>対戦履歴</h2>
+        ${historyHtml}
+        <a href="/api/solo">対戦画面に戻る</a>
+      </body>
+    </html>
+  `);
 });
 
 // チーム用ページ（仮）
