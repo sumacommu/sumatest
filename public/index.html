@@ -58,14 +58,16 @@
   <h1>スマブラマッチング</h1>
   <p><a href="/api/solo">タイマン用</a></p>
   <p><a href="/api/team">チーム用</a></p>
-  <p><a href="/api/auth/google">Googleでログイン</a></p>
-  <p id="userPageLink" style="display: none;"><a href="#">マイページ</a></p>
+  <p><a href="/api/auth/google?redirect=/api/" id="loginLink">Googleでログイン</a></p>
+  <p><a href="/api/logout" id="logoutLink" style="display: none;">ログアウト</a></p>
+  <p id="userPageLink" style="display: none;"><a href="#" id="userPage">マイページ</a></p>
   <div id="charSelected"></div>
   <div id="charPopup" class="popup">
     <!-- キャラクターボタンは動的に生成可能 -->
   </div>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
   <script>
     var firebaseConfig = {
       apiKey: "${process.env.FIREBASE_API_KEY}",
@@ -95,11 +97,21 @@
     });
 
     firebase.auth().onAuthStateChanged(user => {
+      const loginLink = document.getElementById('loginLink');
+      const logoutLink = document.getElementById('logoutLink');
+      const userPageLink = document.getElementById('userPageLink');
+      const userPage = document.getElementById('userPage');
+
       if (user) {
-        const userPageLink = document.getElementById('userPageLink');
+        loginLink.style.display = 'none';
+        logoutLink.style.display = 'block';
         userPageLink.style.display = 'block';
-        userPageLink.querySelector('a').href = `/api/user/${user.uid}`;
-        userPageLink.querySelector('a').textContent = `${user.displayName || 'ユーザー'}のマイページ`;
+        userPage.href = `/api/user/${user.uid}`;
+        userPage.textContent = `${user.displayName || 'ユーザー'}のマイページ`;
+      } else {
+        loginLink.style.display = 'block';
+        logoutLink.style.display = 'none';
+        userPageLink.style.display = 'none';
       }
     });
   </script>
