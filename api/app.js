@@ -1285,13 +1285,35 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
         )) {
           const hostWins = matchData.hostChoices.wins || 0;
           const guestWins = matchData.guestChoices.wins || 0;
-          updateData.hostChoices = { ...matchData.hostChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
-          updateData.guestChoices = { ...matchData.guestChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
+          updateData.hostChoices = {
+            ...matchData.hostChoices,
+            result: '',
+            characterReady: false,
+            bannedStages: [],
+            selectedStage: '',
+            wins: hostWins,
+            losses: matchData.hostChoices.losses || 0
+          };
+          updateData.guestChoices = {
+            ...matchData.guestChoices,
+            result: '',
+            characterReady: false,
+            bannedStages: [],
+            selectedStage: '',
+            wins: guestWins,
+            losses: matchData.guestChoices.losses || 0
+          };
           updateData.results = matchData.results ? [...matchData.results] : [];
+
+          // キャラクターが未定義の場合にデフォルト値
+          const matchIndex = hostWins + guestWins + 1;
+          const hostCharacter = matchData.hostChoices['character' + matchIndex] || '00';
+          const guestCharacter = matchData.guestChoices['character' + matchIndex] || '00';
+
           updateData.results.push({
-            match: hostWins + guestWins + 1,
-            hostCharacter: matchData.hostChoices['character' + (hostWins + guestWins + 1)] || '00',
-            guestCharacter: matchData.guestChoices['character' + (hostWins + guestWins + 1)] || '00',
+            match: matchIndex,
+            hostCharacter,
+            guestCharacter,
             winner: result === 'win' && isHost || result === 'lose' && !isHost ? matchData.hostName : matchData.guestName
           });
 
@@ -1335,7 +1357,8 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
               hostRatingChange,
               guestId: matchData.guestId,
               guestRating,
-              guestRatingChange
+              guestRatingChange,
+              updateData
             });
 
             transaction.update(hostUserRef, { rating: hostRating + hostRatingChange });
@@ -1346,33 +1369,21 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
         const matchCount = (matchData.hostChoices.wins || 0) + (matchData.hostChoices.losses || 0);
         updateData[choicesKey] = { ...matchData[choicesKey] };
         if (characterReady) updateData[choicesKey].characterReady = true;
-        if (character1 !== undefined) {
-          console.log(`Saving character1 for ${choicesKey}:`, character1);
-          updateData[choicesKey].character1 = character1;
-        }
-        if (character2 !== undefined) {
-          console.log(`Saving character2 for ${choicesKey}:`, character2);
-          updateData[choicesKey].character2 = character2;
-        }
-        if (character3 !== undefined) {
-          console.log(`Saving character3 for ${choicesKey}:`, character3);
-          updateData[choicesKey].character3 = character3;
-        }
+        if (character1 !== undefined) updateData[choicesKey].character1 = character1;
+        if (character2 !== undefined) updateData[choicesKey].character2 = character2;
+        if (character3 !== undefined) updateData[choicesKey].character3 = character3;
         if (miiMoves1 !== undefined) updateData[choicesKey].miiMoves1 = miiMoves1;
         if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
         if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
-        if (bannedStages) {
-          console.log(`Saving bannedStages for ${choicesKey}:`, bannedStages);
-          updateData[choicesKey].bannedStages = bannedStages;
-        }
+        if (bannedStages) updateData[choicesKey].bannedStages = bannedStages;
         if (selectedStage) {
-          console.log(`Saving selectedStage for ${choicesKey}:`, selectedStage);
           updateData[choicesKey].selectedStage = selectedStage;
           updateData.selectedStage = selectedStage;
         }
       }
 
       if (Object.keys(updateData).length > 0) {
+        console.log('更新データ:', updateData);
         transaction.update(matchRef, updateData);
       }
     });
@@ -1419,6 +1430,16 @@ app.post('/api/solo/update', async (req, res) => {
 // ユーザーページ
 app.get('/api/user/:userId', async (req, res) => {
   const userId = req.params.userId;
+  const currentUserId = req.user?.id;
+
+  if (!currentUserId) {
+    return res.redirect('/api/auth/google');
+  }
+
+  if (userId !== currentUserId) {
+    return res.status(403).send('他のユーザーのページにはアクセスできません');
+  }
+
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
 
@@ -1430,7 +1451,6 @@ app.get('/api/user/:userId', async (req, res) => {
   const displayName = userData.displayName || '不明';
   const rating = userData.rating || 1500;
 
-  // キャラクター名マッピング
   const characterMap = {
     '01': 'マリオ',
     '03': 'リンク',
@@ -1440,10 +1460,9 @@ app.get('/api/user/:userId', async (req, res) => {
     // 必要に応じて追加
   };
 
-  // 対戦履歴の取得
   const matchesQuery = await db.collection('matches')
     .where('status', '==', 'finished')
-    .where('userId', 'in', [userId, null]) // userIdがホストの場合
+    .where('userId', '==', userId)
     .get();
   const matchesGuestQuery = await db.collection('matches')
     .where('status', '==', 'finished')
@@ -1454,7 +1473,6 @@ app.get('/api/user/:userId', async (req, res) => {
   matchesQuery.forEach(doc => matches.push(doc.data()));
   matchesGuestQuery.forEach(doc => matches.push(doc.data()));
 
-  // 対戦履歴テーブル生成
   let historyHtml = `
     <table border="1">
       <thead>
