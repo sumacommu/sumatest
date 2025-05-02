@@ -1261,104 +1261,131 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
 
   console.log('POST /api/solo/setup/:matchId received:', { matchId, userId, body: req.body });
 
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
-  if (!matchSnap.exists()) return res.status(404).send('マッチが見つかりません');
+  try {
+    const matchRef = doc(db, 'matches', matchId);
+    
+    await runTransaction(db, async (transaction) => {
+      const matchSnap = await transaction.get(matchRef);
+      if (!matchSnap.exists()) {
+        throw new Error('マッチが見つかりません');
+      }
 
-  const matchData = matchSnap.data();
-  const isHost = matchData.userId === userId;
-  const choicesKey = isHost ? 'hostChoices' : 'guestChoices';
-  const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
-  const updateData = {};
+      const matchData = matchSnap.data();
+      const isHost = matchData.userId === userId;
+      const choicesKey = isHost ? 'hostChoices' : 'guestChoices';
+      const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
+      const updateData = {};
 
-  if (result) {
-    updateData[choicesKey] = { ...matchData[choicesKey], result };
-    const opponentChoices = matchData[opponentChoicesKey];
-    if (opponentChoices.result && (
-      (result === 'win' && opponentChoices.result === 'lose') ||
-      (result === 'lose' && opponentChoices.result === 'win')
-    )) {
-      const hostWins = matchData.hostChoices.wins || 0;
-      const guestWins = matchData.guestChoices.wins || 0;
-      updateData.hostChoices = { ...matchData.hostChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
-      updateData.guestChoices = { ...matchData.guestChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
-      updateData.results = matchData.results ? [...matchData.results] : [];
-      updateData.results.push({
-        match: hostWins + guestWins + 1,
-        hostCharacter: matchData.hostChoices['character' + (hostWins + guestWins + 1)],
-        guestCharacter: matchData.guestChoices['character' + (hostWins + guestWins + 1)],
-        winner: result === 'win' && isHost || result === 'lose' && !isHost ? matchData.hostName : matchData.guestName
-      });
+      if (result) {
+        updateData[choicesKey] = { ...matchData[choicesKey], result };
+        const opponentChoices = matchData[opponentChoicesKey] || {};
+        if (opponentChoices.result && (
+          (result === 'win' && opponentChoices.result === 'lose') ||
+          (result === 'lose' && opponentChoices.result === 'win')
+        )) {
+          const hostWins = matchData.hostChoices.wins || 0;
+          const guestWins = matchData.guestChoices.wins || 0;
+          updateData.hostChoices = { ...matchData.hostChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
+          updateData.guestChoices = { ...matchData.guestChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
+          updateData.results = matchData.results ? [...matchData.results] : [];
+          updateData.results.push({
+            match: hostWins + guestWins + 1,
+            hostCharacter: matchData.hostChoices['character' + (hostWins + guestWins + 1)] || '00',
+            guestCharacter: matchData.guestChoices['character' + (hostWins + guestWins + 1)] || '00',
+            winner: result === 'win' && isHost || result === 'lose' && !isHost ? matchData.hostName : matchData.guestName
+          });
 
-      // レーティング計算
-      const hostUserRef = doc(db, 'users', matchData.userId);
-      const guestUserRef = doc(db, 'users', matchData.guestId);
-      const hostUserSnap = await getDoc(hostUserRef);
-      const guestUserSnap = await getDoc(guestUserRef);
-      const hostRating = hostUserSnap.exists() ? hostUserSnap.data().rating || 1500 : 1500;
-      const guestRating = guestUserSnap.exists() ? guestUserSnap.data().rating || 1500 : 1500;
+          if (result === 'win' && isHost || result === 'lose' && !isHost) {
+            updateData.hostChoices.wins = hostWins + 1;
+            updateData.guestChoices.losses = (matchData.guestChoices.losses || 0) + 1;
+          } else {
+            updateData.guestChoices.wins = guestWins + 1;
+            updateData.hostChoices.losses = (matchData.hostChoices.losses || 0) + 1;
+          }
+          updateData.matchCount = hostWins + guestWins + 1;
 
-      let hostRatingChange = 0;
-      let guestRatingChange = 0;
-      if (result === 'win' && isHost || result === 'lose' && !isHost) {
-        // ホスト勝利
-        const ratingDiff = guestRating - hostRating;
-        hostRatingChange = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
-        guestRatingChange = -Math.floor(16 + (-ratingDiff) * 0.04);
+          // ルーム終了時のみレーティング更新
+          if (updateData.hostChoices.wins >= 2 || updateData.guestChoices.wins >= 2) {
+            updateData.status = 'finished';
+
+            const hostUserRef = doc(db, 'users', matchData.userId);
+            const guestUserRef = doc(db, 'users', matchData.guestId);
+            const hostUserSnap = await transaction.get(hostUserRef);
+            const guestUserSnap = await transaction.get(guestUserRef);
+            const hostRating = hostUserSnap.exists() ? hostUserSnap.data().rating || 1500 : 1500;
+            const guestRating = guestUserSnap.exists() ? guestUserSnap.data().rating || 1500 : 1500;
+
+            let hostRatingChange = 0;
+            let guestRatingChange = 0;
+            const finalHostWins = updateData.hostChoices.wins;
+            const finalGuestWins = updateData.guestChoices.wins;
+
+            // ルーム全体の勝敗に基づくレーティング計算
+            const ratingDiff = guestRating - hostRating;
+            const ratingChange = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
+            if (finalHostWins >= 2) {
+              // ホスト勝利
+              hostRatingChange = ratingChange * (finalHostWins - finalGuestWins);
+              guestRatingChange = -hostRatingChange;
+            } else if (finalGuestWins >= 2) {
+              // ゲスト勝利
+              guestRatingChange = ratingChange * (finalGuestWins - finalHostWins);
+              hostRatingChange = -guestRatingChange;
+            }
+
+            console.log('レーティング更新:', {
+              hostId: matchData.userId,
+              hostRating,
+              hostRatingChange,
+              guestId: matchData.guestId,
+              guestRating,
+              guestRatingChange
+            });
+
+            transaction.update(hostUserRef, { rating: hostRating + hostRatingChange });
+            transaction.update(guestUserRef, { rating: guestRating + guestRatingChange });
+          }
+        }
       } else {
-        // ゲスト勝利
-        const ratingDiff = hostRating - guestRating;
-        guestRatingChange = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
-        hostRatingChange = -Math.floor(16 + (-ratingDiff) * 0.04);
+        const matchCount = (matchData.hostChoices.wins || 0) + (matchData.hostChoices.losses || 0);
+        updateData[choicesKey] = { ...matchData[choicesKey] };
+        if (characterReady) updateData[choicesKey].characterReady = true;
+        if (character1 !== undefined) {
+          console.log(`Saving character1 for ${choicesKey}:`, character1);
+          updateData[choicesKey].character1 = character1;
+        }
+        if (character2 !== undefined) {
+          console.log(`Saving character2 for ${choicesKey}:`, character2);
+          updateData[choicesKey].character2 = character2;
+        }
+        if (character3 !== undefined) {
+          console.log(`Saving character3 for ${choicesKey}:`, character3);
+          updateData[choicesKey].character3 = character3;
+        }
+        if (miiMoves1 !== undefined) updateData[choicesKey].miiMoves1 = miiMoves1;
+        if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
+        if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
+        if (bannedStages) {
+          console.log(`Saving bannedStages for ${choicesKey}:`, bannedStages);
+          updateData[choicesKey].bannedStages = bannedStages;
+        }
+        if (selectedStage) {
+          console.log(`Saving selectedStage for ${choicesKey}:`, selectedStage);
+          updateData[choicesKey].selectedStage = selectedStage;
+          updateData.selectedStage = selectedStage;
+        }
       }
 
-      await updateDoc(hostUserRef, { rating: hostRating + hostRatingChange });
-      await updateDoc(guestUserRef, { rating: guestRating + guestRatingChange });
+      if (Object.keys(updateData).length > 0) {
+        transaction.update(matchRef, updateData);
+      }
+    });
 
-      if (result === 'win' && isHost || result === 'lose' && !isHost) {
-        updateData.hostChoices.wins = hostWins + 1;
-        updateData.guestChoices.losses = (matchData.guestChoices.losses || 0) + 1;
-      } else {
-        updateData.guestChoices.wins = guestWins + 1;
-        updateData.hostChoices.losses = (matchData.hostChoices.losses || 0) + 1;
-      }
-      updateData.matchCount = hostWins + guestWins + 1;
-      if (updateData.hostChoices.wins >= 2 || updateData.guestChoices.wins >= 2) {
-        updateData.status = 'finished';
-      }
-    }
-  } else {
-    const matchCount = matchData.hostChoices.wins + matchData.hostChoices.losses;
-    updateData[choicesKey] = { ...matchData[choicesKey] };
-    if (characterReady) updateData[choicesKey].characterReady = true;
-    if (character1 !== undefined) {
-      console.log(`Saving character1 for ${choicesKey}:`, character1);
-      updateData[choicesKey].character1 = character1;
-    }
-    if (character2 !== undefined) {
-      console.log(`Saving character2 for ${choicesKey}:`, character2);
-      updateData[choicesKey].character2 = character2;
-    }
-    if (character3 !== undefined) {
-      console.log(`Saving character3 for ${choicesKey}:`, character3);
-      updateData[choicesKey].character3 = character3;
-    }
-    if (miiMoves1 !== undefined) updateData[choicesKey].miiMoves1 = miiMoves1;
-    if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
-    if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
-    if (bannedStages) {
-      console.log(`Saving bannedStages for ${choicesKey}:`, bannedStages);
-      updateData[choicesKey].bannedStages = bannedStages;
-    }
-    if (selectedStage) {
-      console.log(`Saving selectedStage for ${choicesKey}:`, selectedStage);
-      updateData[choicesKey].selectedStage = selectedStage;
-      updateData.selectedStage = selectedStage;
-    }
+    res.send('OK');
+  } catch (error) {
+    console.error('エラー /api/solo/setup/:matchId:', error);
+    res.status(500).send('サーバーエラーが発生しました');
   }
-
-  await updateDoc(matchRef, updateData);
-  res.send('OK');
 });
 
 // ID更新処理
