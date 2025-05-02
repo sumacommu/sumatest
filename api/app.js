@@ -529,8 +529,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 
   const hostChoices = matchData.hostChoices || { wins: 0, losses: 0, bannedStages: [], selectedStage: '', characterReady: false };
   const guestChoices = matchData.guestChoices || { wins: 0, losses: 0, bannedStages: [], selectedStage: '', characterReady: false };
-  const results = matchData.results || []; // 勝敗履歴の初期化
-  console.log('初期hostChoices:', hostChoices, '初期guestChoices:', guestChoices, '初期results:', results);
+  const matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0); // matchCountを定義
+  const results = matchData.results || [];
+  console.log('初期hostChoices:', hostChoices, '初期guestChoices:', guestChoices, '初期results:', results, 'matchCount:', matchCount);
 
   const allCharacters = Array.from({ length: 87 }, (_, i) => {
     const id = String(i + 1).padStart(2, '0');
@@ -1182,7 +1183,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
         <p>ホスト: ${hostName} (レート: ${hostRating})</p>
         <p>ゲスト: ${guestName} (レート: ${guestRating})</p>
         <p>対戦部屋のID: ${matchData.roomId || '未設定'}</p>
-        <p id="matchStatus">現在の試合: 1戦目</p>
+        <p id="matchStatus">現在の試合: ${matchCount + 1}戦目</p>
         <p id="rating">レーティング: 読み込み中...</p>
         <p id="hostStatus">${hostName}の選択: ${hostChoices.characterReady ? '完了' : '未選択'}</p>
         <p id="guestStatus">${guestName}の選択: ${guestChoices.characterReady ? '完了' : '未選択'}</p>
@@ -1208,7 +1209,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     <img src="/characters/${char.id}.png">
                   </button>`
               )
-              .join('')}
+            .join('')}
           </div>
         </div>
 
