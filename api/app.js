@@ -1249,19 +1249,67 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       const hostWins = matchData.hostChoices.wins || 0;
       const guestWins = matchData.guestChoices.wins || 0;
       const matchNumber = (matchData.matchCount || 0) + 1;
-      const winner = result === 'win' ? (isHost ? { character: matchData.hostChoices['character' + matchNumber], userId: matchData.userId } : { character: matchData.guestChoices['character' + matchNumber], userId: matchData.guestId }) : 
-                     result === 'lose' ? (isHost ? { character: matchData.guestChoices['character' + matchNumber], userId: matchData.guestId } : { character: matchData.hostChoices['character' + matchNumber], userId: matchData.userId }) : {};
-      const loser = result === 'win' ? (isHost ? { character: matchData.guestChoices['character' + matchNumber], userId: matchData.guestId } : { character: matchData.hostChoices['character' + matchNumber], userId: matchData.userId }) : 
-                    result === 'lose' ? (isHost ? { character: matchData.hostChoices['character' + matchNumber], userId: matchData.userId } : { character: matchData.guestChoices['character' + matchNumber], userId: matchData.guestId }) : {};
+  
+      // キャラクターデータの検証
+      const hostCharacter = matchData.hostChoices['character' + matchNumber];
+      const guestCharacter = matchData.guestChoices['character' + matchNumber];
+      if (!hostCharacter || !guestCharacter) {
+        console.error('キャラクターデータが未設定:', {
+          matchId,
+          matchNumber,
+          hostCharacter,
+          guestCharacter,
+          hostChoices: matchData.hostChoices,
+          guestChoices: matchData.guestChoices
+        });
+        return res.status(400).send('キャラクターデータが未設定です。両プレイヤーがキャラクターを選択してください。');
+      }
+  
+      // 勝者・敗者の構築
+      const winner = result === 'win' ? (
+        isHost 
+          ? { character: hostCharacter, userId: matchData.userId } 
+          : { character: guestCharacter, userId: matchData.guestId }
+      ) : (
+        isHost 
+          ? { character: guestCharacter, userId: matchData.guestId } 
+          : { character: hostCharacter, userId: matchData.userId }
+      );
+      const loser = result === 'win' ? (
+        isHost 
+          ? { character: guestCharacter, userId: matchData.guestId } 
+          : { character: hostCharacter, userId: matchData.userId }
+      ) : (
+        isHost 
+          ? { character: hostCharacter, userId: matchData.userId } 
+          : { character: guestCharacter, userId: matchData.guestId }
+      );
+  
+      // historyに追加（stageを削除、ratingChangeを0で初期化）
       updateData.history = matchData.history || [];
       updateData.history.push({
         matchNumber,
         winner,
         loser,
-        stage: matchData.selectedStage
+        ratingChange: 0 // 初期値0（後で更新可能）
       });
-      updateData.hostChoices = { ...matchData.hostChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
-      updateData.guestChoices = { ...matchData.guestChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
+  
+      // リセットと勝敗カウント
+      updateData.hostChoices = { 
+        ...matchData.hostChoices, 
+        result: '', 
+        characterReady: false, 
+        bannedStages: [], 
+        selectedStage: '' 
+      };
+      updateData.guestChoices = { 
+        ...matchData.guestChoices, 
+        result: '', 
+        characterReady: false, 
+        bannedStages: [], 
+        selectedStage: '' 
+      };
+  
       if (result === 'win' && isHost || result === 'lose' && !isHost) {
         updateData.hostChoices.wins = hostWins + 1;
         updateData.guestChoices.losses = (matchData.guestChoices.losses || 0) + 1;
@@ -1270,9 +1318,10 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
         updateData.hostChoices.losses = (matchData.hostChoices.losses || 0) + 1;
       }
       updateData.matchCount = matchNumber;
+  
+      // レーティング計算（試合終了時のみ）
       if (updateData.hostChoices.wins >= 2 || updateData.guestChoices.wins >= 2) {
         updateData.status = 'finished';
-        // レーティング計算
         const winnerId = updateData.hostChoices.wins >= 2 ? matchData.userId : matchData.guestId;
         const loserId = updateData.hostChoices.wins >= 2 ? matchData.guestId : matchData.userId;
         const winnerRef = doc(db, 'users', winnerId);
@@ -1282,10 +1331,14 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
         const loserRating = loserSnap.data()?.rating || 1500;
         const ratingDiff = loserRating - winnerRating;
         const points = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
+        
+        // レーティング更新
         await Promise.all([
           setDoc(winnerRef, { rating: winnerRating + points }, { merge: true }),
           setDoc(loserRef, { rating: loserRating - points }, { merge: true })
         ]);
+  
+        // historyのratingChangeを更新
         updateData.history[updateData.history.length - 1].ratingChange = points;
       }
     }
