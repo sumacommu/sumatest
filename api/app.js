@@ -557,7 +557,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          /* === 既存のCSSを保持しつつ、ステージ画像サイズを調整 === */
+          /* === 既存のCSSを保持しつつ、ステージとキャラCSSを調整 === */
           .overlay {
             display: none;
             position: fixed;
@@ -592,14 +592,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             display: none;
           }
           .char-btn {
-            opacity: 0.3;
-            transition: opacity 0.3s;
             border: none;
             background: none;
             padding: 0;
+            transition: opacity 0.3s, filter 0.3s;
           }
-          .char-btn.selected {
+          .char-btn.char-normal {
             opacity: 1;
+          }
+          .char-btn.char-dim {
+            opacity: 0.3;
+          }
+          .char-btn.char-dim-gray {
+            opacity: 0.3;
+            filter: grayscale(100%);
           }
           .char-btn.disabled {
             opacity: 0.5;
@@ -688,18 +694,30 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージ画像サイズを端末幅にスケール === */
+          /* === 修正: ステージ選択の4行レイアウト === */
           .stage-selection {
+            display: flex;
+            align-items: center;
             margin-bottom: 20px;
+          }
+          .stage-title {
+            flex: 1;
+            margin-right: 20px;
+          }
+          .stage-rows {
+            flex: 1;
           }
           .stage-row {
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             gap: 10px;
             margin-bottom: 10px;
           }
+          .stage-row.battlefield {
+            justify-content: flex-end;
+          }
           .stage-selection img {
-            width: 30vw; /* 端末幅の30% */
+            width: 33vw; /* 端末幅の33%、スマホで約120-150px */
             height: auto;
           }
           .button-group {
@@ -717,6 +735,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
             .match-container {
               padding: 10px;
+            }
+            .stage-selection {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .stage-title {
+              margin-bottom: 10px;
+              margin-right: 0;
+            }
+            .stage-rows {
+              width: 100%;
             }
           }
         </style>
@@ -754,10 +783,80 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             } else {
               miiInput.style.display = 'none';
             }
-            document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.toggle('selected', btn.dataset.id === id);
-            });
             document.getElementById('charStatus').innerText = 'キャラクターを選択しました。決定ボタンを押してください。';
+            updateCharacterButtons(); // 修正: キャラ選択時にボタン状態を更新
+          }
+    
+          function updateCharacterButtons() {
+            var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
+            var bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
+            console.log('updateCharacterButtons:', { matchCount, selectedChar, bothCharsReady, isHost, hostChoices, guestChoices });
+    
+            document.querySelectorAll('.char-btn').forEach(btn => {
+              btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray');
+    
+              // Ⅰ. matchCount === 0
+              if (matchCount === 0) {
+                if (!bothCharsReady) {
+                  if (!selectedChar) {
+                    btn.classList.add('char-normal'); // ①
+                  } else {
+                    btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                    btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                  }
+                } else {
+                  if (isHost) {
+                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1); // ③
+                  } else {
+                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices.character1); // ③
+                  }
+                }
+              }
+              // Ⅱ. 対戦終了
+              else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
+                btn.classList.add('char-normal'); // ①
+              }
+              // Ⅲ. それ以外
+              else {
+                if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                  btn.classList.add('char-normal'); // ①
+                } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
+                  if (isHost && !hostChoices['character' + (matchCount + 1)]) {
+                    if (!selectedChar) {
+                      btn.classList.add('char-normal'); // ①
+                    } else {
+                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                    }
+                  } else if (!isHost && !guestChoices['character' + (matchCount + 1)]) {
+                    if (!selectedChar) {
+                      btn.classList.add('char-normal'); // ①
+                    } else {
+                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                    }
+                  } else {
+                    if (isHost) {
+                      btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]); // ①
+                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]); // ③
+                    } else {
+                      btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]); // ①
+                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]); // ③
+                    }
+                  }
+                } else {
+                  if (isHost) {
+                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]); // ①
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]); // ③
+                  } else {
+                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]); // ①
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]); // ③
+                  }
+                }
+              }
+            });
           }
     
           function selectStage(id) {
@@ -803,7 +902,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 if (isHostWinner && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
                   selectedStages = [id];
                 } else if (!isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  if (selectedStages.includes(id)) {
+                  if (十六
+    Stages.includes(id)) {
                     selectedStages = selectedStages.filter(s => s !== id);
                   } else if (selectedStages.length < 2) {
                     selectedStages.push(id);
@@ -1184,7 +1284,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               document.getElementById('guide').innerText = guideText;
               document.querySelectorAll('.char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
-                btn.classList.toggle('selected', btn.dataset.id === selectedChar);
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
@@ -1237,10 +1336,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 }
               }
               document.querySelector('.char-display').innerHTML =
-                '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'selected' : '') + '"> ' + displayMoves + '</p>' +
-                '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'selected' : '') + '"> ' + guestDisplayMoves + '</p>';
+                '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'char-normal' : '') + '"> ' + displayMoves + '</p>' +
+                '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'char-normal' : '') + '"> ' + guestDisplayMoves + '</p>';
     
               updateStageButtons();
+              updateCharacterButtons(); // 修正: データ更新時にキャラボタン状態を更新
             },
             function (error) {
               console.error('onSnapshotエラー:', error);
@@ -1323,33 +1423,44 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
           <!-- 現在のキャラクター表示 -->
           <div class="char-display">
-            <p>${hostName}のキャラクター: <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'selected' : ''}"> ${hostChoices.miiMoves1 || ''}</p>
-            <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'selected' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
+            <p>${hostName}のキャラクター: <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'char-normal' : ''}"> ${hostChoices.miiMoves1 || ''}</p>
+            <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択 -->
+          <!-- ステージ選択（修正: 4行レイアウト） -->
           <div class="section stage-selection">
-            <h2>ステージ選択</h2>
-            <div class="stage-row">
-              ${stages.filter(s => ['BattleField', 'Final Destination', 'Hollow Bastion'].includes(s.id)).map(stage => `
-                <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                  <img src="/stages/${stage.id}.png">
-                </button>
-              `).join('')}
+            <div class="stage-title">
+              <h2>ステージ選択</h2>
             </div>
-            <div class="stage-row">
-              ${stages.filter(s => ['Pokemon Stadium 2', 'Small Battlefield'].includes(s.id)).map(stage => `
-                <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                  <img src="/stages/${stage.id}.png">
-                </button>
-              `).join('')}
-            </div>
-            <div class="stage-row">
-              ${stages.filter(s => ['Town and City', 'Smashville'].includes(s.id)).map(stage => `
-                <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                  <img src="/stages/${stage.id}.png">
-                </button>
-              `).join('')}
+            <div class="stage-rows">
+              <div class="stage-row battlefield">
+                ${stages.filter(s => ['BattleField'].includes(s.id)).map(stage => `
+                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
+                    <img src="/stages/${stage.id}.png">
+                  </button>
+                `).join('')}
+              </div>
+              <div class="stage-row">
+                ${stages.filter(s => ['Final Destination', 'Hollow Bastion'].includes(s.id)).map(stage => `
+                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
+                    <img src="/stages/${stage.id}.png">
+                  </button>
+                `).join('')}
+              </div>
+              <div class="stage-row">
+                ${stages.filter(s => ['Pokemon Stadium 2', 'Small Battlefield'].includes(s.id)).map(stage => `
+                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
+                    <img src="/stages/${stage.id}.png">
+                  </button>
+                `).join('')}
+              </div>
+              <div class="stage-row">
+                ${stages.filter(s => ['Town and City', 'Smashville'].includes(s.id)).map(stage => `
+                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
+                    <img src="/stages/${stage.id}.png">
+                  </button>
+                `).join('')}
+              </div>
             </div>
           </div>
     
