@@ -557,7 +557,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          /* === 既存のCSSを保持しつつ、表形式用のスタイルを調整 === */
+          /* === 既存のCSSを保持しつつ、ステージ画像サイズを調整 === */
           .overlay {
             display: none;
             position: fixed;
@@ -688,7 +688,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージ選択の3行レイアウト用CSS === */
+          /* === 修正: ステージ画像サイズを端末幅にスケール === */
           .stage-selection {
             margin-bottom: 20px;
           }
@@ -699,13 +699,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             margin-bottom: 10px;
           }
           .stage-selection img {
-            width: 100px;
+            width: 30vw; /* 端末幅の30% */
             height: auto;
           }
           .button-group {
             text-align: center;
           }
-          /* === スマホ対応（同一レイアウトを保持） === */
+          /* === スマホ対応（同一サイズを保持） === */
           @media (max-width: 768px) {
             .player-table {
               flex-direction: column;
@@ -714,9 +714,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             .player-info {
               width: 100%;
               margin-bottom: 10px;
-            }
-            .stage-selection img {
-              width: 80px;
             }
             .match-container {
               padding: 10px;
@@ -1046,7 +1043,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 if (!isHost) selectedChar = guestChoices['character' + matchCount];
               }
     
-              /* === 修正: hostStatusとguestStatusの更新を削除 === */
               document.getElementById('matchStatus').innerText = 
                 hostChoices.wins >= 2 || guestChoices.wins >= 2 
                   ? '対戦終了' 
@@ -1126,7 +1122,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
                   if (isHost) {
                     if (isHostWinner) {
-                      if CFS1
                       if (!hostChoices['character' + (matchCount + 1)]) {
                         guideText = 'キャラクターを選択してください（' + hostName + '）';
                         canSelectChar = true;
@@ -1137,7 +1132,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                       if (!guestChoices['character' + (matchCount + 1)]) {
                         guideText = guestName + 'がキャラクターを選んでいます...';
                       } else {
-                        guideText = 'キャラクター Hedera: キャラクターを選択してください（' + hostName + '）';
+                        guideText = 'キャラクターを選択してください（' + hostName + '）';
                         canSelectChar = true;
                       }
                     }
@@ -1197,8 +1192,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 btn.onclick = canSelectStage ? () => selectStage(btn.dataset.id) : null;
               });
               document.querySelectorAll('.result-btn').forEach(btn => {
-                console.log('Applying disabled to result-btn:', { id: btn.id, canсих
-    SelectResult });
+                console.log('Applying disabled to result-btn:', { id: btn.id, canSelectResult });
                 btn.classList.toggle('disabled', !canSelectResult);
               });
     
@@ -1264,7 +1258,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <div class="player-info">
               <h2>ホスト: ${hostName}</h2>
               <p>レート: ${hostRating}</p>
-              <!-- 修正: よく使うキャラをpopularCharactersで表示 -->
               <p>よく使うキャラ:</p>
               ${popularCharacters.map(char => `
                 <img src="/characters/${char.id}.png" alt="${char.name}">
@@ -1273,7 +1266,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <div class="player-info">
               <h2>ゲスト: ${guestName}</h2>
               <p>レート: ${guestRating}</p>
-              <!-- 修正: よく使うキャラをpopularCharactersで表示 -->
               <p>よく使うキャラ:</p>
               ${popularCharacters.map(char => `
                 <img src="/characters/${char.id}.png" alt="${char.name}">
@@ -1335,7 +1327,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'selected' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択（修正: 3行レイアウト） -->
+          <!-- ステージ選択 -->
           <div class="section stage-selection">
             <h2>ステージ選択</h2>
             <div class="stage-row">
