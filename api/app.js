@@ -616,6 +616,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             border: none;
             background: none;
             padding: 0;
+            flex: 0 0 calc((100% - 10px) / 2); /* 2列厳密化 */
+            box-sizing: border-box;
           }
           .stage-btn.temporary {
             opacity: 0.3;
@@ -694,7 +696,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージレイアウト（羅列、横幅揃え、画像サイズ調整） === */
+          /* === 修正: ステージレイアウト（2列、横幅揃え） === */
           .stage-selection {
             margin-bottom: 20px;
           }
@@ -704,9 +706,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             gap: 10px; /* 中央と画像間の区切り */
             width: 100%; /* ホスト/ゲストや履歴表に揃える */
             justify-content: space-between;
+            box-sizing: border-box;
           }
           .stage-container img {
-            width: calc((100% - 10px) / 2); /* 2列均等、gap分を除く */
+            width: 100%; /* ボタン幅に合わせる */
             height: auto;
           }
           .button-group {
@@ -725,8 +728,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             .match-container {
               padding: 10px;
             }
-            .stage-container img {
-              width: calc((100% - 10px) / 2); /* スマホでも2列維持 */
+            .stage-btn {
+              flex: 0 0 calc((100% - 10px) / 2); /* スマホでも2列 */
             }
           }
         </style>
@@ -794,7 +797,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   });
                   if (isHost) {
                     btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
-                    btn.classList.toggle('char-dim-gray', btnvia.dataset.id !== hostChoices.character1); // ③
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1); // ③
                   } else {
                     btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
                     btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices.character1); // ③
@@ -1414,7 +1417,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択（羅列、横幅揃え） -->
+          <!-- ステージ選択（2列、Random追加） -->
           <div class="section stage-selection">
             <div class="stage-container">
               ${stages.map(stage => `
