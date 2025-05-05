@@ -557,7 +557,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          /* === 既存のCSSを保持しつつ、ステージレイアウトを修正 === */
           .overlay {
             display: none;
             position: fixed;
@@ -694,24 +693,26 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージ選択のレイアウト（見出しをステージ列に統合） === */
+          /* === 修正: ステージレイアウト（Battlefieldズレ防止、画像サイズ拡大） === */
           .stage-selection {
             margin-bottom: 20px;
           }
           .stage-rows {
             width: 100%;
+            max-width: 600px; /* 横幅大きい時のズレ防止 */
           }
           .stage-row {
             display: flex;
             justify-content: space-between;
-            gap: 10px;
+            gap: 5px; /* 隙間縮小 */
             margin-bottom: 10px;
           }
           .stage-row.battlefield {
             justify-content: flex-end;
+            margin-left: auto; /* 右寄せ厳密化 */
           }
           .stage-selection img {
-            width: 33vw; /* 端末幅の33%、スマホで約120-150px */
+            width: 42vw; /* スマホ視認性向上 */
             height: auto;
           }
           .stage-rows h2 {
@@ -764,13 +765,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
           function selectCharacter(id, name) {
             selectedChar = id;
-            document.getElementById('charPopup').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-            var miiInput = document.getElementById('miiInput');
-            if (['54', '55', '56'].includes(id)) {
-              miiInput.style.display = 'block';
-            } else {
-              miiInput.style.display = 'none';
+            const charPopup = document.getElementById('charPopup');
+            const overlay = document.getElementById('overlay');
+            const miiInput = document.getElementById('miiInput');
+            if (charPopup) charPopup.style.display = 'none';
+            if (overlay) overlay.style.display = 'none';
+            if (miiInput) {
+              miiInput.style.display = ['54', '55', '56'].includes(id) ? 'block' : 'none';
             }
             document.getElementById('charStatus').innerText = 'キャラクターを選択しました。決定ボタンを押してください。';
             updateCharacterButtons();
@@ -782,7 +783,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             console.log('updateCharacterButtons:', { matchCount, selectedChar, bothCharsReady, isHost, hostChoices, guestChoices });
     
             document.querySelectorAll('.char-btn').forEach(btn => {
-              btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray');
+              btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray', 'selected', 'disabled');
     
               // Ⅰ. matchCount === 0
               if (matchCount === 0) {
@@ -794,6 +795,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
                   }
                 } else {
+                  console.log('bothCharsReady state:', {
+                    isHost,
+                    hostChar: hostChoices.character1,
+                    guestChar: guestChoices.character1,
+                    btnId: btn.dataset.id
+                  });
                   if (isHost) {
                     btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
                     btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1); // ③
@@ -1001,7 +1008,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
                 if (selectedChar) {
                   if (['54', '55', '56'].includes(selectedChar)) {
-                    const miiMoves = document.getElementById('miiMoves').value;
+                    const miiMoves = document.getElementById('miiMoves')?.value;
                     if (!miiMoves) {
                       alert('Miiの技番号を入力してください');
                       return;
@@ -1012,7 +1019,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                   }
                   data.characterReady = true;
-                  data['character' + (matchCount + 1)] = selectedChar;
+                  data['character' + (matchCount + 1)] nouvelleselectedChar;
                   console.log('Saving character:', data['character' + (matchCount + 1)]);
                   document.getElementById('charStatus').innerText = '';
                 }
@@ -1064,7 +1071,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
                 if (selectedChar) {
                   if (['54', '55', '56'].includes(selectedChar)) {
-                    const miiMoves = document.getElementById('miiMoves').value;
+                    const miiMoves = document.getElementById('miiMoves')?.value;
                     if (!miiMoves) {
                       alert('Miiの技番号を入力してください');
                       return;
@@ -1082,7 +1089,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
     
-            var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves').value : '';
+            var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves')?.value : '';
             if (miiMoves) data['miiMoves' + (matchCount + 1)] = miiMoves;
     
             if (Object.keys(data).length === 0) {
@@ -1105,6 +1112,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
               selectedChar = '';
               selectedStages = [];
+              updateCharacterButtons(); // 送信後にボタン状態を更新
             } catch (error) {
               console.error('Network error:', error);
               alert('ネットワークエラー: ' + error.message);
@@ -1415,7 +1423,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択（修正: 見出しをステージ列に統合） -->
+          <!-- ステージ選択 -->
           <div class="section stage-selection">
             <div class="stage-rows">
               <h2>ステージ選択</h2>
