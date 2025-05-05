@@ -663,6 +663,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
+            width: 100%;
           }
           .player-info {
             width: 45%;
@@ -693,30 +694,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージレイアウト（Battlefieldズレ防止、画像サイズ拡大） === */
+          /* === 修正: ステージレイアウト（羅列、横幅揃え、画像サイズ調整） === */
           .stage-selection {
             margin-bottom: 20px;
           }
-          .stage-rows {
-            width: 100%;
-            max-width: 600px; /* 横幅大きい時のズレ防止 */
-          }
-          .stage-row {
+          .stage-container {
             display: flex;
+            flex-wrap: wrap;
+            gap: 10px; /* 中央と画像間の区切り */
+            width: 100%; /* ホスト/ゲストや履歴表に揃える */
             justify-content: space-between;
-            gap: 5px; /* 隙間縮小 */
-            margin-bottom: 10px;
           }
-          .stage-row.battlefield {
-            justify-content: flex-end;
-            margin-left: auto; /* 右寄せ厳密化 */
-          }
-          .stage-selection img {
-            width: 42vw; /* スマホ視認性向上 */
+          .stage-container img {
+            width: calc((100% - 10px) / 2); /* 2列均等、gap分を除く */
             height: auto;
-          }
-          .stage-rows h2 {
-            margin-bottom: 10px;
           }
           .button-group {
             text-align: center;
@@ -734,8 +725,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             .match-container {
               padding: 10px;
             }
-            .stage-rows h2 {
-              text-align: left;
+            .stage-container img {
+              width: calc((100% - 10px) / 2); /* スマホでも2列維持 */
             }
           }
         </style>
@@ -803,7 +794,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   });
                   if (isHost) {
                     btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
-                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1); // ③
+                    btn.classList.toggle('char-dim-gray', btnvia.dataset.id !== hostChoices.character1); // ③
                   } else {
                     btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
                     btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices.character1); // ③
@@ -1019,7 +1010,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                   }
                   data.characterReady = true;
-                  data['character' + (matchCount + 1)] nouvelleselectedChar;
+                  data['character' + (matchCount + 1)] = selectedChar;
                   console.log('Saving character:', data['character' + (matchCount + 1)]);
                   document.getElementById('charStatus').innerText = '';
                 }
@@ -1112,7 +1103,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
               selectedChar = '';
               selectedStages = [];
-              updateCharacterButtons(); // 送信後にボタン状態を更新
+              updateCharacterButtons();
             } catch (error) {
               console.error('Network error:', error);
               alert('ネットワークエラー: ' + error.message);
@@ -1423,38 +1414,14 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択 -->
+          <!-- ステージ選択（羅列、横幅揃え） -->
           <div class="section stage-selection">
-            <div class="stage-rows">
-              <h2>ステージ選択</h2>
-              <div class="stage-row battlefield">
-                ${stages.filter(s => ['BattleField'].includes(s.id)).map(stage => `
-                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                    <img src="/stages/${stage.id}.png">
-                  </button>
-                `).join('')}
-              </div>
-              <div class="stage-row">
-                ${stages.filter(s => ['Final Destination', 'Hollow Bastion'].includes(s.id)).map(stage => `
-                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                    <img src="/stages/${stage.id}.png">
-                  </button>
-                `).join('')}
-              </div>
-              <div class="stage-row">
-                ${stages.filter(s => ['Pokemon Stadium 2', 'Small Battlefield'].includes(s.id)).map(stage => `
-                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                    <img src="/stages/${stage.id}.png">
-                  </button>
-                `).join('')}
-              </div>
-              <div class="stage-row">
-                ${stages.filter(s => ['Town and City', 'Smashville'].includes(s.id)).map(stage => `
-                  <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
-                    <img src="/stages/${stage.id}.png">
-                  </button>
-                `).join('')}
-              </div>
+            <div class="stage-container">
+              ${stages.map(stage => `
+                <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
+                  <img src="/stages/${stage.id}.png">
+                </button>
+              `).join('')}
             </div>
           </div>
     
