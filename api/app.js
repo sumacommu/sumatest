@@ -557,7 +557,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     <html>
       <head>
         <style>
-          /* === 既存のCSSを保持しつつ、ステージとキャラCSSを調整 === */
+          /* === 既存のCSSを保持しつつ、ステージレイアウトを修正 === */
           .overlay {
             display: none;
             position: fixed;
@@ -694,18 +694,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.3;
             filter: grayscale(100%);
           }
-          /* === 修正: ステージ選択の4行レイアウト === */
+          /* === 修正: ステージ選択のレイアウト（見出しをステージ列に統合） === */
           .stage-selection {
-            display: flex;
-            align-items: center;
             margin-bottom: 20px;
           }
-          .stage-title {
-            flex: 1;
-            margin-right: 20px;
-          }
           .stage-rows {
-            flex: 1;
+            width: 100%;
           }
           .stage-row {
             display: flex;
@@ -720,10 +714,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             width: 33vw; /* 端末幅の33%、スマホで約120-150px */
             height: auto;
           }
+          .stage-rows h2 {
+            margin-bottom: 10px;
+          }
           .button-group {
             text-align: center;
           }
-          /* === スマホ対応（同一サイズを保持） === */
+          /* === スマホ対応 === */
           @media (max-width: 768px) {
             .player-table {
               flex-direction: column;
@@ -736,16 +733,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             .match-container {
               padding: 10px;
             }
-            .stage-selection {
-              flex-direction: column;
-              align-items: flex-start;
-            }
-            .stage-title {
-              margin-bottom: 10px;
-              margin-right: 0;
-            }
-            .stage-rows {
-              width: 100%;
+            .stage-rows h2 {
+              text-align: left;
             }
           }
         </style>
@@ -784,7 +773,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               miiInput.style.display = 'none';
             }
             document.getElementById('charStatus').innerText = 'キャラクターを選択しました。決定ボタンを押してください。';
-            updateCharacterButtons(); // 修正: キャラ選択時にボタン状態を更新
+            updateCharacterButtons();
           }
     
           function updateCharacterButtons() {
@@ -902,8 +891,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 if (isHostWinner && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
                   selectedStages = [id];
                 } else if (!isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  if (十六
-    Stages.includes(id)) {
+                  if (selectedStages.includes(id)) {
                     selectedStages = selectedStages.filter(s => s !== id);
                   } else if (selectedStages.length < 2) {
                     selectedStages.push(id);
@@ -1340,7 +1328,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'char-normal' : '') + '"> ' + guestDisplayMoves + '</p>';
     
               updateStageButtons();
-              updateCharacterButtons(); // 修正: データ更新時にキャラボタン状態を更新
+              updateCharacterButtons();
             },
             function (error) {
               console.error('onSnapshotエラー:', error);
@@ -1427,12 +1415,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
-          <!-- ステージ選択（修正: 4行レイアウト） -->
+          <!-- ステージ選択（修正: 見出しをステージ列に統合） -->
           <div class="section stage-selection">
-            <div class="stage-title">
-              <h2>ステージ選択</h2>
-            </div>
             <div class="stage-rows">
+              <h2>ステージ選択</h2>
               <div class="stage-row battlefield">
                 ${stages.filter(s => ['BattleField'].includes(s.id)).map(stage => `
                   <button class="stage-btn disabled ${bannedStages.includes(stage.id) ? 'banned' : ''} ${['Town and City', 'Smashville'].includes(stage.id) ? 'extra' : ''}" data-id="${stage.id}">
