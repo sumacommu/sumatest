@@ -543,6 +543,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     { id: '56', name: '射撃Mii' }
   ];
   const stages = [
+    { id: 'Random', name: 'ランダム' },
     { id: 'BattleField', name: '戦場' },
     { id: 'Final Destination', name: '終点' },
     { id: 'Hollow Bastion', name: 'ホロウバスティオン' },
