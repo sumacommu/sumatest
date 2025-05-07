@@ -941,7 +941,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
               if (matchCount === 0) {
                 if (['Random'].includes(id)) {
-                  if (selectedStages.includes(id)) {
+                  if (banned.includes(id)) {
+                    
+                  }                
+                  else if (selectedStages.includes(id)) {
                     btn.classList.add('temporary');
                   }
                 }
@@ -953,7 +956,15 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
                 // デフォルト
               } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                if (isHost) {
+                if (['Random'].includes(id)) {
+                  if (banned.includes(id)) {
+                    
+                  }                
+                  else if (selectedStages.includes(id)) {
+                    btn.classList.add('temporary');
+                  }
+                }
+                else if (isHost) {
                   if (isHostWinner) {
                     if (banned.includes(id)) {
                       btn.classList.add('banned');
@@ -964,7 +975,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     if (['Random'].includes(id)) {
                       btn.classList.add('counter');
                     }
-                    if (!selectedStages.length) {
+                    else if (!selectedStages.length) {
                       if (banned.includes(id)) {
                         btn.classList.add('banned');
                       }
@@ -989,7 +1000,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     if (['Random'].includes(id)) {
                       btn.classList.add('counter');
                     }                   
-                    if (!selectedStages.length) {
+                    else if (!selectedStages.length) {
                       if (banned.includes(id)) {
                         btn.classList.add('banned');
                       }
