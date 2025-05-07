@@ -716,6 +716,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           .button-group {
             text-align: center;
           }
+        .char-normal { width: 50px; height: 50px; }
+        .loser-char { opacity: 0.3; }
+        .history-table { border-collapse: collapse; margin-top: 20px; }
+        .history-table th, .history-table td { border: 1px solid #ddd; padding: 8px; text-align: center; }
           /* === スマホ対応 === */
           @media (max-width: 768px) {
             .player-table {
@@ -1411,160 +1415,166 @@ async function saveSelections(matchId, result) {
                 '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'char-normal' : '') + '"> ' + displayMoves + '</p>' +
                 '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'char-normal' : '') + '"> ' + guestDisplayMoves + '</p>';
     
-    // 対戦履歴の生成
-    var matchHistoryHtml = '';
-    
-    // ① 1戦目の勝敗が未決定、初期状態
-    if (!hostChoices.match1Winner) {
-      matchHistoryHtml += `
-        <tr>
-          <td>1戦目</td>
-          <td>
-            <img src="/characters/${bothCharsReady ? (hostChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && hostChoices.character1 ? 'char-normal' : ''}">
-            ${bothCharsReady ? (hostChoices.miiMoves1 || '') : ''}
-          </td>
-          <td>
-            <img src="/characters/${bothCharsReady ? (guestChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && guestChoices.character1 ? 'char-normal' : ''}">
-            ${bothCharsReady ? (guestChoices.miiMoves1 || '') : ''}
-          </td>
-        </tr>
-      `;
-    }
+            // 対戦履歴の生成
+            var matchHistoryHtml = '';
 
-    // ② 1戦目の勝敗が決定
-    if (hostChoices.match1Winner) {
-      var hostClass = hostChoices.match1Winner === 'guest' ? 'loser-char' : '';
-      var guestClass = hostChoices.match1Winner === 'host' ? 'loser-char' : '';
-      matchHistoryHtml += `
-        <tr>
-          <td>1戦目</td>
-          <td>
-            <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'char-normal' : ''} ${hostClass}">
-            ${hostChoices.miiMoves1 || ''}
-          </td>
-          <td>
-            <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''} ${guestClass}">
-            ${guestChoices.miiMoves1 || ''}
-          </td>
-        </tr>
-      `;
-      // 2戦目の行を追加
-      matchHistoryHtml += `
-        <tr>
-          <td>2戦目</td>
-          <td><img src="/characters/00.png"></td>
-          <td><img src="/characters/00.png"></td>
-        </tr>
-      `;
-    }
+            // ① 1戦目未決定、初期状態
+            // @ts-ignore
+            if (!hostChoices.match1Winner) {
+              matchHistoryHtml += `
+                <tr>
+                  <td>1戦目</td>
+                  <td>
+                    <img src="/characters/${bothCharsReady ? (hostChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && hostChoices.character1 ? 'char-normal' : ''}" />
+                    ${bothCharsReady ? (hostChoices.miiMoves1 || '') : ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${bothCharsReady ? (guestChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && guestChoices.character1 ? 'char-normal' : ''}" />
+                    ${bothCharsReady ? (guestChoices.miiMoves1 || '') : ''}
+                  </td>
+                </tr>
+              `;
+            }
 
-    // ③ 2戦目の勝敗が未決定
-    if (hostChoices.match1Winner && !hostChoices.match2Winner) {
-      var hostChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
-        ? '00' 
-        : (hostChoices.character2 || '00');
-      var guestChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
-        ? '00' 
-        : (guestChoices.character2 || '00');
-      matchHistoryHtml = matchHistoryHtml.replace(
-        /<tr>\s*<td>2戦目<\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<\/tr>/,
-        `
-        <tr>
-          <td>2戦目</td>
-          <td>
-            <img src="/characters/${hostChar2}.png" class="${hostChar2 !== '00' ? 'char-normal' : ''}">
-            ${hostChar2 !== '00' ? (hostChoices.miiMoves2 || '') : ''}
-          </td>
-          <td>
-            <img src="/characters/${guestChar2}.png" class="${guestChar2 !== '00' ? 'char-normal' : ''}">
-            ${guestChar2 !== '00' ? (guestChoices.miiMoves2 || '') : ''}
-          </td>
-        </tr>
-        `
-      );
-    }
+            // ② 1戦目決定
+            // @ts-ignore
+            if (hostChoices.match1Winner) {
+              var hostClass = hostChoices.match1Winner === 'guest' ? 'loser-char' : '';
+              var guestClass = hostChoices.match1Winner === 'host' ? 'loser-char' : '';
+              matchHistoryHtml += `
+                <tr>
+                  <td>1戦目</td>
+                  <td>
+                    <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'char-normal' : ''} ${hostClass}" />
+                    ${hostChoices.miiMoves1 || ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''} ${guestClass}" />
+                    ${guestChoices.miiMoves1 || ''}
+                  </td>
+                </tr>
+              `;
+              // 2戦目の行を追加
+              matchHistoryHtml += `
+                <tr>
+                  <td>2戦目</td>
+                  <td><img src="/characters/00.png" /></td>
+                  <td><img src="/characters/00.png" /></td>
+                </tr>
+              `;
+            }
 
-    // ④ 2戦目の勝敗が決定
-    if (hostChoices.match2Winner) {
-      var hostClass2 = hostChoices.match2Winner === 'guest' ? 'loser-char' : '';
-      var guestClass2 = hostChoices.match2Winner === 'host' ? 'loser-char' : '';
-      matchHistoryHtml = matchHistoryHtml.replace(
-        /<tr>\s*<td>2戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
-        `
-        <tr>
-          <td>2戦目</td>
-          <td>
-            <img src="/characters/${hostChoices.character2 || '00'}.png" class="${hostChoices.character2 ? 'char-normal' : ''} ${hostClass2}">
-            ${hostChoices.miiMoves2 || ''}
-          </td>
-          <td>
-            <img src="/characters/${guestChoices.character2 || '00'}.png" class="${guestChoices.character2 ? 'char-normal' : ''} ${guestClass2}">
-            ${guestChoices.miiMoves2 || ''}
-          </td>
-        </tr>
-        `
-      );
-      // 勝負が未決定の場合、3戦目の行を追加
-      if (hostChoices.wins < 2 && guestChoices.wins < 2) {
-        matchHistoryHtml += `
-          <tr>
-            <td>3戦目</td>
-            <td><img src="/characters/00.png"></td>
-            <td><img src="/characters/00.png"></td>
-          </tr>
-        `;
-      }
-    }
+            // ③ 2戦目未決定
+            // @ts-ignore
+            if (hostChoices.match1Winner && !hostChoices.match2Winner) {
+              var hostChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+                ? '00' 
+                : (hostChoices.character2 || '00');
+              var guestChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+                ? '00' 
+                : (guestChoices.character2 || '00');
+              matchHistoryHtml = matchHistoryHtml.replace(
+                /<tr>\s*<td>2戦目<\/td>\s*<td><img src="\/characters\/00\.png" \/><td><img src="\/characters\/00\.png" \/><\/td>\s*<\/tr>/,
+                `
+                <tr>
+                  <td>2戦目</td>
+                  <td>
+                    <img src="/characters/${hostChar2}.png" class="${hostChar2 !== '00' ? 'char-normal' : ''}" />
+                    ${hostChar2 !== '00' ? (hostChoices.miiMoves2 || '') : ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${guestChar2}.png" class="${guestChar2 !== '00' ? 'char-normal' : ''}" />
+                    ${guestChar2 !== '00' ? (guestChoices.miiMoves2 || '') : ''}
+                  </td>
+                </tr>
+                `
+              );
+            }
 
-    // ⑤ 3戦目の勝敗が未決定
-    if (hostChoices.match2Winner && !hostChoices.match3Winner) {
-      var hostChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
-        ? '00' 
-        : (hostChoices.character3 || '00');
-      var guestChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
-        ? '00' 
-        : (guestChoices.character3 || '00');
-      matchHistoryHtml = matchHistoryHtml.replace(
-        /<tr>\s*<td>3戦目<\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<\/tr>/,
-        `
-        <tr>
-          <td>3戦目</td>
-          <td>
-            <img src="/characters/${hostChar3}.png" class="${hostChar3 !== '00' ? 'char-normal' : ''}">
-            ${hostChar3 !== '00' ? (hostChoices.miiMoves3 || '') : ''}
-          </td>
-          <td>
-            <img src="/characters/${guestChar3}.png" class="${guestChar3 !== '00' ? 'char-normal' : ''}">
-            ${guestChar3 !== '00' ? (guestChoices.miiMoves3 || '') : ''}
-          </td>
-        </tr>
-        `
-      );
-    }
+            // ④ 2戦目決定
+            // @ts-ignore
+            if (hostChoices.match2Winner) {
+              var hostClass2 = hostChoices.match2Winner === 'guest' ? 'loser-char' : '';
+              var guestClass2 = hostChoices.match2Winner === 'host' ? 'loser-char' : '';
+              matchHistoryHtml = matchHistoryHtml.replace(
+                /<tr>\s*<td>2戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
+                `
+                <tr>
+                  <td>2戦目</td>
+                  <td>
+                    <img src="/characters/${hostChoices.character2 || '00'}.png" class="${hostChoices.character2 ? 'char-normal' : ''} ${hostClass2}" />
+                    ${hostChoices.miiMoves2 || ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${guestChoices.character2 || '00'}.png" class="${guestChoices.character2 ? 'char-normal' : ''} ${guestClass2}" />
+                    ${guestChoices.miiMoves2 || ''}
+                  </td>
+                </tr>
+                `
+              );
+              // 勝負が未決定の場合、3戦目の行を追加
+              if (hostChoices.wins < 2 && guestChoices.wins < 2) {
+                matchHistoryHtml += `
+                  <tr>
+                    <td>3戦目</td>
+                    <td><img src="/characters/00.png" /></td>
+                    <td><img src="/characters/00.png" /></td>
+                  </tr>
+                `;
+              }
+            }
 
-    // ⑥ 3戦目の勝敗が決定
-    if (hostChoices.match3Winner) {
-      var hostClass3 = hostChoices.match3Winner === 'guest' ? 'loser-char' : '';
-      var guestClass3 = hostChoices.match3Winner === 'host' ? 'loser-char' : '';
-      matchHistoryHtml = matchHistoryHtml.replace(
-        /<tr>\s*<td>3戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
-        `
-        <tr>
-          <td>3戦目</td>
-          <td>
-            <img src="/characters/${hostChoices.character3 || '00'}.png" class="${hostChoices.character3 ? 'char-normal' : ''} ${hostClass3}">
-            ${hostChoices.miiMoves3 || ''}
-          </td>
-          <td>
-            <img src="/characters/${guestChoices.character3 || '00'}.png" class="${guestChoices.character3 ? 'char-normal' : ''} ${guestClass3}">
-            ${guestChoices.miiMoves3 || ''}
-          </td>
-        </tr>
-        `
-      );
-    }
+            // ⑤ 3戦目未決定
+            // @ts-ignore
+            if (hostChoices.match2Winner && !hostChoices.match3Winner) {
+              var hostChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+                ? '00' 
+                : (hostChoices.character3 || '00');
+              var guestChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+                ? '00' 
+                : (guestChoices.character3 || '00');
+              matchHistoryHtml = matchHistoryHtml.replace(
+                /<tr>\s*<td>3戦目<\/td>\s*<td><img src="\/characters\/00\.png" \/><td><img src="\/characters\/00\.png" \/><\/td>\s*<\/tr>/,
+                `
+                <tr>
+                  <td>3戦目</td>
+                  <td>
+                    <img src="/characters/${hostChar3}.png" class="${hostChar3 !== '00' ? 'char-normal' : ''}" />
+                    ${hostChar3 !== '00' ? (hostChoices.miiMoves3 || '') : ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${guestChar3}.png" class="${guestChar3 !== '00' ? 'char-normal' : ''}" />
+                    ${guestChar3 !== '00' ? (guestChoices.miiMoves3 || '') : ''}
+                  </td>
+                </tr>
+                `
+              );
+            }
 
-    document.getElementById('matchHistory').innerHTML = matchHistoryHtml;
+            // ⑥ 3戦目決定
+            // @ts-ignore
+            if (hostChoices.match3Winner) {
+              var hostClass3 = hostChoices.match3Winner === 'guest' ? 'loser-char' : '';
+              var guestClass3 = hostChoices.match3Winner === 'host' ? 'loser-char' : '';
+              matchHistoryHtml = matchHistoryHtml.replace(
+                /<tr>\s*<td>3戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
+                `
+                <tr>
+                  <td>3戦目</td>
+                  <td>
+                    <img src="/characters/${hostChoices.character3 || '00'}.png" class="${hostChoices.character3 ? 'char-normal' : ''} ${hostClass3}" />
+                    ${hostChoices.miiMoves3 || ''}
+                  </td>
+                  <td>
+                    <img src="/characters/${guestChoices.character3 || '00'}.png" class="${guestChoices.character3 ? 'char-normal' : ''} ${guestClass3}" />
+                    ${guestChoices.miiMoves3 || ''}
+                  </td>
+                </tr>
+                `
+              );
+            }
+
+            document.getElementById('matchHistory').innerHTML = matchHistoryHtml;
 
 
 
