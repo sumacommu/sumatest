@@ -857,7 +857,18 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
     
             if (matchCount === 0) {
-              if (banned.includes(id)) {
+              if (['Random'].includes(id)) {
+                if (isHost && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
+                  selectedStages = [id];
+                } else if (!isHost && hostChoices.bannedStages && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                  if (selectedStages.includes(id)) {
+                    selectedStages = selectedStages.filter(s => s !== id);
+                  } else if (selectedStages.length < 2) {
+                    selectedStages.push(id);
+                  }
+                }
+              }
+              else if (banned.includes(id)) {
                 alert('そのステージは既に拒否されています。');
                 return;
               } else if (['Town and City', 'Smashville'].includes(id)) {
@@ -929,7 +940,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
     
               if (matchCount === 0) {
-                if (banned.includes(id)) {
+                if (['Random'].includes(id)) {
+                  if (selectedStages.includes(id)) {
+                    btn.classList.add('temporary');
+                  }
+                }
+                else if (banned.includes(id)) {
                   btn.classList.add('banned');
                 } else if (selectedStages.includes(id)) {
                   btn.classList.add('temporary');
