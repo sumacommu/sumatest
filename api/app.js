@@ -1051,139 +1051,149 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             });
           }
     
-          async function saveSelections(matchId, result) {
-            console.log('saveSelections:', { isHost, selectedChar, selectedStages, hostChoices, guestChoices });
-            var data = {};
-            var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
-            var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
-    
-            const doc = await db.collection('matches').doc(matchId).get();
-            if (doc.exists) {
-              hostChoices = doc.data().hostChoices || { wins: 0, losses: 0 };
-              guestChoices = doc.data().guestChoices || { wins: 0, losses: 0 };
-            }
-    
-            if (result) {
-              document.getElementById('charStatus').innerText = '';
-              data.result = result;
-              data.hostChoices = { ...hostChoices, bannedStages: [], selectedStage: '', characterReady: false };
-              data.guestChoices = { ...guestChoices, bannedStages: [], selectedStage: '', characterReady: false };
-              selectedStages = [];
-              selectedChar = '';
-            } else if (matchCount === 0) {
-              if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
-                if (selectedChar) {
-                  if (['54', '55', '56'].includes(selectedChar)) {
-                    const miiMoves = document.getElementById('miiMoves')?.value;
-                    if (!miiMoves) {
-                      alert('Miiの技番号を入力してください');
-                      return;
-                    }
-                    if (!/^[1-3]{4}$/.test(miiMoves)) {
-                      alert('Miiの技番号は1, 2, 3のみを使用した4桁の数字で入力してください（例：1111, 3223）');
-                      return;
-                    }
-                  }
-                  data.characterReady = true;
-                  data['character' + (matchCount + 1)] = selectedChar;
-                  console.log('Saving character:', data['character' + (matchCount + 1)]);
-                  document.getElementById('charStatus').innerText = '';
-                }
-              } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                if (isHost && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
-                  if (selectedStages.length > 0) {
-                    data.bannedStages = selectedStages;
-                    console.log('Saving bannedStages:', data.bannedStages);
-                  }
-                } else if (!isHost && hostChoices.bannedStages && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  if (selectedStages.length > 0) {
-                    data.bannedStages = selectedStages;
-                    console.log('Saving bannedStages:', data.bannedStages);
-                  }
-                }
-              }
-            } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
-              console.log('Match finished, ignoring save');
-              return;
-            } else {
-              if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                if (isHost) {
-                  if (isHostWinner && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
-                    if (selectedStages.length > 0) {
-                      data.bannedStages = selectedStages;
-                      console.log('Saving bannedStages:', data.bannedStages);
-                    }
-                  } else if (!isHostWinner && guestChoices.bannedStages && guestChoices.bannedStages.length > 0) {
-                    if (selectedStages.length > 0) {
-                      data.bannedStages = selectedStages;
-                      data.selectedStage = selectedStages[0];
-                      console.log('Saving selectedStage:', data.selectedStage);
-                    }
-                  }
-                } else {
-                  if (isHostWinner && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
-                    if (selectedStages.length > 0) {
-                      data.bannedStages = selectedStages;
-                      data.selectedStage = selectedStages[0];
-                      console.log('Saving selectedStage:', data.selectedStage);
-                    }
-                  } else if (!isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                    if (selectedStages.length > 0) {
-                      data.bannedStages = selectedStages;
-                      console.log('Saving bannedStages:', data.bannedStages);
-                    }
-                  }
-                }
-              } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
-                if (selectedChar) {
-                  if (['54', '55', '56'].includes(selectedChar)) {
-                    const miiMoves = document.getElementById('miiMoves')?.value;
-                    if (!miiMoves) {
-                      alert('Miiの技番号を入力してください');
-                      return;
-                    }
-                    if (!/^[1-3]{4}$/.test(miiMoves)) {
-                      alert('Miiの技番号は1, 2, 3のみを使用した4桁の数字で入力してください（例：1111, 3223）');
-                      return;
-                    }
-                  }
-                  data.characterReady = true;
-                  data['character' + (matchCount + 1)] = selectedChar;
-                  console.log('Saving character:', data['character' + (matchCount + 1)]);
-                  document.getElementById('charStatus').innerText = '';
-                }
-              }
-            }
-    
-            var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves')?.value : '';
-            if (miiMoves) data['miiMoves' + (matchCount + 1)] = miiMoves;
-    
-            if (Object.keys(data).length === 0) {
-              console.log('No data to save');
+async function saveSelections(matchId, result) {
+  console.log('saveSelections:', { isHost, selectedChar, selectedStages, hostChoices, guestChoices });
+  var data = {};
+  var matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
+  var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
+
+  const doc = await db.collection('matches').doc(matchId).get();
+  if (doc.exists) {
+    hostChoices = doc.data().hostChoices || { wins: 0, losses: 0 };
+    guestChoices = doc.data().guestChoices || { wins: 0, losses: 0 };
+  }
+
+  if (result) {
+    document.getElementById('charStatus').innerText = '';
+    data.result = result;
+    data.hostChoices = { ...hostChoices, bannedStages: [], selectedStage: '', characterReady: false };
+    data.guestChoices = { ...guestChoices, bannedStages: [], selectedStage: '', characterReady: false };
+    // 勝敗データを記録
+    const matchNumber = matchCount + 1;
+    if (result === 'win' && isHost || result === 'lose' && !isHost) {
+      data.hostChoices[`match${matchNumber}Winner`] = 'host';
+    } else {
+      data.hostChoices[`match${matchNumber}Winner`] = 'guest';
+    }
+    selectedStages = [];
+    selectedChar = '';
+  } else {
+    // （既存のキャラクター/ステージ保存ロジック、変更なし）
+    if (matchCount === 0) {
+      if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
+        if (selectedChar) {
+          if (['54', '55', '56'].includes(selectedChar)) {
+            const miiMoves = document.getElementById('miiMoves')?.value;
+            if (!miiMoves) {
+              alert('Miiの技番号を入力してください');
               return;
             }
-    
-            console.log('Sending data to server:', data);
-            try {
-              var response = await fetch('/api/solo/setup/' + matchId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-              });
-              var resultText = await response.text();
-              console.log('Server response:', resultText, 'status:', response.status);
-              if (!response.ok) {
-                alert('保存に失敗しました: ' + resultText);
-                return;
-              }
-              selectedChar = '';
-              selectedStages = [];
-              updateCharacterButtons();
-            } catch (error) {
-              console.error('Network error:', error);
-              alert('ネットワークエラー: ' + error.message);
+            if (!/^[1-3]{4}$/.test(miiMoves)) {
+              alert('Miiの技番号は1, 2, 3のみを使用した4桁の数字で入力してください（例：1111, 3223）');
+              return;
             }
           }
+          data.characterReady = true;
+          data['character' + (matchCount + 1)] = selectedChar;
+          console.log('Saving character:', data['character' + (matchCount + 1)]);
+          document.getElementById('charStatus').innerText = '';
+        }
+      } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+        if (isHost && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
+          if (selectedStages.length > 0) {
+            data.bannedStages = selectedStages;
+            console.log('Saving bannedStages:', data.bannedStages);
+          }
+        } else if (!isHost && hostChoices.bannedStages && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+          if (selectedStages.length > 0) {
+            data.bannedStages = selectedStages;
+            console.log('Saving bannedStages:', data.bannedStages);
+          }
+        }
+      }
+    } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
+      console.log('Match finished, ignoring save');
+      return;
+    } else {
+      if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+        if (isHost) {
+          if (isHostWinner && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
+            if (selectedStages.length > 0) {
+              data.bannedStages = selectedStages;
+              console.log('Saving bannedStages:', data.bannedStages);
+            }
+          } else if (!isHostWinner && guestChoices.bannedStages && guestChoices.bannedStages.length > 0) {
+            if (selectedStages.length > 0) {
+              data.bannedStages = selectedStages;
+              data.selectedStage = selectedStages[0];
+              console.log('Saving selectedStage:', data.selectedStage);
+            }
+          }
+        } else {
+          if (isHostWinner && hostChoices.bannedStages && hostChoices.bannedStages.length > 0) {
+            if (selectedStages.length > 0) {
+              data.bannedStages = selectedStages;
+              data.selectedStage = selectedStages[0];
+              console.log('Saving selectedStage:', data.selectedStage);
+            }
+          } else if (!isHostWinner && (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+            if (selectedStages.length > 0) {
+              data.bannedStages = selectedStages;
+              console.log('Saving bannedStages:', data.bannedStages);
+            }
+          }
+        }
+      } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
+        if (selectedChar) {
+          if (['54', '55', '56'].includes(selectedChar)) {
+            const miiMoves = document.getElementById('miiMoves')?.value;
+            if (!miiMoves) {
+              alert('Miiの技番号を入力してください');
+              return;
+            }
+            if (!/^[1-3]{4}$/.test(miiMoves)) {
+              alert('Miiの技番号は1, 2, 3のみを使用した4桁の数字で入力してください（例：1111, 3223）');
+              return;
+            }
+          }
+          data.characterReady = true;
+          data['character' + (matchCount + 1)] = selectedChar;
+          console.log('Saving character:', data['character' + (matchCount + 1)]);
+          document.getElementById('charStatus').innerText = '';
+        }
+      }
+    }
+
+    var miiMoves = ['54', '55', '56'].includes(selectedChar) ? document.getElementById('miiMoves')?.value : '';
+    if (miiMoves) data['miiMoves' + (matchCount + 1)] = miiMoves;
+  }
+
+  if (Object.keys(data).length === 0) {
+    console.log('No data to save');
+    return;
+  }
+
+  console.log('Sending data to server:', data);
+  try {
+    var response = await fetch('/api/solo/setup/' + matchId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    var resultText = await response.text();
+    console.log('Server response:', resultText, 'status:', response.status);
+    if (!response.ok) {
+      alert('保存に失敗しました: ' + resultText);
+      return;
+    }
+    selectedChar = '';
+    selectedStages = [];
+    updateCharacterButtons();
+  } catch (error) {
+    console.error('Network error:', error);
+    alert('ネットワークエラー: ' + error.message);
+  }
+}
     
           db.collection('matches').doc('${matchId}').onSnapshot(
             function (doc) {
@@ -1401,6 +1411,163 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'char-normal' : '') + '"> ' + displayMoves + '</p>' +
                 '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'char-normal' : '') + '"> ' + guestDisplayMoves + '</p>';
     
+    // 対戦履歴の生成
+    var matchHistoryHtml = '';
+    
+    // ① 1戦目の勝敗が未決定、初期状態
+    if (!hostChoices.match1Winner) {
+      matchHistoryHtml += `
+        <tr>
+          <td>1戦目</td>
+          <td>
+            <img src="/characters/${bothCharsReady ? (hostChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && hostChoices.character1 ? 'char-normal' : ''}">
+            ${bothCharsReady ? (hostChoices.miiMoves1 || '') : ''}
+          </td>
+          <td>
+            <img src="/characters/${bothCharsReady ? (guestChoices.character1 || '00') : '00'}.png" class="${bothCharsReady && guestChoices.character1 ? 'char-normal' : ''}">
+            ${bothCharsReady ? (guestChoices.miiMoves1 || '') : ''}
+          </td>
+        </tr>
+      `;
+    }
+
+    // ② 1戦目の勝敗が決定
+    if (hostChoices.match1Winner) {
+      var hostClass = hostChoices.match1Winner === 'guest' ? 'loser-char' : '';
+      var guestClass = hostChoices.match1Winner === 'host' ? 'loser-char' : '';
+      matchHistoryHtml += `
+        <tr>
+          <td>1戦目</td>
+          <td>
+            <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'char-normal' : ''} ${hostClass}">
+            ${hostChoices.miiMoves1 || ''}
+          </td>
+          <td>
+            <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''} ${guestClass}">
+            ${guestChoices.miiMoves1 || ''}
+          </td>
+        </tr>
+      `;
+      // 2戦目の行を追加
+      matchHistoryHtml += `
+        <tr>
+          <td>2戦目</td>
+          <td><img src="/characters/00.png"></td>
+          <td><img src="/characters/00.png"></td>
+        </tr>
+      `;
+    }
+
+    // ③ 2戦目の勝敗が未決定
+    if (hostChoices.match1Winner && !hostChoices.match2Winner) {
+      var hostChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+        ? '00' 
+        : (hostChoices.character2 || '00');
+      var guestChar2 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+        ? '00' 
+        : (guestChoices.character2 || '00');
+      matchHistoryHtml = matchHistoryHtml.replace(
+        /<tr>\s*<td>2戦目<\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<\/tr>/,
+        `
+        <tr>
+          <td>2戦目</td>
+          <td>
+            <img src="/characters/${hostChar2}.png" class="${hostChar2 !== '00' ? 'char-normal' : ''}">
+            ${hostChar2 !== '00' ? (hostChoices.miiMoves2 || '') : ''}
+          </td>
+          <td>
+            <img src="/characters/${guestChar2}.png" class="${guestChar2 !== '00' ? 'char-normal' : ''}">
+            ${guestChar2 !== '00' ? (guestChoices.miiMoves2 || '') : ''}
+          </td>
+        </tr>
+        `
+      );
+    }
+
+    // ④ 2戦目の勝敗が決定
+    if (hostChoices.match2Winner) {
+      var hostClass2 = hostChoices.match2Winner === 'guest' ? 'loser-char' : '';
+      var guestClass2 = hostChoices.match2Winner === 'host' ? 'loser-char' : '';
+      matchHistoryHtml = matchHistoryHtml.replace(
+        /<tr>\s*<td>2戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
+        `
+        <tr>
+          <td>2戦目</td>
+          <td>
+            <img src="/characters/${hostChoices.character2 || '00'}.png" class="${hostChoices.character2 ? 'char-normal' : ''} ${hostClass2}">
+            ${hostChoices.miiMoves2 || ''}
+          </td>
+          <td>
+            <img src="/characters/${guestChoices.character2 || '00'}.png" class="${guestChoices.character2 ? 'char-normal' : ''} ${guestClass2}">
+            ${guestChoices.miiMoves2 || ''}
+          </td>
+        </tr>
+        `
+      );
+      // 勝負が未決定の場合、3戦目の行を追加
+      if (hostChoices.wins < 2 && guestChoices.wins < 2) {
+        matchHistoryHtml += `
+          <tr>
+            <td>3戦目</td>
+            <td><img src="/characters/00.png"></td>
+            <td><img src="/characters/00.png"></td>
+          </tr>
+        `;
+      }
+    }
+
+    // ⑤ 3戦目の勝敗が未決定
+    if (hostChoices.match2Winner && !hostChoices.match3Winner) {
+      var hostChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+        ? '00' 
+        : (hostChoices.character3 || '00');
+      var guestChar3 = (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) 
+        ? '00' 
+        : (guestChoices.character3 || '00');
+      matchHistoryHtml = matchHistoryHtml.replace(
+        /<tr>\s*<td>3戦目<\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<td><img src="\/characters\/00\.png"><\/td>\s*<\/tr>/,
+        `
+        <tr>
+          <td>3戦目</td>
+          <td>
+            <img src="/characters/${hostChar3}.png" class="${hostChar3 !== '00' ? 'char-normal' : ''}">
+            ${hostChar3 !== '00' ? (hostChoices.miiMoves3 || '') : ''}
+          </td>
+          <td>
+            <img src="/characters/${guestChar3}.png" class="${guestChar3 !== '00' ? 'char-normal' : ''}">
+            ${guestChar3 !== '00' ? (guestChoices.miiMoves3 || '') : ''}
+          </td>
+        </tr>
+        `
+      );
+    }
+
+    // ⑥ 3戦目の勝敗が決定
+    if (hostChoices.match3Winner) {
+      var hostClass3 = hostChoices.match3Winner === 'guest' ? 'loser-char' : '';
+      var guestClass3 = hostChoices.match3Winner === 'host' ? 'loser-char' : '';
+      matchHistoryHtml = matchHistoryHtml.replace(
+        /<tr>\s*<td>3戦目<\/td>\s*<td>.*<\/td>\s*<td>.*<\/td>\s*<\/tr>/,
+        `
+        <tr>
+          <td>3戦目</td>
+          <td>
+            <img src="/characters/${hostChoices.character3 || '00'}.png" class="${hostChoices.character3 ? 'char-normal' : ''} ${hostClass3}">
+            ${hostChoices.miiMoves3 || ''}
+          </td>
+          <td>
+            <img src="/characters/${guestChoices.character3 || '00'}.png" class="${guestChoices.character3 ? 'char-normal' : ''} ${guestClass3}">
+            ${guestChoices.miiMoves3 || ''}
+          </td>
+        </tr>
+        `
+      );
+    }
+
+    document.getElementById('matchHistory').innerHTML = matchHistoryHtml;
+
+
+
               updateStageButtons();
               updateCharacterButtons();
             },
@@ -1437,22 +1604,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
           <!-- 対戦履歴（仮：後で動的に生成） -->
           <table class="history-table">
-            <thead>
-              <tr>
-                <th>試合</th>
-                <th>ホスト</th>
-                <th>ゲスト</th>
-              </tr>
-            </thead>
-            <tbody id="matchHistory">
-              <tr>
-                <td>1戦目</td>
-                <td><img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.losses ? 'loser-char' : ''}"></td>
-                <td><img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.losses ? 'loser-char' : ''}"></td>
-              </tr>
-              <!-- 2戦目以降は後で動的に追加 -->
-            </tbody>
-          </table>
+  <thead>
+    <tr>
+      <th>試合</th>
+      <th>ホスト</th>
+      <th>ゲスト</th>
+    </tr>
+  </thead>
+  <tbody id="matchHistory">
+    <!-- 動的に生成される -->
+  </tbody>
+</table>
     
           <!-- 現在の試合状況 -->
           <p id="matchStatus">現在の試合: 1戦目</p>
@@ -1516,9 +1678,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
 app.post('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
-  const { character1, character2, character3, miiMoves1, miiMoves2, miiMoves3, bannedStages, result, characterReady, selectedStage } = req.body;
+  const { 
+    character1, character2, character3, 
+    miiMoves1, miiMoves2, miiMoves3, 
+    bannedStages, result, characterReady, selectedStage,
+    match1Winner, match2Winner, match3Winner 
+  } = req.body;
 
-  console.log('POST /api/solo/setup/:matchId received:', { matchId, userId, body: req.body });
+  console.log('POST /api/solo/setup/:matchId received:', { 
+    matchId, userId, body: req.body 
+  });
 
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
@@ -1538,7 +1707,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     const loserRating = loserSnap.data()?.rating || 1000;
     const ratingDiff = loserRating - winnerRating;
     const winPoints = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
-    const losePoints = winPoints; // 絶対値一致
+    const losePoints = winPoints;
     await Promise.all([
       updateDoc(winnerRef, { rating: winnerRating + winPoints }),
       updateDoc(loserRef, { rating: loserRating - losePoints })
@@ -1556,14 +1725,28 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       const hostWins = matchData.hostChoices.wins || 0;
       const guestWins = matchData.guestChoices.wins || 0;
       const matchNumber = (matchData.matchCount || 0) + 1;
-      updateData.hostChoices = { ...matchData.hostChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
-      updateData.guestChoices = { ...matchData.guestChoices, result: '', characterReady: false, bannedStages: [], selectedStage: '' };
+      updateData.hostChoices = { 
+        ...matchData.hostChoices, 
+        result: '', 
+        characterReady: false, 
+        bannedStages: [], 
+        selectedStage: '' 
+      };
+      updateData.guestChoices = { 
+        ...matchData.guestChoices, 
+        result: '', 
+        characterReady: false, 
+        bannedStages: [], 
+        selectedStage: '' 
+      };
       if (result === 'win' && isHost || result === 'lose' && !isHost) {
         updateData.hostChoices.wins = hostWins + 1;
         updateData.guestChoices.losses = (matchData.guestChoices.losses || 0) + 1;
+        updateData.hostChoices[`match${matchNumber}Winner`] = 'host';
       } else {
         updateData.guestChoices.wins = guestWins + 1;
         updateData.hostChoices.losses = (matchData.hostChoices.losses || 0) + 1;
+        updateData.hostChoices[`match${matchNumber}Winner`] = 'guest';
       }
       updateData.matchCount = matchNumber;
       if (updateData.hostChoices.wins >= 2 || updateData.guestChoices.wins >= 2) {
@@ -1581,30 +1764,20 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     const matchCount = matchData.hostChoices.wins + matchData.hostChoices.losses;
     updateData[choicesKey] = { ...matchData[choicesKey] };
     if (characterReady) updateData[choicesKey].characterReady = true;
-    if (character1 !== undefined) {
-      console.log(`Saving character1 for ${choicesKey}:`, character1);
-      updateData[choicesKey].character1 = character1;
-    }
-    if (character2 !== undefined) {
-      console.log(`Saving character2 for ${choicesKey}:`, character2);
-      updateData[choicesKey].character2 = character2;
-    }
-    if (character3 !== undefined) {
-      console.log(`Saving character3 for ${choicesKey}:`, character3);
-      updateData[choicesKey].character3 = character3;
-    }
+    if (character1 !== undefined) updateData[choicesKey].character1 = character1;
+    if (character2 !== undefined) updateData[choicesKey].character2 = character2;
+    if (character3 !== undefined) updateData[choicesKey].character3 = character3;
     if (miiMoves1 !== undefined) updateData[choicesKey].miiMoves1 = miiMoves1;
     if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
     if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
-    if (bannedStages) {
-      console.log(`Saving bannedStages for ${choicesKey}:`, bannedStages);
-      updateData[choicesKey].bannedStages = bannedStages;
-    }
+    if (bannedStages) updateData[choicesKey].bannedStages = bannedStages;
     if (selectedStage) {
-      console.log(`Saving selectedStage for ${choicesKey}:`, selectedStage);
       updateData[choicesKey].selectedStage = selectedStage;
       updateData.selectedStage = selectedStage;
     }
+    if (match1Winner !== undefined) updateData[choicesKey].match1Winner = match1Winner;
+    if (match2Winner !== undefined) updateData[choicesKey].match2Winner = match2Winner;
+    if (match3Winner !== undefined) updateData[choicesKey].match3Winner = match3Winner;
   }
 
   await updateDoc(matchRef, updateData);
