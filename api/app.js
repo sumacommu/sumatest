@@ -1261,14 +1261,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
 
-            html += `
-              <tr>
-                <td>${i + 1}戦目</td>
-                <td><img src="/characters/${hostChar}.png" class="${hostClass}"> ${hostMoves}</td>
-                <td><img src="/characters/${guestChar}.png" class="${guestClass}"> ${guestMoves}</td>
-              </tr>
-            `;
-          }
+    // テンプレートリテラルを文字列連結に変更
+    html += '<tr>' +
+            '<td>' + (i + 1) + '戦目</td>' +
+            '<td><img src="/characters/' + hostChar + '.png" class="' + hostClass + '"> ' + hostMoves + '</td>' +
+            '<td><img src="/characters/' + guestChar + '.png" class="' + guestClass + '"> ' + guestMoves + '</td>' +
+            '</tr>';
+  }
 
           matchHistory.innerHTML = html;
         }
