@@ -886,7 +886,21 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 }
               }
             } else {
-              if (banned.includes(id)) {
+              if (['Random'].includes(id)) {
+                if (isHost) {
+                  if (!isHostWinner) {
+                    alert('おまかせを選ぶことは出来ません。');
+                    return;          
+                  }
+                }
+                else {
+                  if (isHostWinner) {
+                    alert('おまかせを選ぶことは出来ません。');
+                    return;          
+                  }
+                }            
+              }
+              else if (banned.includes(id)) {
                 alert('そのステージは既に拒否されています。');
                 return;
               }
@@ -941,11 +955,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
               if (matchCount === 0) {
                 if (['Random'].includes(id)) {
-                  if (banned.includes(id)) {
-                    
-                  }                
-                  else if (selectedStages.includes(id)) {
-                    btn.classList.add('temporary');
+                  if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                    if (selectedStages.includes(id)) {
+                      btn.classList.add('temporary');
+                    }
                   }
                 }
                 else if (banned.includes(id)) {
@@ -958,7 +971,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
                 if (['Random'].includes(id)) {
                   if (banned.includes(id)) {
-                    
+                    if (isHost) {
+                      if (!isHostWinner) {
+                        if (['Random'].includes(id)) {
+                          btn.classList.add('counter');
+                        }          
+                      }
+                    }
+                    else {
+                      if (isHostWinner) {
+                        if (['Random'].includes(id)) {
+                          btn.classList.add('counter');
+                        }          
+                      }
+                    }
                   }                
                   else if (selectedStages.includes(id)) {
                     btn.classList.add('temporary');
