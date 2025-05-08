@@ -10,6 +10,7 @@ const EventEmitter = require('events');
 require('dotenv').config();
 
 const multer = require('multer');
+const storage = multer.memoryStorage(); // メモリに保存
 const sharp = require('sharp');
 const fs = require('fs').promises;
 const path = require('path');
@@ -17,7 +18,7 @@ const path = require('path');
 
 // Multer設定
 const upload = multer({
-  dest: 'uploads/temp/',
+  storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB制限
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
@@ -2031,7 +2032,7 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
       await uploadBytes(storageRef, req.file.buffer, metadata);
       const photoUrl = await getDownloadURL(storageRef);
       updateData.photoUrl = photoUrl;
-      await fs.unlink(req.file.path); // 一時ファイルを削除
+      // メモリストレージ使用のため、fs.unlinkは不要
     }
 
     await updateDoc(doc(db, 'users', userId), updateData);
