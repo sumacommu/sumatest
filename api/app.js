@@ -611,6 +611,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 0.5;
             pointer-events: none;
           }
+          .select-char-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+          }
           .stage-btn {
             opacity: 1.0;
             transition: opacity 0.3s, filter 0.3s, border 0.3s, background-color 0.3s;
@@ -1475,13 +1480,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               });
               document.querySelectorAll('.select-char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
-                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
-                btn.onclick = canSelectChar ? () => {
-                  const charPopup = document.getElementById('charPopup');
-                  const overlay = document.getElementById('overlay');
-                  if (charPopup) charPopup.style.display = 'block';
-                  if (overlay) overlay.style.display = 'block';
-                } : null;
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
