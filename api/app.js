@@ -4,7 +4,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs, deleteField } = require('firebase/firestore');
 const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
 const EventEmitter = require('events');
 require('dotenv').config();
@@ -356,7 +356,7 @@ app.get('/api/', async (req, res) => {
     const userData = req.user;
     html += `
           <div class="profile">
-            <img src="${userData.photoUrl || '/default.png'}" alt="プロフィール画像">
+            <img src="/default.png" alt="プロフィール画像">
             <h2>こんにちは、${userData.handleName || userData.displayName}さん！</h2>
           </div>
           <div class="links">
@@ -1839,11 +1839,11 @@ app.get('/api/user/:userId', async (req, res) => {
     const userData = userSnap.data();
     const profile = {
       handleName: userData.handleName || '',
-      bio: userData.bio || '',
-      photoUrl: userData.photoUrl || '/default.png'
+      bio: userData.bio || ''
+      // photoUrlは削除（デフォルト画像を使用）
     };
 
-    // マッチング履歴の取得
+    // マッチング履歴の取得（変更なし）
     const matchesRef = collection(db, 'matches');
     const matchQuery = query(
       matchesRef,
@@ -1880,7 +1880,6 @@ app.get('/api/user/:userId', async (req, res) => {
     });
     matches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    // 相手のユーザー名を取得
     const opponentIds = [...new Set(matches.map(m => m.opponentId))];
     const opponentPromises = opponentIds.map(id =>
       getDoc(doc(db, 'users', id)).then(snap => ({
@@ -1928,7 +1927,7 @@ app.get('/api/user/:userId', async (req, res) => {
           <div class="container">
             <h1>${isOwnProfile ? 'マイプロフィール' : 'ユーザープロフィール'}</h1>
             <div class="profile">
-              <img id="profileImage" src="${profile.photoUrl}" alt="プロフィール画像">
+              <img id="profileImage" src="/default.png" alt="プロフィール画像">
               <h2>${profile.handleName || '未設定'}</h2>
               <p>${profile.bio || '自己紹介がありません'}</p>
             </div>
@@ -1995,6 +1994,7 @@ app.get('/api/user/:userId', async (req, res) => {
 app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) => {
   const userId = req.params.userId;
   if (!req.user || req.user.id !== userId) {
+    console.error('認証エラー: ユーザー不一致', { user: req.user, userId });
     return res.status(403).send(`
       <html><body>
         <h1>権限がありません</h1>
@@ -2004,6 +2004,7 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
   }
   try {
     const { handleName, bio } = req.body;
+    console.log('プロフィール更新開始', { userId, handleName, bio, hasFile: !!req.file });
     if (handleName.length > 10) {
       return res.status(400).send(`
         <html><body>
@@ -2028,16 +2029,20 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
       const storage = getStorage(firebaseApp);
       const storageRef = ref(storage, `profile_images/${userId}.png`);
       const metadata = { contentType: req.file.mimetype };
+      console.log('Storageアップロード開始', { userId, storagePath: `profile_images/${userId}.png`, mimeType: req.file.mimetype });
       await uploadBytes(storageRef, req.file.buffer, metadata);
-      const photoUrl = await getDownloadURL(storageRef);
-      updateData.photoUrl = photoUrl;
-      // メモリストレージ使用のため、fs.unlinkは不要
+      console.log('Storageアップロード成功', { userId });
+      // photoUrlは保存しない（削除予定）
     }
 
+    // photoUrlフィールドを明示的に削除
+    updateData.photoUrl = deleteField();
+    console.log('Firestore更新データ', updateData);
     await updateDoc(doc(db, 'users', userId), updateData);
+    console.log('Firestore更新成功', { userId });
     res.redirect(`/api/user/${userId}`);
   } catch (error) {
-    console.error('プロフィール更新エラー:', error.message, error.stack);
+    console.error('プロフィール更新エラー:', error.message, error.stack, { userId });
     res.status(500).send(`
       <html><body>
         <h1>エラーが発生しました</h1>
