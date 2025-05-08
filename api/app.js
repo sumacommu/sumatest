@@ -783,11 +783,41 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               // Ⅰ. matchCount === 0
               if (matchCount === 0) {
                 if (!bothCharsReady) {
-                  if (!selectedChar) {
-                    btn.classList.add('char-normal'); // ①
-                  } else {
-                    btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                    btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                  if (isHost) {
+                    if (!hostChoices.characterReady) {
+                      if (!selectedChar) {
+                        btn.classList.add('char-normal'); // ①
+                      } else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      }
+                    }
+                    else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      } else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      }
+                    }
+                  }
+                  else {
+                    if (!guestChoices.characterReady) {
+                      if (!selectedChar) {
+                        btn.classList.add('char-normal'); // ①
+                      } else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      }
+                    }
+                    else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      } else {
+                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
+                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      }
+                    }
                   }
                 } else {
                   console.log('bothCharsReady state:', {
@@ -1200,7 +1230,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           let html = '';
 
           for (let i = 0; i < 3; i++) {
-            if ((isFinished)||(i > matchCount && (i > 0 && matchResults[i - 1] === null))) continue;
+            if ( ((i === 2)&&(isFinished)) ||(i > matchCount && (i > 0 && matchResults[i - 1] === null))) continue;
             let hostChar = '00';
             let hostMoves = '';
             let guestChar = '00';
