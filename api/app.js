@@ -1351,6 +1351,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   guideText = 'キャラクターを選択してください（' + (isHost ? hostName : guestName) + '）';
                   canSelectChar = (isHost && !hostChoices['character' + (matchCount + 1)]) || (!isHost && !guestChoices['character' + (matchCount + 1)]);
                 } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                  canSelectChar = false;
                   if (isHost) {
                     if (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) {
                       guideText = '拒否ステージを1つ選んでください（' + hostName + '）';
@@ -1367,6 +1368,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                   }
                 } else {
+                  canSelectChar = false;
                   if (isHost) {
                     guideText = '表示されている残りのステージから選び、対戦を開始してください（' + hostName + '）';
                   } else {
@@ -1376,9 +1378,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 }
               } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
                 guideText = 'このルームの対戦は終了しました。';
+                canSelectChar = false;
                 canSelectResult = false;
               } else {
                 if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                  canSelectChar = false;
                   if (isHost) {
                     if (isHostWinner) {
                       if (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) {
@@ -1420,10 +1424,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         canSelectChar = true;
                       } else {
                         guideText = guestName + 'がキャラクターを選んでいます...';
+                        canSelectChar = false;
                       }
                     } else {
                       if (!guestChoices['character' + (matchCount + 1)]) {
                         guideText = guestName + 'がキャラクターを選んでいます...';
+                        canSelectChar = false;
                       } else {
                         guideText = 'キャラクターを選択してください（' + hostName + '）';
                         canSelectChar = true;
@@ -1433,6 +1439,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     if (isHostWinner) {
                       if (!hostChoices['character' + (matchCount + 1)]) {
                         guideText = hostName + 'がキャラクターを選んでいます...';
+                        canSelectChar = false;
                       } else {
                         guideText = 'キャラクターを選択してください（' + guestName + '）';
                         canSelectChar = true;
@@ -1443,10 +1450,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         canSelectChar = true;
                       } else {
                         guideText = hostName + 'がキャラクターを選んでいます...';
+                        canSelectChar = false;
                       }
                     }
                   }
                 } else {
+                  canSelectChar = false;
                   if (isHost) {
                     if (isHostWinner) {
                       guideText = 'ステージを「おまかせ」に設定し、選んだキャラクターで対戦を始めてください（' + hostName + '）';
