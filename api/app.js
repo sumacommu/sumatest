@@ -5,6 +5,7 @@ const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs, deleteField } = require('firebase/firestore');
+const { getAuth, signInWithCredential, OAuthCredential } = require('firebase/auth');
 const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
 const EventEmitter = require('events');
 require('dotenv').config();
@@ -190,36 +191,39 @@ app.use((req, res, next) => {
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
+  callbackURL: '/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  console.log('Google認証開始:', profile.id);
   try {
-    const userRef = doc(db, 'users', profile.id);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      const userData = {
-        displayName: profile.displayName,
+    console.log('Google認証コールバック', { profileId: profile.id, accessToken });
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', profile.emails[0].value));
+    const querySnapshot = await getDocs(q);
+    let user;
+    if (querySnapshot.empty) {
+      user = {
+        id: profile.id,
         email: profile.emails[0].value,
-        photoUrl: '/default.png',
+        displayName: profile.displayName,
+        createdAt: new Date().toISOString(),
         handleName: '',
         bio: '',
-        createdAt: new Date().toISOString(),
+        rating: 1400,
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
-        penalty: false,
-        rating: 1500
+        penalty: false
       };
-      await setDoc(userRef, userData);
-      console.log('新規ユーザー登録成功:', profile.id, userData);
+      await setDoc(doc(db, 'users', profile.id), user);
     } else {
-      console.log('既存ユーザー確認:', profile.id, userSnap.data());
+      user = querySnapshot.docs[0].data();
+      user.id = profile.id;
     }
-    console.log('認証成功:', profile.id);
-    return done(null, profile);
+    // アクセストークンを保存
+    user.accessToken = accessToken;
+    done(null, user);
   } catch (error) {
-    console.error('認証エラー:', error.message, error.stack);
-    return done(error);
+    console.error('Google認証エラー:', error.message, error.stack);
+    done(error);
   }
 }));
 
@@ -2026,16 +2030,25 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
 
     const updateData = { handleName, bio };
     if (req.file) {
+      const auth = getAuth(firebaseApp);
+      const accessToken = req.user.accessToken;
+      console.log('認証トークン:', { accessToken, userId });
+      if (!accessToken) {
+        throw new Error('認証トークンがありません');
+      }
+      // Google認証トークンでFirebaseにログイン
+      const credential = OAuthCredential.fromJSON({ accessToken });
+      await signInWithCredential(auth, credential);
+      console.log('Firebase認証成功', { userId, currentUser: auth.currentUser?.uid });
+      
       const storage = getStorage(firebaseApp);
       const storageRef = ref(storage, `profile_images/${userId}.png`);
       const metadata = { contentType: req.file.mimetype };
       console.log('Storageアップロード開始', { userId, storagePath: `profile_images/${userId}.png`, mimeType: req.file.mimetype });
       await uploadBytes(storageRef, req.file.buffer, metadata);
       console.log('Storageアップロード成功', { userId });
-      // photoUrlは保存しない（削除予定）
     }
 
-    // photoUrlフィールドを明示的に削除
     updateData.photoUrl = deleteField();
     console.log('Firestore更新データ', updateData);
     await updateDoc(doc(db, 'users', userId), updateData);
