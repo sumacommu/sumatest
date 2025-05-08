@@ -643,10 +643,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             opacity: 1.0 !important;
             filter: none !important;
           }
-          .char-display img {
-            width: 64px;
-            height: 64px;
-          }
           .result-btn {
             padding: 10px 20px;
             margin: 5px;
@@ -774,7 +770,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             if (miiInput) {
               miiInput.style.display = ['54', '55', '56'].includes(id) ? 'block' : 'none';
             }
-            document.getElementById('charStatus').innerText = 'キャラクターを選択しました。決定ボタンを押してください。';
             updateCharacterButtons();
           }
     
@@ -786,102 +781,70 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             document.querySelectorAll('.char-btn').forEach(btn => {
               btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray', 'selected', 'disabled');
     
-              // Ⅰ. matchCount === 0
               if (matchCount === 0) {
                 if (!bothCharsReady) {
                   if (isHost) {
-                    if (!hostChoices.character1) {
-                      if (!selectedChar) {
-                        btn.classList.add('char-normal'); // ①
-                      } else {
-                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
-                      }
+                    if (!hostChoices.character1 && !selectedChar) {
+                      btn.classList.add('char-normal');
+                    } else {
+                      const isSelected = selectedChar ? btn.dataset.id === selectedChar : btn.dataset.id === hostChoices.character1;
+                      btn.classList.toggle('char-normal', isSelected);
+                      btn.classList.toggle('char-dim', !isSelected);
                     }
-                    else {
-                      if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== hostChoices.character1); // ②
-                      } else {
-                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
-                      }
-                    }
-                  }
-                  else {
-                    if (!guestChoices.character1) {
-                      if (!selectedChar) {
-                        btn.classList.add('char-normal'); // ①
-                      } else {
-                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
-                      }
-                    }
-                    else {
-                      if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== guestChoices.character1); // ②
-                      } else {
-                        btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
-                      }
+                  } else {
+                    if (!guestChoices.character1 && !selectedChar) {
+                      btn.classList.add('char-normal');
+                    } else {
+                      const isSelected = selectedChar ? btn.dataset.id === selectedChar : btn.dataset.id === guestChoices.character1;
+                      btn.classList.toggle('char-normal', isSelected);
+                      btn.classList.toggle('char-dim', !isSelected);
                     }
                   }
                 } else {
-                  console.log('bothCharsReady state:', {
-                    isHost,
-                    hostChar: hostChoices.character1,
-                    guestChar: guestChoices.character1,
-                    btnId: btn.dataset.id
-                  });
                   if (isHost) {
-                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
-                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1); // ③
+                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1);
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices.character1);
                   } else {
-                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
-                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices.character1); // ③
+                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1);
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices.character1);
                   }
                 }
-              }
-              // Ⅱ. 対戦終了
-              else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
-                btn.classList.add('char-normal'); // ①
-              }
-              // Ⅲ. それ以外
-              else {
+              } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
+                btn.classList.add('char-normal');
+              } else {
                 if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  btn.classList.add('char-normal'); // ①
+                  btn.classList.add('char-normal');
                 } else if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
                   if (isHost && !hostChoices['character' + (matchCount + 1)]) {
                     if (!selectedChar) {
-                      btn.classList.add('char-normal'); // ①
+                      btn.classList.add('char-normal');
                     } else {
-                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar);
+                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar);
                     }
                   } else if (!isHost && !guestChoices['character' + (matchCount + 1)]) {
                     if (!selectedChar) {
-                      btn.classList.add('char-normal'); // ①
+                      btn.classList.add('char-normal');
                     } else {
-                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
-                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                      btn.classList.toggle('char-normal', btn.dataset.id === selectedChar);
+                      btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar);
                     }
                   } else {
                     if (isHost) {
-                      btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]); // ①
-                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]); // ③
+                      btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]);
+                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]);
                     } else {
-                      btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]); // ①
-                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]); // ③
+                      btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]);
+                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]);
                     }
                   }
                 } else {
                   if (isHost) {
-                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]); // ①
-                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]); // ③
+                    btn.classList.toggle('char-normal', btn.dataset.id === hostChoices['character' + (matchCount + 1)]);
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]);
                   } else {
-                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]); // ①
-                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]); // ③
+                    btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]);
+                    btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]);
                   }
                 }
               }
@@ -1107,7 +1070,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
     
             if (result) {
-              document.getElementById('charStatus').innerText = '';
               data.result = result;
               data.hostChoices = { ...hostChoices, bannedStages: [], selectedStage: '', characterReady: false };
               data.guestChoices = { ...guestChoices, bannedStages: [], selectedStage: '', characterReady: false };
@@ -1130,7 +1092,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   data.characterReady = true;
                   data['character' + (matchCount + 1)] = selectedChar;
                   console.log('Saving character:', data['character' + (matchCount + 1)]);
-                  document.getElementById('charStatus').innerText = '';
                 }
               } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
                 if (isHost && (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0)) {
@@ -1193,7 +1154,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   data.characterReady = true;
                   data['character' + (matchCount + 1)] = selectedChar;
                   console.log('Saving character:', data['character' + (matchCount + 1)]);
-                  document.getElementById('charStatus').innerText = '';
                 }
               }
             }
@@ -1228,94 +1188,92 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             }
           }
 
-        function updateMatchHistory() {
-          const matchHistory = document.getElementById('matchHistory');
-          if (!matchHistory) return;
-          const matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
-          const bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
-          const matchResults = hostChoices.matchResults || [null, null, null];
-          const isFinished = hostChoices.wins >= 2 || guestChoices.wins >= 2;
-          let html = '';
+          function updateMatchHistory() {
+            const matchHistory = document.getElementById('matchHistory');
+            if (!matchHistory) return;
+            const matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
+            const bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
+            const matchResults = hostChoices.matchResults || [null, null, null];
+            const isFinished = hostChoices.wins >= 2 || guestChoices.wins >= 2;
+            let html = '';
 
-          for (let i = 0; i < 3; i++) {
-            if ( ((i === 2)&&(isFinished)) ||(i > matchCount && (i > 0 && matchResults[i - 1] === null))) continue;
-            let hostChar = '00';
-            let hostMoves = '';
-            let guestChar = '00';
-            let guestMoves = '';
-            let hostClass = '';
-            let guestClass = '';
+            for (let i = 0; i < 3; i++) {
+              if ( ((i === 2)&&(isFinished)) ||(i > matchCount && (i > 0 && matchResults[i - 1] === null))) continue;
+              let hostChar = '00';
+              let hostMoves = '';
+              let guestChar = '00';
+              let guestMoves = '';
+              let hostClass = '';
+              let guestClass = '';
 
-            if (i === 0) {
-              if (!matchResults[0]) {
-                if (!bothCharsReady) {
-                  hostChar = '00';
-                  guestChar = '00';
+              if (i === 0) {
+                if (!matchResults[0]) {
+                  if (!bothCharsReady) {
+                    hostChar = '00';
+                    guestChar = '00';
+                  } else {
+                    hostChar = hostChoices.character1 || '00';
+                    hostMoves = hostChoices.miiMoves1 || '';
+                    guestChar = guestChoices.character1 || '00';
+                    guestMoves = guestChoices.miiMoves1 || '';
+                  }
                 } else {
                   hostChar = hostChoices.character1 || '00';
                   hostMoves = hostChoices.miiMoves1 || '';
                   guestChar = guestChoices.character1 || '00';
                   guestMoves = guestChoices.miiMoves1 || '';
+                  hostClass = matchResults[0] === 'guestWin' ? 'loser-char' : '';
+                  guestClass = matchResults[0] === 'hostWin' ? 'loser-char' : '';
                 }
-              } else {
-                hostChar = hostChoices.character1 || '00';
-                hostMoves = hostChoices.miiMoves1 || '';
-                guestChar = guestChoices.character1 || '00';
-                guestMoves = guestChoices.miiMoves1 || '';
-                hostClass = matchResults[0] === 'guestWin' ? 'loser-char' : '';
-                guestClass = matchResults[0] === 'hostWin' ? 'loser-char' : '';
-              }
-            } else if (i === 1) {
-              if (!matchResults[1]) {
-                if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  hostChar = '00';
-                  guestChar = '00';
+              } else if (i === 1) {
+                if (!matchResults[1]) {
+                  if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                    hostChar = '00';
+                    guestChar = '00';
+                  } else {
+                    hostChar = hostChoices.character2 || '00';
+                    hostMoves = hostChoices.miiMoves2 || '';
+                    guestChar = guestChoices.character2 || '00';
+                    guestMoves = guestChoices.miiMoves2 || '';
+                  }
                 } else {
                   hostChar = hostChoices.character2 || '00';
                   hostMoves = hostChoices.miiMoves2 || '';
                   guestChar = guestChoices.character2 || '00';
                   guestMoves = guestChoices.miiMoves2 || '';
+                  hostClass = matchResults[1] === 'guestWin' ? 'loser-char' : '';
+                  guestClass = matchResults[1] === 'hostWin' ? 'loser-char' : '';
                 }
-              } else {
-                hostChar = hostChoices.character2 || '00';
-                hostMoves = hostChoices.miiMoves2 || '';
-                guestChar = guestChoices.character2 || '00';
-                guestMoves = guestChoices.miiMoves2 || '';
-                hostClass = matchResults[1] === 'guestWin' ? 'loser-char' : '';
-                guestClass = matchResults[1] === 'hostWin' ? 'loser-char' : '';
-              }
-            } else if (i === 2) {
-              if (!matchResults[2]) {
-                if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
-                  hostChar = '00';
-                  guestChar = '00';
+              } else if (i === 2) {
+                if (!matchResults[2]) {
+                  if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
+                    hostChar = '00';
+                    guestChar = '00';
+                  } else {
+                    hostChar = hostChoices.character3 || '00';
+                    hostMoves = hostChoices.miiMoves3 || '';
+                    guestChar = guestChoices.character3 || '00';
+                    guestMoves = guestChoices.miiMoves3 || '';
+                  }
                 } else {
                   hostChar = hostChoices.character3 || '00';
                   hostMoves = hostChoices.miiMoves3 || '';
                   guestChar = guestChoices.character3 || '00';
                   guestMoves = guestChoices.miiMoves3 || '';
+                  hostClass = matchResults[2] === 'guestWin' ? 'loser-char' : '';
+                  guestClass = matchResults[2] === 'hostWin' ? 'loser-char' : '';
                 }
-              } else {
-                hostChar = hostChoices.character3 || '00';
-                hostMoves = hostChoices.miiMoves3 || '';
-                guestChar = guestChoices.character3 || '00';
-                guestMoves = guestChoices.miiMoves3 || '';
-                hostClass = matchResults[2] === 'guestWin' ? 'loser-char' : '';
-                guestClass = matchResults[2] === 'hostWin' ? 'loser-char' : '';
               }
+
+              html += '<tr>' +
+                      '<td>' + (i + 1) + '戦目</td>' +
+                      '<td><img src="/characters/' + hostChar + '.png" class="' + hostClass + '"> ' + hostMoves + '</td>' +
+                      '<td><img src="/characters/' + guestChar + '.png" class="' + guestClass + '"> ' + guestMoves + '</td>' +
+                      '</tr>';
             }
 
-    // テンプレートリテラルを文字列連結に変更
-    html += '<tr>' +
-            '<td>' + (i + 1) + '戦目</td>' +
-            '<td><img src="/characters/' + hostChar + '.png" class="' + hostClass + '"> ' + hostMoves + '</td>' +
-            '<td><img src="/characters/' + guestChar + '.png" class="' + guestClass + '"> ' + guestMoves + '</td>' +
-            '</tr>';
-  }
-
-          matchHistory.innerHTML = html;
-        }
-
+            matchHistory.innerHTML = html;
+          }
     
           db.collection('matches').doc('${matchId}').onSnapshot(
             function (doc) {
@@ -1336,11 +1294,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               if (matchCount > 0 && !guestChoices['character' + (matchCount + 1)] && guestChoices['character' + matchCount]) {
                 if (!isHost) selectedChar = guestChoices['character' + matchCount];
               }
-    
-              document.getElementById('matchStatus').innerText = 
-                hostChoices.wins >= 2 || guestChoices.wins >= 2 
-                  ? '対戦終了' 
-                  : '現在の試合: ' + (matchCount + 1) + '戦目';
     
               var guideText = '';
               var canSelectChar = false;
@@ -1502,50 +1455,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
               });
     
-              var displayChar = '00';
-              var displayMoves = '';
-              var guestDisplayChar = '00';
-              var guestDisplayMoves = '';
-              if (matchCount === 0) {
-                if (bothCharsReady) {
-                  displayChar = hostChoices['character' + (matchCount + 1)] || '00';
-                  displayMoves = hostChoices['miiMoves' + (matchCount + 1)] || '';
-                  guestDisplayChar = guestChoices['character' + (matchCount + 1)] || '00';
-                  guestDisplayMoves = guestChoices['miiMoves' + (matchCount + 1)] || '';
-                }
-              } else {
-                if (isHost) {
-                  if (isHostWinner) {
-                    displayChar = hostChoices['character' + (matchCount + 1)] || '00';
-                    displayMoves = hostChoices['miiMoves' + (matchCount + 1)] || '';
-                  } else {
-                    if (guestChoices['character' + (matchCount + 1)]) {
-                      guestDisplayChar = guestChoices['character' + (matchCount + 1)] || '00';
-                      guestDisplayMoves = guestChoices['miiMoves' + (matchCount + 1)] || '';
-                    }
-                  }
-                } else {
-                  if (!isHostWinner) {
-                    guestDisplayChar = guestChoices['character' + (matchCount + 1)] || '00';
-                    guestDisplayMoves = guestChoices['miiMoves' + (matchCount + 1)] || '';
-                  } else {
-                    if (hostChoices['character' + (matchCount + 1)]) {
-                      displayChar = hostChoices['character' + (matchCount + 1)] || '00';
-                      displayMoves = hostChoices['miiMoves' + (matchCount + 1)] || '';
-                    }
-                  }
-                }
-                if (bothCharsReady) {
-                  displayChar = hostChoices['character' + (matchCount + 1)] || '00';
-                  displayMoves = hostChoices['miiMoves' + (matchCount + 1)] || '';
-                  guestDisplayChar = guestChoices['character' + (matchCount + 1)] || '00';
-                  guestDisplayMoves = guestChoices['miiMoves' + (matchCount + 1)] || '';
-                }
-              }
-              document.querySelector('.char-display').innerHTML =
-                '<p>' + hostName + 'のキャラクター: <img src="/characters/' + displayChar + '.png" class="' + (displayChar !== '00' ? 'char-normal' : '') + '"> ' + displayMoves + '</p>' +
-                '<p>' + guestName + 'のキャラクター: <img src="/characters/' + guestDisplayChar + '.png" class="' + (guestDisplayChar !== '00' ? 'char-normal' : '') + '"> ' + guestDisplayMoves + '</p>';
-    
               updateStageButtons();
               updateCharacterButtons();
               updateMatchHistory();
@@ -1583,21 +1492,19 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
           <!-- 対戦履歴（仮：後で動的に生成） -->
           <table class="history-table">
-          <thead>
-            <tr>
-              <th>試合</th>
-              <th>ホスト</th>
-              <th>ゲスト</th>
-            </tr>
-          </thead>
-          <tbody id="matchHistory">
-            <!-- JavaScriptで動的に生成 -->
-          </tbody>
-        </table>
+            <thead>
+              <tr>
+                <th>試合</th>
+                <th>ホスト</th>
+                <th>ゲスト</th>
+              </tr>
+            </thead>
+            <tbody id="matchHistory">
+              <!-- JavaScriptで動的に生成 -->
+            </tbody>
+          </table>
     
-          <!-- 現在の試合状況 -->
-          <p id="matchStatus">現在の試合: 1戦目</p>
-          <p id="charStatus"></p>
+          <!-- ガイドテキスト -->
           <p id="guide"></p>
     
           <!-- キャラクター選択 -->
@@ -1622,12 +1529,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           <div class="section" id="miiInput">
             <h2>Miiファイター設定</h2>
             <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4"></label>
-          </div>
-    
-          <!-- 現在のキャラクター表示 -->
-          <div class="char-display">
-            <p>${hostName}のキャラクター: <img src="/characters/${hostChoices.character1 || '00'}.png" class="${hostChoices.character1 ? 'char-normal' : ''}"> ${hostChoices.miiMoves1 || ''}</p>
-            <p>${guestName}のキャラクター: <img src="/characters/${guestChoices.character1 || '00'}.png" class="${guestChoices.character1 ? 'char-normal' : ''}"> ${guestChoices.miiMoves1 || ''}</p>
           </div>
     
           <!-- ステージ選択（2列、Random追加） -->
@@ -1697,7 +1598,6 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       const hostWins = matchData.hostChoices.wins || 0;
       const guestWins = matchData.guestChoices.wins || 0;
       const matchNumber = (matchData.matchCount || 0) + 1;
-      // matchResultsを更新
       const currentMatchResults = matchData.hostChoices.matchResults || [null, null, null];
       if (result === 'win' && isHost || result === 'lose' && !isHost) {
         currentMatchResults[matchNumber - 1] = 'hostWin';
