@@ -5,7 +5,7 @@ const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs, deleteField } = require('firebase/firestore');
-const { getAuth, signInWithCredential, OAuthCredential } = require('firebase/auth');
+const { getAuth, signInWithCredential } = require('firebase/auth');
 const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
 const EventEmitter = require('events');
 require('dotenv').config();
@@ -192,7 +192,7 @@ passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback',
-  scope: ['profile', 'email', 'openid'] // 必要なスコープを明示
+  scope: ['profile', 'email'] // GCPの設定に一致
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     console.log('Google認証コールバック', { profileId: profile.id, accessToken, email: profile.emails[0].value });
@@ -208,7 +208,7 @@ passport.use(new GoogleStrategy({
         createdAt: new Date().toISOString(),
         handleName: '',
         bio: '',
-        rating: 1400,
+        rating: 1500,
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
@@ -219,8 +219,7 @@ passport.use(new GoogleStrategy({
       user = querySnapshot.docs[0].data();
       user.id = profile.id;
     }
-    // アクセストークンを保存
-    user.accessToken = accessToken;
+    user.accessToken = accessToken; // トークンを保存
     done(null, user);
   } catch (error) {
     console.error('Google認証エラー:', error.message, error.stack);
@@ -2035,12 +2034,12 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
       const userRef = doc(db, 'users', userId);
       const userSnap = await getDoc(userRef);
       const userData = userSnap.data();
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const today = new Date().toISOString().split('T')[0];
       const lastUploadDate = userData.lastUploadDate || '';
       let uploadCount = userData.uploadCount || 0;
-    
+
       if (lastUploadDate !== today) {
-        uploadCount = 0; // 日付が変わったらリセット
+        uploadCount = 0;
       }
       if (uploadCount >= 5) {
         return res.status(400).send(`
@@ -2051,7 +2050,7 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
           </body></html>
         `);
       }
-    
+
       const storage = getStorage(firebaseApp);
       const storageRef = ref(storage, `profile_images/${userId}.png`);
       const metadata = { contentType: req.file.mimetype };
