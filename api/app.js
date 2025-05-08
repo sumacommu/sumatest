@@ -11,7 +11,6 @@ require('dotenv').config();
 
 const multer = require('multer');
 const storage = multer.memoryStorage(); // メモリに保存
-const sharp = require('sharp');
 const fs = require('fs').promises;
 const path = require('path');
 
