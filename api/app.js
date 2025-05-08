@@ -1478,11 +1478,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               document.getElementById('guide').innerText = guideText;
               document.querySelectorAll('.char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
-                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
               });
               document.querySelectorAll('.select-char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
-                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
