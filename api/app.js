@@ -794,7 +794,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                     else {
                       if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
+                        btn.classList.toggle('char-normal', btn.dataset.id === character1); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
@@ -813,7 +813,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                     else {
                       if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
+                        btn.classList.toggle('char-normal', btn.dataset.id === character1); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
