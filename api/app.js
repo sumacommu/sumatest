@@ -191,10 +191,11 @@ app.use((req, res, next) => {
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/api/auth/google/callback'
+  callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback',
+  scope: ['profile', 'email', 'openid'] // 必要なスコープを明示
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    console.log('Google認証コールバック', { profileId: profile.id, accessToken });
+    console.log('Google認証コールバック', { profileId: profile.id, accessToken, email: profile.emails[0].value });
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', profile.emails[0].value));
     const querySnapshot = await getDocs(q);
@@ -290,8 +291,8 @@ app.get('/api/auth/google/callback',
 );
 
 app.get('/', async (req, res) => {
-  console.log('ルートアクセス（/）、req.session:', req.session);
-  console.log('ルートアクセス（/）、req.user:', req.user);
+  console.log('ルートアクセス、req.session:', req.session);
+  console.log('ルートアクセス、req.user:', req.user);
   let html = `
     <html>
       <head>
@@ -326,7 +327,7 @@ app.get('/', async (req, res) => {
           <div class="links">
             <a href="/api/solo">タイマン用</a>
             <a href="/api/team">チーム用</a>
-            <a href="/api/auth/google?redirect=/">Googleでログイン</a>
+            <a href="/api/auth/google?redirect=/api/">Googleでログイン</a>
           </div>
     `;
   }
@@ -360,7 +361,7 @@ app.get('/api/', async (req, res) => {
     const userData = req.user;
     html += `
           <div class="profile">
-            <img src="/default.png" alt="プロフィール画像">
+            <img src="${userData.photoUrl || '/default.png'}" alt="プロフィール画像">
             <h2>こんにちは、${userData.handleName || userData.displayName}さん！</h2>
           </div>
           <div class="links">
@@ -1843,8 +1844,8 @@ app.get('/api/user/:userId', async (req, res) => {
     const userData = userSnap.data();
     const profile = {
       handleName: userData.handleName || '',
-      bio: userData.bio || ''
-      // photoUrlは削除（デフォルト画像を使用）
+      bio: userData.bio || '',
+      photoUrl: userData.photoUrl // FirestoreのphotoUrl（Storage URL）
     };
 
     // マッチング履歴の取得（変更なし）
@@ -1931,7 +1932,7 @@ app.get('/api/user/:userId', async (req, res) => {
           <div class="container">
             <h1>${isOwnProfile ? 'マイプロフィール' : 'ユーザープロフィール'}</h1>
             <div class="profile">
-              <img id="profileImage" src="/default.png" alt="プロフィール画像">
+              <img id="profileImage" src="${profile.photoUrl || '/default.png'}" alt="プロフィール画像">
               <h2>${profile.handleName || '未設定'}</h2>
               <p>${profile.bio || '自己紹介がありません'}</p>
             </div>
@@ -2030,26 +2031,41 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
 
     const updateData = { handleName, bio };
     if (req.file) {
-      const auth = getAuth(firebaseApp);
-      const accessToken = req.user.accessToken;
-      console.log('認証トークン:', { accessToken, userId });
-      if (!accessToken) {
-        throw new Error('認証トークンがありません');
+      // アップロード制限のチェック
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.data();
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const lastUploadDate = userData.lastUploadDate || '';
+      let uploadCount = userData.uploadCount || 0;
+    
+      if (lastUploadDate !== today) {
+        uploadCount = 0; // 日付が変わったらリセット
       }
-      // Google認証トークンでFirebaseにログイン
-      const credential = OAuthCredential.fromJSON({ accessToken });
-      await signInWithCredential(auth, credential);
-      console.log('Firebase認証成功', { userId, currentUser: auth.currentUser?.uid });
-      
+      if (uploadCount >= 5) {
+        return res.status(400).send(`
+          <html><body>
+            <h1>エラー</h1>
+            <p class="error">1日のアップロード上限（5回）に達しました</p>
+            <p><a href="/api/user/${userId}">戻る</a></p>
+          </body></html>
+        `);
+      }
+    
       const storage = getStorage(firebaseApp);
       const storageRef = ref(storage, `profile_images/${userId}.png`);
       const metadata = { contentType: req.file.mimetype };
       console.log('Storageアップロード開始', { userId, storagePath: `profile_images/${userId}.png`, mimeType: req.file.mimetype });
       await uploadBytes(storageRef, req.file.buffer, metadata);
       console.log('Storageアップロード成功', { userId });
+      const photoUrl = await getDownloadURL(storageRef);
+      updateData.photoUrl = photoUrl;
+      updateData.uploadCount = uploadCount + 1;
+      updateData.lastUploadDate = today;
+    } else {
+      updateData.photoUrl = deleteField();
     }
 
-    updateData.photoUrl = deleteField();
     console.log('Firestore更新データ', updateData);
     await updateDoc(doc(db, 'users', userId), updateData);
     console.log('Firestore更新成功', { userId });
