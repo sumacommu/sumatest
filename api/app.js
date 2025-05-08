@@ -1480,6 +1480,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 btn.classList.toggle('disabled', !canSelectChar);
                 btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
                 btn.style.cursor = canSelectChar ? 'auto' : 'not-allowed';
+                btn.onclick = canSelectChar ? () => {
+                  const charPopup = document.getElementById('charPopup');
+                  const overlay = document.getElementById('overlay');
+                  if (charPopup) charPopup.style.display = 'block';
+                  if (overlay) overlay.style.display = 'block';
+                } : null;
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
@@ -1489,6 +1495,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               document.querySelectorAll('.result-btn').forEach(btn => {
                 console.log('Applying disabled to result-btn:', { id: btn.id, canSelectResult });
                 btn.classList.toggle('disabled', !canSelectResult);
+                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
+                btn.style.cursor = canSelectChar ? 'auto' : 'not-allowed';
               });
     
               var displayChar = '00';
@@ -1597,7 +1605,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 <img src="/characters/${char.id}.png">
               </button>
             `).join('')}
-            <button onclick="document.getElementById('charPopup').style.display='block';document.getElementById('overlay').style.display='block';">全キャラから選ぶ</button>
+            <button class="select-char-btn">全キャラから選ぶ</button>
             <div id="charPopup" class="popup">
               ${allCharacters.map(char => `
                 <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
