@@ -5,6 +5,7 @@ const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
+const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
 const EventEmitter = require('events');
 require('dotenv').config();
 
@@ -12,6 +13,7 @@ const multer = require('multer');
 const sharp = require('sharp');
 const fs = require('fs').promises;
 const path = require('path');
+
 
 // Multer設定
 const upload = multer({
@@ -2023,12 +2025,13 @@ app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) =>
 
     const updateData = { handleName, bio };
     if (req.file) {
-      const outputPath = path.join(__dirname, 'public', 'uploads', `${userId}.png`);
-      await sharp(req.file.path)
-        .resize(64, 64, { fit: 'cover' })
-        .toFile(outputPath);
+      const storage = getStorage(firebaseApp);
+      const storageRef = ref(storage, `profile_images/${userId}.png`);
+      const metadata = { contentType: req.file.mimetype };
+      await uploadBytes(storageRef, req.file.buffer, metadata);
+      const photoUrl = await getDownloadURL(storageRef);
+      updateData.photoUrl = photoUrl;
       await fs.unlink(req.file.path); // 一時ファイルを削除
-      updateData.photoUrl = `/uploads/${userId}.png`;
     }
 
     await updateDoc(doc(db, 'users', userId), updateData);
