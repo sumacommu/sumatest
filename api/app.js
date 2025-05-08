@@ -1491,6 +1491,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     
               updateStageButtons();
               updateCharacterButtons();
+              updateMatchHistory();
             },
             function (error) {
               console.error('onSnapshotエラー:', error);
