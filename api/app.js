@@ -283,6 +283,55 @@ app.get('/api/auth/google/callback',
   }
 );
 
+app.get('/', async (req, res) => {
+  console.log('ルートアクセス（/）、req.session:', req.session);
+  console.log('ルートアクセス（/）、req.user:', req.user);
+  let html = `
+    <html>
+      <head>
+        <style>
+          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+          .profile img { width: 50px; height: 50px; border-radius: 50%; }
+          .links { margin-top: 20px; }
+          .links a { margin-right: 10px; }
+          @media (max-width: 768px) { .container { padding: 10px; } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>スマブラマッチング</h1>
+  `;
+  if (req.user) {
+    const userData = req.user;
+    html += `
+          <div class="profile">
+            <img src="${userData.photoUrl || '/default.png'}" alt="プロフィール画像">
+            <h2>こんにちは、${userData.handleName || userData.displayName}さん！</h2>
+          </div>
+          <div class="links">
+            <a href="/api/user/${userData.id}">プロフィール</a>
+            <a href="/api/solo">タイマン用</a>
+            <a href="/api/team">チーム用</a>
+            <a href="/api/logout">ログアウト</a>
+          </div>
+    `;
+  } else {
+    html += `
+          <div class="links">
+            <a href="/api/solo">タイマン用</a>
+            <a href="/api/team">チーム用</a>
+            <a href="/api/auth/google?redirect=/">Googleでログイン</a>
+          </div>
+    `;
+  }
+  html += `
+        </div>
+      </body>
+    </html>
+  `;
+  res.send(html);
+});
+
 app.get('/api/', async (req, res) => {
   console.log('ルートアクセス、req.session:', req.session);
   console.log('ルートアクセス、req.user:', req.user);
