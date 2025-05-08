@@ -652,6 +652,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             margin: 5px;
             cursor: pointer;
           }
+          .result-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+          }
           .match-container {
             max-width: 1000px;
             margin: 0 auto;
@@ -1493,10 +1498,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 btn.onclick = canSelectStage ? () => selectStage(btn.dataset.id) : null;
               });
               document.querySelectorAll('.result-btn').forEach(btn => {
-                console.log('Applying disabled to result-btn:', { id: btn.id, canSelectResult });
                 btn.classList.toggle('disabled', !canSelectResult);
-                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
-                btn.style.cursor = canSelectChar ? 'auto' : 'not-allowed';
+                btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
               });
     
               var displayChar = '00';
