@@ -970,22 +970,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 // デフォルト
               } else if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
                 if (['Random'].includes(id)) {
-                  if (banned.includes(id)) {
-                    if (isHost) {
-                      if (!isHostWinner) {
-                        if (['Random'].includes(id)) {
-                          btn.classList.add('counter');
-                        }          
-                      }
+                  if (isHost) {
+                    if (!isHostWinner) {
+                      if (['Random'].includes(id)) {
+                        btn.classList.add('counter');
+                      }          
                     }
-                    else {
-                      if (isHostWinner) {
-                        if (['Random'].includes(id)) {
-                          btn.classList.add('counter');
-                        }          
-                      }
+                  }
+                  else {
+                    if (isHostWinner) {
+                      if (['Random'].includes(id)) {
+                        btn.classList.add('counter');
+                      }          
                     }
-                  }                
+                  }
                   else if (selectedStages.includes(id)) {
                     btn.classList.add('temporary');
                   }
@@ -1191,10 +1189,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
           const matchCount = (hostChoices.wins || 0) + (hostChoices.losses || 0);
           const bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
           const matchResults = hostChoices.matchResults || [null, null, null];
+          const isFinished = hostChoices.wins >= 2 || guestChoices.wins >= 2;
           let html = '';
 
           for (let i = 0; i < 3; i++) {
-            if (i > matchCount && (i > 0 && matchResults[i - 1] === null)) continue;
+            if ((isFinished)||(i > matchCount && (i > 0 && matchResults[i - 1] === null))) continue;
             let hostChar = '00';
             let hostMoves = '';
             let guestChar = '00';
@@ -1361,7 +1360,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         canSelectStage = true;
                       }
                     } else {
-                      if (!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) {
+                      if (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0) {
                         guideText = '拒否ステージを2つ選んでください（' + guestName + '）';
                         canSelectStage = true;
                       } else {
