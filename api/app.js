@@ -4,30 +4,9 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs, deleteField } = require('firebase/firestore');
-const { getAuth, signInWithCredential } = require('firebase/auth');
-const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
 const EventEmitter = require('events');
 require('dotenv').config();
-
-const multer = require('multer');
-const storage = multer.memoryStorage(); // メモリに保存
-const fs = require('fs').promises;
-const path = require('path');
-
-
-// Multer設定
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB制限
-  fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png/;
-    const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    if (mimetype && extname) return cb(null, true);
-    cb(new Error('画像ファイル（JPEG/PNG）のみアップロード可能です'));
-  }
-});
 
 const app = express();
 
@@ -191,39 +170,34 @@ app.use((req, res, next) => {
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback',
-  scope: ['profile', 'email'] // GCPの設定に一致
+  callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
+  console.log('Google認証開始:', profile.id);
   try {
-    console.log('Google認証コールバック', { profileId: profile.id, accessToken, email: profile.emails[0].value });
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', profile.emails[0].value));
-    const querySnapshot = await getDocs(q);
-    let user;
-    if (querySnapshot.empty) {
-      user = {
-        id: profile.id,
-        email: profile.emails[0].value,
+    const userRef = doc(db, 'users', profile.id);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      const userData = {
         displayName: profile.displayName,
+        email: profile.emails[0].value,
+        photoUrl: profile.photos[0].value,
         createdAt: new Date().toISOString(),
-        handleName: '',
-        bio: '',
-        rating: 1500,
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
-        penalty: false
+        penalty: false,
+        rating: 1500
       };
-      await setDoc(doc(db, 'users', profile.id), user);
+      await setDoc(userRef, userData);
+      console.log('新規ユーザー登録成功:', profile.id, userData);
     } else {
-      user = querySnapshot.docs[0].data();
-      user.id = profile.id;
+      console.log('既存ユーザー確認:', profile.id, userSnap.data());
     }
-    user.accessToken = accessToken; // トークンを保存
-    done(null, user);
+    console.log('認証成功:', profile.id);
+    return done(null, profile);
   } catch (error) {
-    console.error('Google認証エラー:', error.message, error.stack);
-    done(error);
+    console.error('認証エラー:', error.message, error.stack);
+    return done(error);
   }
 }));
 
@@ -263,7 +237,7 @@ app.get('/api/auth/google', (req, res, next) => {
 
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/' }), 
-  async (req, res) => {
+  (req, res) => {
     console.log('コールバック成功:', req.user.id);
     console.log('コールバック後: req.session:', req.session);
     console.log('コールバック後: セッションID:', req.sessionID);
@@ -273,118 +247,37 @@ app.get('/api/auth/google/callback',
         return res.redirect('/api/');
       }
       console.log('セッション保存成功、クッキー更新:', req.sessionID);
-      res.set('Set-Cookie', `connect sid=${req.sessionID}; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax`);
-      let redirectTo = req.query.state || '/api/';
-      const userRef = doc(db, 'users', req.user.id);
-      getDoc(userRef).then(userSnap => {
-        if (userSnap.exists() && !userSnap.data().handleName) {
-          redirectTo = `/api/user/${req.user.id}`;
-        }
-        res.status(302).set('Location', redirectTo).end();
-      }).catch(error => {
-        console.error('ユーザー確認エラー:', error);
-        res.redirect('/api/');
-      });
+      res.set('Set-Cookie', `connect.sid=${req.sessionID}; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax`);
+      const redirectTo = req.query.state || '/api/';
+      res.status(302).set('Location', redirectTo).end();
     });
   }
 );
 
-app.get('/', async (req, res) => {
-  console.log('ルートアクセス、req.session:', req.session);
-  console.log('ルートアクセス、req.user:', req.user);
-  let html = `
-    <html>
-      <head>
-        <style>
-          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-          .profile img { width: 50px; height: 50px; border-radius: 50%; }
-          .links { margin-top: 20px; }
-          .links a { margin-right: 10px; }
-          @media (max-width: 768px) { .container { padding: 10px; } }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>スマブラマッチング</h1>
-  `;
-  if (req.user) {
-    const userData = req.user;
-    html += `
-          <div class="profile">
-            <img src="${userData.photoUrl || '/default.png'}" alt="プロフィール画像">
-            <h2>こんにちは、${userData.handleName || userData.displayName}さん！</h2>
-          </div>
-          <div class="links">
-            <a href="/api/user/${userData.id}">プロフィール</a>
-            <a href="/api/solo">タイマン用</a>
-            <a href="/api/team">チーム用</a>
-            <a href="/api/logout">ログアウト</a>
-          </div>
-    `;
-  } else {
-    html += `
-          <div class="links">
-            <a href="/api/solo">タイマン用</a>
-            <a href="/api/team">チーム用</a>
-            <a href="/api/auth/google?redirect=/api/">Googleでログイン</a>
-          </div>
-    `;
-  }
-  html += `
-        </div>
-      </body>
-    </html>
-  `;
-  res.send(html);
-});
-
 app.get('/api/', async (req, res) => {
   console.log('ルートアクセス、req.session:', req.session);
   console.log('ルートアクセス、req.user:', req.user);
-  let html = `
-    <html>
-      <head>
-        <style>
-          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-          .profile img { width: 50px; height: 50px; border-radius: 50%; }
-          .links { margin-top: 20px; }
-          .links a { margin-right: 10px; }
-          @media (max-width: 768px) { .container { padding: 10px; } }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>スマブラマッチング</h1>
-  `;
   if (req.user) {
     const userData = req.user;
-    html += `
-          <div class="profile">
-            <img src="${userData.photoUrl || '/default.png'}" alt="プロフィール画像">
-            <h2>こんにちは、${userData.handleName || userData.displayName}さん！</h2>
-          </div>
-          <div class="links">
-            <a href="/api/user/${userData.id}">プロフィール</a>
-            <a href="/api/solo">タイマン用</a>
-            <a href="/api/team">チーム用</a>
-            <a href="/api/logout">ログアウト</a>
-          </div>
-    `;
+    res.send(`
+      <html><body>
+        <h1>こんにちは、${userData.displayName}さん！</h1>
+        <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
+        <p><a href="/api/solo">タイマン用</a></p>
+        <p><a href="/api/team">チーム用</a></p>
+        <p><a href="/api/logout">ログアウト</a></p>
+      </body></html>
+    `);
   } else {
-    html += `
-          <div class="links">
-            <a href="/api/solo">タイマン用</a>
-            <a href="/api/team">チーム用</a>
-            <a href="/api/auth/google?redirect=/api/">Googleでログイン</a>
-          </div>
-    `;
+    res.send(`
+      <html><body>
+        <h1>スマブラマッチング</h1>
+        <p><a href="/api/solo">タイマン用</a></p>
+        <p><a href="/api/team">チーム用</a></p>
+        <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
+      </body></html>
+    `);
   }
-  html += `
-        </div>
-      </body>
-    </html>
-  `;
-  res.send(html);
 });
 
 app.get('/api/logout', (req, res) => {
@@ -1821,262 +1714,6 @@ app.post('/api/solo/update', async (req, res) => {
           <p><a href="/api/solo">戻る</a></p>
         </body>
       </html>
-    `);
-  }
-});
-
-// ユーザーページ
-app.get('/api/user/:userId', async (req, res) => {
-  const userId = req.params.userId;
-  const isOwnProfile = req.user && req.user.id === userId;
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      return res.status(404).send(`
-        <html><body>
-          <h1>ユーザーが見つかりません</h1>
-          <p><a href="/api/">ホームに戻る</a></p>
-        </body></html>
-      `);
-    }
-    const userData = userSnap.data();
-    const profile = {
-      handleName: userData.handleName || '',
-      bio: userData.bio || '',
-      photoUrl: userData.photoUrl // FirestoreのphotoUrl（Storage URL）
-    };
-
-    // マッチング履歴の取得（変更なし）
-    const matchesRef = collection(db, 'matches');
-    const matchQuery = query(
-      matchesRef,
-      where('status', '==', 'finished'),
-      where('userId', '==', userId)
-    );
-    const guestMatchQuery = query(
-      matchesRef,
-      where('status', '==', 'finished'),
-      where('guestId', '==', userId)
-    );
-    const [matchSnapshot, guestMatchSnapshot] = await Promise.all([
-      getDocs(matchQuery),
-      getDocs(guestMatchQuery)
-    ]);
-    const matches = [];
-    matchSnapshot.forEach(doc => {
-      const data = doc.data();
-      matches.push({
-        matchId: doc.id,
-        opponentId: data.guestId,
-        result: data.hostChoices.wins >= 2 ? '勝利' : '敗北',
-        timestamp: data.timestamp
-      });
-    });
-    guestMatchSnapshot.forEach(doc => {
-      const data = doc.data();
-      matches.push({
-        matchId: doc.id,
-        opponentId: data.userId,
-        result: data.guestChoices.wins >= 2 ? '勝利' : '敗北',
-        timestamp: data.timestamp
-      });
-    });
-    matches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    const opponentIds = [...new Set(matches.map(m => m.opponentId))];
-    const opponentPromises = opponentIds.map(id =>
-      getDoc(doc(db, 'users', id)).then(snap => ({
-        id,
-        handleName: snap.exists() ? snap.data().handleName || snap.data().displayName : '不明'
-      }))
-    );
-    const opponents = await Promise.all(opponentPromises);
-    const opponentMap = opponents.reduce((acc, { id, handleName }) => {
-      acc[id] = handleName;
-      return acc;
-    }, {});
-
-    let html = `
-      <html>
-        <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            .profile img { width: 64px; height: 64px; border-radius: 50%; }
-            .form-group { margin-bottom: 15px; }
-            .form-group label { display: block; margin-bottom: 5px; }
-            .form-group input, .form-group textarea { width: 100%; padding: 8px; box-sizing: border-box; }
-            .form-group input[type="file"] { padding: 0; }
-            .matches-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .matches-table th, .matches-table td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-            .matches-table th { background-color: #f0f0f0; }
-            .error { color: red; }
-            @media (max-width: 768px) {
-              .container { padding: 10px; }
-              .profile img { width: 48px; height: 48px; }
-            }
-          </style>
-          <script>
-            function previewImage(event) {
-              const reader = new FileReader();
-              reader.onload = function() {
-                const output = document.getElementById('profileImage');
-                output.src = reader.result;
-              };
-              reader.readAsDataURL(event.target.files[0]);
-            }
-          </script>
-        </head>
-        <body>
-          <div class="container">
-            <h1>${isOwnProfile ? 'マイプロフィール' : 'ユーザープロフィール'}</h1>
-            <div class="profile">
-              <img id="profileImage" src="${profile.photoUrl || '/default.png'}" alt="プロフィール画像">
-              <h2>${profile.handleName || '未設定'}</h2>
-              <p>${profile.bio || '自己紹介がありません'}</p>
-            </div>
-    `;
-    if (isOwnProfile) {
-      html += `
-            <h3>プロフィール編集</h3>
-            <form action="/api/user/${userId}/update" method="POST" enctype="multipart/form-data">
-              <div class="form-group">
-                <label for="handleName">ハンドルネーム（最大10文字）:</label>
-                <input type="text" id="handleName" name="handleName" value="${profile.handleName}" maxlength="10" required>
-              </div>
-              <div class="form-group">
-                <label for="bio">自己紹介（最大1000文字）:</label>
-                <textarea id="bio" name="bio" maxlength="1000">${profile.bio}</textarea>
-              </div>
-              <div class="form-group">
-                <label for="photo">プロフィール画像（64x64にリサイズされます）:</label>
-                <input type="file" id="photo" name="photo" accept="image/*" onchange="previewImage(event)">
-              </div>
-              <button type="submit">保存</button>
-            </form>
-      `;
-    }
-    html += `
-            <h3>マッチング履歴</h3>
-            <table class="matches-table">
-              <thead>
-                <tr>
-                  <th>対戦日時</th>
-                  <th>対戦相手</th>
-                  <th>結果</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${matches.length === 0 ? '<tr><td colspan="3">履歴がありません</td></tr>' : matches.map(m => `
-                  <tr>
-                    <td>${new Date(m.timestamp).toLocaleString('ja-JP')}</td>
-                    <td>${opponentMap[m.opponentId] || '不明'}</td>
-                    <td>${m.result}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            <p><a href="/api/">ホームに戻る</a></p>
-          </div>
-        </body>
-      </html>
-    `;
-    res.send(html);
-  } catch (error) {
-    console.error('ユーザーページエラー:', error.message, error.stack);
-    res.status(500).send(`
-      <html><body>
-        <h1>エラーが発生しました</h1>
-        <p>エラー: ${error.message}</p>
-        <p><a href="/api/">ホームに戻る</a></p>
-      </body></html>
-    `);
-  }
-});
-
-// プロフィール更新
-app.post('/api/user/:userId/update', upload.single('photo'), async (req, res) => {
-  const userId = req.params.userId;
-  if (!req.user || req.user.id !== userId) {
-    console.error('認証エラー: ユーザー不一致', { user: req.user, userId });
-    return res.status(403).send(`
-      <html><body>
-        <h1>権限がありません</h1>
-        <p><a href="/api/">ホームに戻る</a></p>
-      </body></html>
-    `);
-  }
-  try {
-    const { handleName, bio } = req.body;
-    console.log('プロフィール更新開始', { userId, handleName, bio, hasFile: !!req.file });
-    if (handleName.length > 10) {
-      return res.status(400).send(`
-        <html><body>
-          <h1>エラー</h1>
-          <p class="error">ハンドルネームは10文字以内にしてください</p>
-          <p><a href="/api/user/${userId}">戻る</a></p>
-        </body></html>
-      `);
-    }
-    if (bio.length > 1000) {
-      return res.status(400).send(`
-        <html><body>
-          <h1>エラー</h1>
-          <p class="error">自己紹介は1000文字以内にしてください</p>
-          <p><a href="/api/user/${userId}">戻る</a></p>
-        </body></html>
-      `);
-    }
-
-    const updateData = { handleName, bio };
-    if (req.file) {
-      // アップロード制限のチェック
-      const userRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
-      const today = new Date().toISOString().split('T')[0];
-      const lastUploadDate = userData.lastUploadDate || '';
-      let uploadCount = userData.uploadCount || 0;
-
-      if (lastUploadDate !== today) {
-        uploadCount = 0;
-      }
-      if (uploadCount >= 5) {
-        return res.status(400).send(`
-          <html><body>
-            <h1>エラー</h1>
-            <p class="error">1日のアップロード上限（5回）に達しました</p>
-            <p><a href="/api/user/${userId}">戻る</a></p>
-          </body></html>
-        `);
-      }
-
-      const storage = getStorage(firebaseApp);
-      const storageRef = ref(storage, `profile_images/${userId}.png`);
-      const metadata = { contentType: req.file.mimetype };
-      console.log('Storageアップロード開始', { userId, storagePath: `profile_images/${userId}.png`, mimeType: req.file.mimetype });
-      await uploadBytes(storageRef, req.file.buffer, metadata);
-      console.log('Storageアップロード成功', { userId });
-      const photoUrl = await getDownloadURL(storageRef);
-      updateData.photoUrl = photoUrl;
-      updateData.uploadCount = uploadCount + 1;
-      updateData.lastUploadDate = today;
-    } else {
-      updateData.photoUrl = deleteField();
-    }
-
-    console.log('Firestore更新データ', updateData);
-    await updateDoc(doc(db, 'users', userId), updateData);
-    console.log('Firestore更新成功', { userId });
-    res.redirect(`/api/user/${userId}`);
-  } catch (error) {
-    console.error('プロフィール更新エラー:', error.message, error.stack, { userId });
-    res.status(500).send(`
-      <html><body>
-        <h1>エラーが発生しました</h1>
-        <p class="error">${error.message}</p>
-        <p><a href="/api/user/${userId}">戻る</a></p>
-      </body></html>
     `);
   }
 });
