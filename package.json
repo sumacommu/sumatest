@@ -17,14 +17,16 @@
   },
   "homepage": "https://github.com/sumacommu/sumatest#readme",
   "description": "",
-"dependencies": {
-  "connect-redis": "^7.1.1",
-  "dotenv": "^16.4.7",
-  "express": "^4.21.2",
-  "express-session": "^1.18.1",
-  "firebase": "^11.5.0",
-  "passport": "^0.7.0",
-  "passport-google-oauth20": "^2.0.0",
-  "redis": "^4.7.0"
-}
+  "dependencies": {
+    "connect-redis": "^7.1.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "firebase": "^11.5.0",
+    "multer": "^1.4.5-lts.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "redis": "^4.7.0",
+    "sharp": "^0.34.1"
+  }
 }
