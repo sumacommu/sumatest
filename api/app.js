@@ -652,11 +652,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             margin: 5px;
             cursor: pointer;
           }
-          .result-btn.disabled {
-            opacity: 0.5;
-            pointer-events: none;
-            cursor: not-allowed;
-          }
           .match-container {
             max-width: 1000px;
             margin: 0 auto;
@@ -1478,9 +1473,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               document.getElementById('guide').innerText = guideText;
               document.querySelectorAll('.char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
+                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
+                btn.style.cursor = canSelectChar ? 'auto' : 'not-allowed';
               });
               document.querySelectorAll('.select-char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
+                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
+                btn.style.cursor = canSelectChar ? 'auto' : 'not-allowed';
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
