@@ -795,7 +795,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     else {
                       if (!selectedChar) {
                         btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                        btn.classList.toggle('char-dim', btn.dataset.id !== hostChoices.character1); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
@@ -814,7 +814,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     else {
                       if (!selectedChar) {
                         btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
-                        btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
+                        btn.classList.toggle('char-dim', btn.dataset.id !== guestChoices.character1); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
@@ -1472,6 +1472,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               document.getElementById('guide').innerText = guideText;
               document.querySelectorAll('.char-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectChar);
+              });
+              document.querySelectorAll('.select-char-btn').forEach(btn => {
+                btn.classList.toggle('disabled', !canSelectChar);
+                btn.style.pointerEvents = canSelectChar ? 'auto' : 'none';
+                btn.onclick = canSelectChar ? () => {
+                  const charPopup = document.getElementById('charPopup');
+                  const overlay = document.getElementById('overlay');
+                  if (charPopup) charPopup.style.display = 'block';
+                  if (overlay) overlay.style.display = 'block';
+                } : null;
               });
               document.querySelectorAll('.stage-btn').forEach(btn => {
                 btn.classList.toggle('disabled', !canSelectStage);
