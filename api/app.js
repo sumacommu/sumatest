@@ -976,6 +976,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         btn.classList.add('counter');
                       }          
                     }
+                    else {
+                      if (selectedStages.includes(id)) {
+                        btn.classList.add('temporary');
+                      }
+                    }
                   }
                   else {
                     if (isHostWinner) {
@@ -983,9 +988,11 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         btn.classList.add('counter');
                       }          
                     }
-                  }
-                  else if (selectedStages.includes(id)) {
-                    btn.classList.add('temporary');
+                    else {
+                      if (selectedStages.includes(id)) {
+                        btn.classList.add('temporary');
+                      }
+                    }                    
                   }
                 }
                 else if (isHost) {
