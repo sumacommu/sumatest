@@ -784,7 +784,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               if (matchCount === 0) {
                 if (!bothCharsReady) {
                   if (isHost) {
-                    if (!hostChoices.characterReady) {
+                    if (!hostChoices.character1) {
                       if (!selectedChar) {
                         btn.classList.add('char-normal'); // ①
                       } else {
@@ -794,7 +794,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                     else {
                       if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === character1); // ①
+                        btn.classList.toggle('char-normal', btn.dataset.id === hostChoices.character1); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
@@ -803,7 +803,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                   }
                   else {
-                    if (!guestChoices.characterReady) {
+                    if (!guestChoices.character1) {
                       if (!selectedChar) {
                         btn.classList.add('char-normal'); // ①
                       } else {
@@ -813,7 +813,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     }
                     else {
                       if (!selectedChar) {
-                        btn.classList.toggle('char-normal', btn.dataset.id === character1); // ①
+                        btn.classList.toggle('char-normal', btn.dataset.id === guestChoices.character1); // ①
                         btn.classList.toggle('char-dim', btn.dataset.id !== selectedChar); // ②
                       } else {
                         btn.classList.toggle('char-normal', btn.dataset.id === selectedChar); // ①
