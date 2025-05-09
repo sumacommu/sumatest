@@ -5,6 +5,8 @@ const session = require('express-session');
 const { createClient } = require('redis');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
+const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
+const sharp = require('sharp');
 const EventEmitter = require('events');
 require('dotenv').config();
 
@@ -178,15 +180,18 @@ passport.use(new GoogleStrategy({
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       const userData = {
-        displayName: profile.displayName,
+        handleName: '', // ハンドルネーム（初期値空）
+        bio: '', // 自己紹介文（初期値空）
+        profileImage: '/default.png', // デフォルト画像
         email: profile.emails[0].value,
-        photoUrl: profile.photos[0].value,
         createdAt: new Date().toISOString(),
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
         penalty: false,
-        rating: 1500
+        rating: 1500,
+        uploadCount: 0, // 画像アップロード回数
+        lastUploadReset: new Date().toISOString() // アップロード制限リセット日
       };
       await setDoc(userRef, userData);
       console.log('新規ユーザー登録成功:', profile.id, userData);
@@ -259,23 +264,48 @@ app.get('/api/', async (req, res) => {
   console.log('ルートアクセス、req.user:', req.user);
   if (req.user) {
     const userData = req.user;
+    // 初回ログインならプロフィール設定へリダイレクト
+    if (!userData.handleName) {
+      return res.redirect(`/api/user/${userData.id}`);
+    }
     res.send(`
-      <html><body>
-        <h1>こんにちは、${userData.displayName}さん！</h1>
-        <img src="${userData.photoUrl}" alt="プロフィール画像" width="50">
-        <p><a href="/api/solo">タイマン用</a></p>
-        <p><a href="/api/team">チーム用</a></p>
-        <p><a href="/api/logout">ログアウト</a></p>
-      </body></html>
+      <html>
+        <head>
+          <style>
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+            img { max-width: 64px; max-height: 64px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>スマブラマッチング</h1>
+            <p>こんにちは、${userData.handleName}さん！</p>
+            <img src="${userData.profileImage}" alt="プロフィール画像">
+            <p><a href="/api/user/${userData.id}">マイページ</a></p>
+            <p><a href="/api/solo">タイマン用</a></p>
+            <p><a href="/api/team">チーム用</a></p>
+            <p><a href="/api/logout">ログアウト</a></p>
+          </div>
+        </body>
+      </html>
     `);
   } else {
     res.send(`
-      <html><body>
-        <h1>スマブラマッチング</h1>
-        <p><a href="/api/solo">タイマン用</a></p>
-        <p><a href="/api/team">チーム用</a></p>
-        <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
-      </body></html>
+      <html>
+        <head>
+          <style>
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>スマブラマッチング</h1>
+            <p><a href="/api/solo">タイマン用</a></p>
+            <p><a href="/api/team">チーム用</a></p>
+            <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
+          </div>
+        </body>
+      </html>
     `);
   }
 });
@@ -522,8 +552,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const guestRef = doc(db, 'users', guestId);
   const hostSnap = await getDoc(hostRef);
   const guestSnap = await getDoc(guestRef);
-  const hostName = hostSnap.data().displayName || '不明';
-  const guestName = guestSnap.data().displayName || '不明';
+  const hostName = hostSnap.data().handleName || '不明';
+  const guestName = guestSnap.data().handleName || '不明';
   const hostRating = hostSnap.data().rating || 1500;
   const guestRating = guestSnap.data().rating || 1500;
 
@@ -1715,6 +1745,336 @@ app.post('/api/solo/update', async (req, res) => {
         </body>
       </html>
     `);
+  }
+});
+
+// ユーザーページ
+app.get('/api/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const currentUser = req.user;
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      return res.status(404).send(`
+        <html><body>
+          <h1>ユーザーが見つかりません</h1>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </body></html>
+      `);
+    }
+
+    const userData = userSnap.data();
+    // 既存ユーザー向けデフォルト値
+    userData.handleName = userData.handleName || '';
+    userData.bio = userData.bio || '';
+    userData.profileImage = userData.profileImage || '/default.png';
+    userData.uploadCount = userData.uploadCount || 0;
+    userData.lastUploadReset = userData.lastUploadReset || new Date().toISOString();
+
+    const isOwnProfile = currentUser && currentUser.id === userId;
+    const isNewUser = isOwnProfile && !userData.handleName;
+
+    if (isNewUser) {
+      // 初回ログイン時のプロフィール設定ページ
+      return res.send(`
+        <html>
+          <head>
+            <style>
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+              .error { color: red; }
+              input, textarea { width: 100%; margin: 10px 0; }
+              img { max-width: 64px; max-height: 64px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>プロフィール設定</h1>
+              <p>初回ログインのため、プロフィールを設定してください。</p>
+              <form id="profileForm" enctype="multipart/form-data">
+                <label>ハンドルネーム（最大10文字）:
+                  <input type="text" id="handleName" maxlength="10" value="${userData.handleName}" required>
+                </label>
+                <label>自己紹介（最大1000文字）:
+                  <textarea id="bio" maxlength="1000">${userData.bio}</textarea>
+                </label>
+                <label>プロフィール画像（64x64、1日5回まで）:
+                  <input type="file" id="profileImage" accept="image/*">
+                  <img src="${userData.profileImage}" alt="現在の画像">
+                </label>
+                <p id="error" class="error"></p>
+                <button type="submit">保存</button>
+              </form>
+              <p><a href="/api/logout">ログアウト</a></p>
+            </div>
+            <script>
+              const form = document.getElementById('profileForm');
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const handleName = document.getElementById('handleName').value.trim();
+                const bio = document.getElementById('bio').value.trim();
+                const profileImage = document.getElementById('profileImage').files[0];
+                const errorDiv = document.getElementById('error');
+
+                if (!handleName) {
+                  errorDiv.textContent = 'ハンドルネームは必須です';
+                  return;
+                }
+
+                const formData = new FormData();
+                formData.append('handleName', handleName);
+                formData.append('bio', bio);
+                if (profileImage) formData.append('profileImage', profileImage);
+
+                try {
+                  const response = await fetch('/api/user/${userId}/update', {
+                    method: 'POST',
+                    body: formData
+                  });
+                  if (response.ok) {
+                    window.location.href = '/api/';
+                  } else {
+                    const errorText = await response.text();
+                    errorDiv.textContent = errorText;
+                  }
+                } catch (error) {
+                  errorDiv.textContent = 'エラー: ' + error.message;
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `);
+    }
+
+    // マッチング履歴の取得
+    const matchesRef = collection(db, 'matches');
+    const userMatchesQuery = query(
+      matchesRef,
+      where('status', '==', 'finished'),
+      where('userId', 'in', [userId, userId]) // ホストまたはゲスト
+    );
+    const matchesSnapshot = await getDocs(userMatchesQuery);
+    let matchHistory = '';
+    matchesSnapshot.forEach(doc => {
+      const match = doc.data();
+      const isHost = match.userId === userId;
+      const opponentId = isHost ? match.guestId : match.userId;
+      const result = isHost
+        ? match.hostChoices.wins >= 2 ? '勝利' : '敗北'
+        : match.guestChoices.wins >= 2 ? '勝利' : '敗北';
+      matchHistory += `
+        <tr>
+          <td>${opponentId}</td>
+          <td>${result}</td>
+          <td>${new Date(match.timestamp).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    // プロフィール表示（自分または他人）
+    res.send(`
+      <html>
+        <head>
+          <style>
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+            img { max-width: 64px; max-height: 64px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+            .error { color: red; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>${userData.handleName || '未設定'}のプロフィール</h1>
+            <img src="${userData.profileImage}" alt="プロフィール画像">
+            <p>自己紹介: ${userData.bio || '未設定'}</p>
+            <p>レート: ${userData.rating}</p>
+            ${isOwnProfile ? `
+              <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
+              <p><a href="/api/logout">ログアウト</a></p>
+            ` : ''}
+            <h2>マッチング履歴</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>対戦相手</th>
+                  <th>結果</th>
+                  <th>日時</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${matchHistory || '<tr><td colspan="3">履歴がありません</td></tr>'}
+              </tbody>
+            </table>
+            <p><a href="/api/">ホームに戻る</a></p>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('ユーザーページエラー:', error);
+    res.status(500).send(`
+      <html><body>
+        <h1>エラーが発生しました</h1>
+        <p>${error.message}</p>
+        <p><a href="/api/">ホームに戻る</a></p>
+      </body></html>
+    `);
+  }
+});
+
+// プロフィール編集ページ
+app.get('/api/user/:userId/edit', async (req, res) => {
+  const { userId } = req.params;
+  const currentUser = req.user;
+
+  if (!currentUser || currentUser.id !== userId) {
+    return res.redirect(`/api/user/${userId}`);
+  }
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      return res.status(404).send('ユーザーが見つかりません');
+    }
+
+    const userData = userSnap.data();
+    userData.handleName = userData.handleName || '';
+    userData.bio = userData.bio || '';
+    userData.profileImage = userData.profileImage || '/default.png';
+
+    res.send(`
+      <html>
+        <head>
+          <style>
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+            .error { color: red; }
+            input, textarea { width: 100%; margin: 10px 0; }
+            img { max-width: 64px; max-height: 64px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>プロフィール編集</h1>
+            <form id="profileForm" enctype="multipart/form-data">
+              <label>ハンドルネーム（最大10文字）:
+                <input type="text" id="handleName" maxlength="10" value="${userData.handleName}" required>
+              </label>
+              <label>自己紹介（最大1000文字）:
+                <textarea id="bio" maxlength="1000">${userData.bio}</textarea>
+              </label>
+              <label>プロフィール画像（64x64、1日5回まで）:
+                <input type="file" id="profileImage" accept="image/*">
+                <img src="${userData.profileImage}" alt="現在の画像">
+              </label>
+              <p id="error" class="error"></p>
+              <button type="submit">保存</button>
+            </form>
+            <p><a href="/api/user/${userId}">キャンセル</a></p>
+          </div>
+          <script>
+            const form = document.getElementById('profileForm');
+            form.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const handleName = document.getElementById('handleName').value.trim();
+              const bio = document.getElementById('bio').value.trim();
+              const profileImage = document.getElementById('profileImage').files[0];
+              const errorDiv = document.getElementById('error');
+
+              if (!handleName) {
+                errorDiv.textContent = 'ハンドルネームは必須です';
+                return;
+              }
+
+              const formData = new FormData();
+              formData.append('handleName', handleName);
+              formData.append('bio', bio);
+              if (profileImage) formData.append('profileImage', profileImage);
+
+              try {
+                const response = await fetch('/api/user/${userId}/update', {
+                  method: 'POST',
+                  body: formData
+                });
+                if (response.ok) {
+                  window.location.href = '/api/user/${userId}';
+                } else {
+                  const errorText = await response.text();
+                  errorDiv.textContent = errorText;
+                }
+              } catch (error) {
+                errorDiv.textContent = 'エラー: ' + error.message;
+              }
+            });
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('プロフィール編集ページエラー:', error);
+    res.status(500).send('エラーが発生しました');
+  }
+});
+
+// プロフィール更新
+app.post('/api/user/:userId/update', async (req, res) => {
+  const { userId } = req.params;
+  const currentUser = req.user;
+
+  if (!currentUser || currentUser.id !== userId) {
+    return res.status(403).send('権限がありません');
+  }
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      return res.status(404).send('ユーザーが見つかりません');
+    }
+
+    const userData = userSnap.data();
+    const { handleName, bio, profileImage } = req.body;
+
+    // アップロード制限チェック
+    const now = new Date();
+    const lastReset = new Date(userData.lastUploadReset || now);
+    if (lastReset.toDateString() !== now.toDateString()) {
+      await updateDoc(userRef, { uploadCount: 0, lastUploadReset: now.toISOString() });
+      userData.uploadCount = 0;
+    }
+    if (profileImage && userData.uploadCount >= 5) {
+      return res.status(400).send('1日のアップロード上限（5回）に達しました');
+    }
+
+    const updateData = {
+      handleName: handleName.slice(0, 10),
+      bio: bio.slice(0, 1000)
+    };
+
+    if (profileImage) {
+      const storage = getStorage(firebaseApp);
+      const storageRef = ref(storage, `profile_images/${userId}_${Date.now()}.png`);
+
+      // 画像リサイズ
+      const buffer = await sharp(profileImage.buffer)
+        .resize(64, 64, { fit: 'cover' })
+        .png()
+        .toBuffer();
+
+      await uploadBytes(storageRef, buffer);
+      const downloadURL = await getDownloadURL(storageRef);
+      updateData.profileImage = downloadURL;
+      updateData.uploadCount = (userData.uploadCount || 0) + 1;
+    }
+
+    await updateDoc(userRef, updateData);
+    res.send('OK');
+  } catch (error) {
+    console.error('プロフィール更新エラー:', error);
+    res.status(500).send(`エラー: ${error.message}`);
   }
 });
 
