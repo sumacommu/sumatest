@@ -259,6 +259,11 @@ app.get('/api/auth/google/callback',
   }
 );
 
+// ルートパスを/api/にリダイレクト
+app.get('/', (req, res) => {
+  res.redirect('/api/');
+});
+
 app.get('/api/', async (req, res) => {
   console.log('ルートアクセス、req.session:', req.session);
   console.log('ルートアクセス、req.user:', req.user);
@@ -1786,6 +1791,7 @@ app.get('/api/user/:userId', async (req, res) => {
               .error { color: red; }
               input, textarea { width: 100%; margin: 10px 0; }
               img { max-width: 64px; max-height: 64px; }
+              #preview { display: none; margin-top: 10px; }
             </style>
           </head>
           <body>
@@ -1802,6 +1808,7 @@ app.get('/api/user/:userId', async (req, res) => {
                 <label>プロフィール画像（64x64、1日5回まで）:
                   <input type="file" id="profileImage" accept="image/*">
                   <img src="${userData.profileImage}" alt="現在の画像">
+                  <img id="preview" alt="プレビュー">
                 </label>
                 <p id="error" class="error"></p>
                 <button type="submit">保存</button>
@@ -1810,23 +1817,50 @@ app.get('/api/user/:userId', async (req, res) => {
             </div>
             <script>
               const form = document.getElementById('profileForm');
+              const profileImageInput = document.getElementById('profileImage');
+              const preview = document.getElementById('preview');
+              const errorDiv = document.getElementById('error');
+      
+              // 画像プレビュー
+              profileImageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      canvas.width = 64;
+                      canvas.height = 64;
+                      const ctx = canvas.getContext('2d');
+                      ctx.drawImage(img, 0, 0, 64, 64);
+                      preview.src = canvas.toDataURL('image/png');
+                      preview.style.display = 'block';
+                    };
+                    img.src = event.target.result;
+                  };
+                  reader.readAsDataURL(file);
+                } else {
+                  preview.style.display = 'none';
+                }
+              });
+      
               form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const handleName = document.getElementById('handleName').value.trim();
                 const bio = document.getElementById('bio').value.trim();
                 const profileImage = document.getElementById('profileImage').files[0];
-                const errorDiv = document.getElementById('error');
-
+      
                 if (!handleName) {
                   errorDiv.textContent = 'ハンドルネームは必須です';
                   return;
                 }
-
+      
                 const formData = new FormData();
                 formData.append('handleName', handleName);
                 formData.append('bio', bio);
                 if (profileImage) formData.append('profileImage', profileImage);
-
+      
                 try {
                   const response = await fetch('/api/user/${userId}/update', {
                     method: 'POST',
@@ -1954,6 +1988,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
             .error { color: red; }
             input, textarea { width: 100%; margin: 10px 0; }
             img { max-width: 64px; max-height: 64px; }
+            #preview { display: none; margin-top: 10px; }
           </style>
         </head>
         <body>
@@ -1969,6 +2004,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
               <label>プロフィール画像（64x64、1日5回まで）:
                 <input type="file" id="profileImage" accept="image/*">
                 <img src="${userData.profileImage}" alt="現在の画像">
+                <img id="preview" alt="プレビュー">
               </label>
               <p id="error" class="error"></p>
               <button type="submit">保存</button>
@@ -1977,23 +2013,50 @@ app.get('/api/user/:userId/edit', async (req, res) => {
           </div>
           <script>
             const form = document.getElementById('profileForm');
+            const profileImageInput = document.getElementById('profileImage');
+            const preview = document.getElementById('preview');
+            const errorDiv = document.getElementById('error');
+    
+            // 画像プレビュー
+            profileImageInput.addEventListener('change', (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 64, 64);
+                    preview.src = canvas.toDataURL('image/png');
+                    preview.style.display = 'block';
+                  };
+                  img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+              } else {
+                preview.style.display = 'none';
+              }
+            });
+    
             form.addEventListener('submit', async (e) => {
               e.preventDefault();
               const handleName = document.getElementById('handleName').value.trim();
               const bio = document.getElementById('bio').value.trim();
               const profileImage = document.getElementById('profileImage').files[0];
-              const errorDiv = document.getElementById('error');
-
+    
               if (!handleName) {
                 errorDiv.textContent = 'ハンドルネームは必須です';
                 return;
               }
-
+    
               const formData = new FormData();
               formData.append('handleName', handleName);
               formData.append('bio', bio);
               if (profileImage) formData.append('profileImage', profileImage);
-
+    
               try {
                 const response = await fetch('/api/user/${userId}/update', {
                   method: 'POST',
@@ -2036,7 +2099,14 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    const { handleName, bio, profileImage } = req.body;
+    const handleName = req.body.handleName || '';
+    const bio = req.body.bio || '';
+    const profileImage = req.files?.profileImage;
+
+    // バリデーション
+    if (!handleName) {
+      return res.status(400).send('ハンドルネームは必須です');
+    }
 
     // アップロード制限チェック
     const now = new Date();
@@ -2059,7 +2129,7 @@ app.post('/api/user/:userId/update', async (req, res) => {
       const storageRef = ref(storage, `profile_images/${userId}_${Date.now()}.png`);
 
       // 画像リサイズ
-      const buffer = await sharp(profileImage.buffer)
+      const buffer = await sharp(profileImage.data)
         .resize(64, 64, { fit: 'cover' })
         .png()
         .toBuffer();
