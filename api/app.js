@@ -392,12 +392,22 @@ app.get('/api/solo', async (req, res) => {
         <p>待機中: ${waitingCount}人</p>
   `;
   if (req.user) {
-    const rating = req.user.rating || 1500;
+    const soloRating = req.user.soloRating || 1500;
+    const teamsRef = collection(db, 'teams');
+    const teamQuery = query(
+      teamsRef,
+      where('status', 'in', ['pending', 'accepted']),
+      where('userId1', 'in', [req.user.id, req.user.id])
+    );
+    const teamSnapshot = await getDocs(teamQuery);
+    const isTagged = !teamSnapshot.empty;
+  
     html += `
       <form action="/api/solo/match" method="POST">
-        <button type="submit">マッチング開始</button>
+        <button type="submit" ${isTagged ? 'disabled' : ''}>マッチング開始</button>
       </form>
       <p>現在のレート: ${soloRating}</p>
+      ${isTagged ? '<p>タッグ中のためマッチングできません</p>' : ''}
     `;
   } else {
     html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
