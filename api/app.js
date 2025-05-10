@@ -2093,7 +2093,8 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    // フォームデータの取得
+    // フォームデータの取得（デバッグログ追加）
+    console.log('受信データ:', { body: req.body, files: req.files });
     const handleName = (req.body.handleName || '').trim();
     const bio = (req.body.bio || '').trim();
     const profileImage = req.files?.profileImage;
