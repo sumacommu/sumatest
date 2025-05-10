@@ -1,4 +1,30 @@
+const express = require('express');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
+const { createClient } = require('redis');
+const { initializeApp } = require('firebase/app');
+const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
 const admin = require('firebase-admin');
+const sharp = require('sharp');
+const EventEmitter = require('events');
+require('dotenv').config();
+
+const app = express();
+
+// 環境変数チェック
+const requiredEnvVars = [
+  'FIREBASE_PROJECT_ID',
+  'FIREBASE_PRIVATE_KEY',
+  'FIREBASE_CLIENT_EMAIL',
+  'FIREBASE_STORAGE_BUCKET'
+];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`エラー: 環境変数 ${envVar} が設定されていません`);
+    process.exit(1);
+  }
+}
 
 // Firebase Admin SDK初期化
 admin.initializeApp({
@@ -9,20 +35,6 @@ admin.initializeApp({
   }),
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET
 });
-
-const express = require('express');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const session = require('express-session');
-const { createClient } = require('redis');
-const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc, collection, query, where, addDoc, updateDoc, deleteDoc, getDocs } = require('firebase/firestore');
-const { getStorage, ref, uploadBytes, getDownloadURL } = require('firebase/storage');
-const sharp = require('sharp');
-const EventEmitter = require('events');
-require('dotenv').config();
-
-const app = express();
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -39,7 +51,8 @@ const db = getFirestore(firebaseApp);
 console.log('環境変数チェック:', {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
 });
 
 const redisClient = createClient({
