@@ -115,6 +115,8 @@ class CustomRedisStore extends EventEmitter {
 const redisStore = new CustomRedisStore(redisClient);
 
 app.use(express.json());
+const fileUpload = require('express-fileupload');
+app.use(fileUpload());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
   store: redisStore,
@@ -2093,10 +2095,8 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    // フォームデータの取得（デバッグログ追加）
-    console.log('受信データ:', { body: req.body, files: req.files });
-    const handleName = (req.body.handleName || '').trim();
-    const bio = (req.body.bio || '').trim();
+    const handleName = req.body.handleName || '';
+    const bio = req.body.bio || '';
     const profileImage = req.files?.profileImage;
 
     // バリデーション
