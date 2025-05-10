@@ -2256,12 +2256,74 @@ app.post('/api/user/:userId/update', async (req, res) => {
 
 // チーム用ページ（仮）
 app.get('/api/team', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.send(`
+      <html>
+        <body>
+          <h1>チーム用ページ</h1>
+          <p>ログインしてください</p>
+          <p><a href="/api/auth/google?redirect=/api/team">Googleでログイン</a></p>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  const userId = req.user.id;
+  const teamsRef = collection(db, 'teams');
+  const teamQuery = query(
+    teamsRef,
+    where('status', '==', 'accepted'),
+    where('userId1', 'in', [userId, userId]) // userId1 or userId2
+  );
+  const teamSnapshot = await getDocs(teamQuery);
+
+  if (teamSnapshot.empty) {
+    return res.send(`
+      <html>
+        <body>
+          <h1>チーム用ページ</h1>
+          <p>タッグを組んでいないため、マッチングできません</p>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  const teamData = teamSnapshot.docs[0].data();
+  const partnerId = teamData.userId1 === userId ? teamData.userId2 : teamData.userId1;
+  const partnerRef = doc(db, 'users', partnerId);
+  const partnerSnap = await getDoc(partnerRef);
+  const partnerData = partnerSnap.data();
+  const partnerName = partnerData.handleName || '不明';
+  const partnerTeamRating = partnerData.teamRating || 1500;
+  const userTeamRating = req.user.teamRating || 1500;
+
+  const matchesRef = collection(db, 'matches');
+  const waitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
+  const waitingSnapshot = await getDocs(waitingQuery);
+  const waitingCount = waitingSnapshot.size;
+
   res.send(`
     <html>
+      <head>
+        <style>
+          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+          .error { color: red; }
+          button { margin: 10px; }
+        </style>
+      </head>
       <body>
-        <h1>チーム用ページ</h1>
-        <p>準備中です</p>
-        <p><a href="/api/">戻る</a></p>
+        <div class="container">
+          <h1>チーム用ページ</h1>
+          <p>タッグ相手: ${partnerName} (レート: ${partnerTeamRating})</p>
+          <p>あなたのレート: ${userTeamRating}</p>
+          <p>待機中のチーム: ${waitingCount}</p>
+          <form action="/api/team/match" method="POST">
+            <button type="submit">マッチング開始</button>
+          </form>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </div>
       </body>
     </html>
   `);
@@ -2361,6 +2423,432 @@ app.post('/api/team/untag', async (req, res) => {
       </body></html>
     `);
   }
+});
+
+// チーム用マッチング処理
+app.post('/api/team/match', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/api/auth/google?redirect=/api/team');
+  }
+  const userId = req.user.id;
+
+  // タッグ状態の確認
+  const teamsRef = collection(db, 'teams');
+  const teamQuery = query(
+    teamsRef,
+    where('status', '==', 'accepted'),
+    where('userId1', 'in', [userId, userId])
+  );
+  const teamSnapshot = await getDocs(teamQuery);
+  if (teamSnapshot.empty) {
+    return res.redirect('/api/team');
+  }
+
+  const teamData = teamSnapshot.docs[0].data();
+  const partnerId = teamData.userId1 === userId ? teamData.userId2 : teamData.userId1;
+  const userRating = req.user.teamRating || 1500;
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(
+      matchesRef,
+      where('type', '==', 'team'),
+      where('status', '==', 'waiting'),
+      where('userId', '!=', userId)
+    );
+    const waitingSnapshot = await getDocs(waitingQuery);
+
+    let matched = false;
+    for (const docSnap of waitingSnapshot.docs) {
+      const guestData = docSnap.data();
+      if (!guestData.roomId) continue;
+      const guestRef = doc(db, 'users', guestData.userId);
+      const guestSnap = await getDoc(guestRef);
+      const guestRating = guestSnap.exists() ? (guestSnap.data().teamRating || 1500) : 1500;
+      if (Math.abs(userRating - guestRating) <= 200) {
+        await updateDoc(docSnap.ref, {
+          guestId: userId,
+          status: 'matched',
+          timestamp: new Date().toISOString(),
+          hostChoices: { wins: 0, losses: 0 },
+          guestChoices: { wins: 0, losses: 0 }
+        });
+        matched = true;
+        res.redirect(`/api/team/setup/${docSnap.id}`);
+        break;
+      }
+    }
+
+    if (!matched) {
+      const matchRef = await addDoc(matchesRef, {
+        userId: userId,
+        partnerId: partnerId,
+        type: 'team',
+        status: 'waiting',
+        roomId: '',
+        timestamp: new Date().toISOString(),
+        hostChoices: { wins: 0, losses: 0 },
+        guestChoices: { wins: 0, losses: 0 }
+      });
+      res.redirect('/api/team/check');
+    }
+  } catch (error) {
+    console.error('チームマッチングエラー:', error);
+    res.send(`
+      <html>
+        <body>
+          <h1>マッチングに失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/api/team">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// チームマッチング状態チェック
+app.get('/api/team/check', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/api/team');
+  }
+  const userId = req.user.id;
+  const matchesRef = collection(db, 'matches');
+  const userMatchQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'matched'));
+  const userMatchSnapshot = await getDocs(userMatchQuery);
+
+  if (!userMatchSnapshot.empty) {
+    const matchId = userMatchSnapshot.docs[0].id;
+    res.redirect(`/api/team/setup/${matchId}`);
+  } else {
+    const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+    const waitingSnapshot = await getDocs(waitingQuery);
+    const roomId = waitingSnapshot.empty ? '' : waitingSnapshot.docs[0].data().roomId;
+    res.send(`
+      <html>
+        <body>
+          <h1>チームマッチング待機中</h1>
+          <p>相手チームを待っています... あなたのチームレート: ${req.user.teamRating || 1500}</p>
+          <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
+          <form action="/api/team/update" method="POST">
+            <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+            <button type="submit">IDを更新</button>
+          </form>
+          <p><a href="/api/team/cancel">キャンセル</a></p>
+          <script>
+            setInterval(() => {
+              fetch('/api/team/check/status')
+                .then(response => response.json())
+                .then(data => {
+                  if (data.matched) {
+                    window.location.href = '/api/team/setup/' + data.matchId;
+                  }
+                })
+                .catch(error => console.error('ポーリングエラー:', error));
+            }, 2000);
+          </script>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// チームポーリング用エンドポイント
+app.get('/api/team/check/status', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ matched: false });
+  }
+  const userId = req.user.id;
+  const matchesRef = collection(db, 'matches');
+  const userMatchQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'matched'));
+  const userMatchSnapshot = await getDocs(userMatchQuery);
+
+  if (!userMatchSnapshot.empty) {
+    const matchId = userMatchSnapshot.docs[0].id;
+    res.json({ matched: true, matchId });
+  } else {
+    res.json({ matched: false });
+  }
+});
+
+// チーム待機キャンセル
+app.get('/api/team/cancel', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/api/team');
+  }
+  const userId = req.user.id;
+  const matchesRef = collection(db, 'matches');
+  const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+  const waitingSnapshot = await getDocs(waitingQuery);
+
+  try {
+    waitingSnapshot.forEach(async (docSnap) => {
+      await deleteDoc(docSnap.ref);
+    });
+    res.redirect('/api/team');
+  } catch (error) {
+    console.error('キャンセルエラー:', error);
+    res.send(`
+      <html>
+        <body>
+          <h1>キャンセルに失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/api/team">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// チームID更新処理
+app.post('/api/team/update', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.redirect('/api/team');
+  }
+  const userId = req.user.id;
+  const roomId = req.body.roomId || '';
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+    const waitingSnapshot = await getDocs(waitingQuery);
+
+    if (!waitingSnapshot.empty) {
+      const docSnap = waitingSnapshot.docs[0];
+      await updateDoc(docSnap.ref, { roomId: roomId });
+    }
+    res.redirect('/api/team/check');
+  } catch (error) {
+    console.error('ID更新エラー:', error);
+    res.send(`
+      <html>
+        <body>
+          <h1>ID更新に失敗しました</h1>
+          <p>エラー: ${error.message}</p>
+          <p><a href="/api/team">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// チームセットアップ画面
+app.get('/api/team/setup/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.redirect('/api/team');
+  }
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists() || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
+    return res.send('マッチが見つかりません');
+  }
+
+  const matchData = matchSnap.data();
+  const isHost = matchData.userId === userId;
+  const hostId = matchData.userId;
+  const guestId = matchData.guestId || '';
+  const hostPartnerId = matchData.partnerId;
+  const guestPartnerId = matchData.guestPartnerId || '';
+
+  const hostRef = doc(db, 'users', hostId);
+  const guestRef = doc(db, 'users', guestId);
+  const hostPartnerRef = doc(db, 'users', hostPartnerId);
+  const guestPartnerRef = doc(db, 'users', guestPartnerId);
+  const [hostSnap, guestSnap, hostPartnerSnap, guestPartnerSnap] = await Promise.all([
+    getDoc(hostRef),
+    getDoc(guestRef),
+    getDoc(hostPartnerRef),
+    getDoc(guestPartnerRef)
+  ]);
+
+  const hostName = hostSnap.data().handleName || '不明';
+  const guestName = guestSnap.data().handleName || '不明';
+  const hostPartnerName = hostPartnerSnap.data().handleName || '不明';
+  const guestPartnerName = guestPartnerSnap.data().handleName || '不明';
+  const hostTeamRating = hostSnap.data().teamRating || 1500;
+  const guestTeamRating = guestSnap.data().teamRating || 1500;
+
+  const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
+  const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
+
+  res.send(`
+    <html>
+      <head>
+        <style>
+          .match-container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+          .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
+          .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
+          .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+          .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+          @media (max-width: 768px) {
+            .player-table { flex-direction: column; align-items: center; }
+            .player-info { width: 100%; margin-bottom: 10px; }
+          }
+        </style>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+        <script>
+          var firebaseConfig = {
+            apiKey: "${process.env.FIREBASE_API_KEY}",
+            authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+            projectId: "${process.env.FIREBASE_PROJECT_ID}",
+            storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+            messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+            appId: "${process.env.FIREBASE_APP_ID}",
+            measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+          };
+          firebase.initializeApp(firebaseConfig);
+          var db = firebase.firestore();
+
+          async function reportResult(matchId, result) {
+            try {
+              const response = await fetch('/api/team/setup/' + matchId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ result })
+              });
+              if (!response.ok) {
+                const errorText = await response.text();
+                alert('結果報告に失敗しました: ' + errorText);
+              }
+            } catch (error) {
+              alert('ネットワークエラー: ' + error.message);
+            }
+          }
+
+          db.collection('matches').doc('${matchId}').onSnapshot(
+            function (doc) {
+              if (!doc.exists) {
+                console.error('ドキュメントが存在しません');
+                return;
+              }
+              const data = doc.data();
+              const hostChoices = data.hostChoices || { wins: 0, losses: 0 };
+              const guestChoices = data.guestChoices || { wins: 0, losses: 0 };
+              const isFinished = hostChoices.wins >= 2 || guestChoices.wins >= 2;
+
+              document.getElementById('hostWins').innerText = hostChoices.wins;
+              document.getElementById('guestWins').innerText = guestChoices.wins;
+              document.querySelectorAll('.result-btn').forEach(btn => {
+                btn.classList.toggle('disabled', isFinished);
+                btn.style.cursor = isFinished ? 'not-allowed' : 'pointer';
+              });
+
+              if (isFinished) {
+                document.getElementById('guide').innerText = 'このルームの対戦は終了しました。';
+              } else {
+                document.getElementById('guide').innerText = '2本先取で対戦を行い、結果を報告してください。';
+              }
+            },
+            function (error) {
+              console.error('onSnapshotエラー:', error);
+            }
+          );
+        </script>
+      </head>
+      <body>
+        <div class="match-container">
+          <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
+          <div class="player-table">
+            <div class="player-info">
+              <h2>ホストチーム: ${hostName} & ${hostPartnerName}</h2>
+              <p>レート: ${hostTeamRating}</p>
+              <p>勝利数: <span id="hostWins">${hostChoices.wins}</span></p>
+            </div>
+            <div class="player-info">
+              <h2>ゲストチーム: ${guestName} & ${guestPartnerName}</h2>
+              <p>レート: ${guestTeamRating}</p>
+              <p>勝利数: <span id="guestWins">${guestChoices.wins}</span></p>
+            </div>
+          </div>
+          <p id="guide">2本先取で対戦を行い、結果を報告してください。</p>
+          <div>
+            <button class="result-btn" onclick="reportResult('${matchId}', 'win')">勝ち</button>
+            <button class="result-btn" onclick="reportResult('${matchId}', 'lose')">負け</button>
+          </div>
+          <p><a href="/api/team">戻る</a></p>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
+// チーム結果報告
+app.post('/api/team/setup/:matchId', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  const { result } = req.body;
+
+  if (!userId) {
+    return res.status(401).send('ログインしてください');
+  }
+
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists()) {
+    return res.status(404).send('マッチが見つかりません');
+  }
+
+  const matchData = matchSnap.data();
+  const isHost = matchData.userId === userId;
+  const choicesKey = isHost ? 'hostChoices' : 'guestChoices';
+  const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
+  const updateData = {};
+
+  if (result) {
+    updateData[choicesKey] = { ...matchData[choicesKey], result };
+    const opponentChoices = matchData[opponentChoicesKey];
+    if (opponentChoices.result && (
+      (result === 'win' && opponentChoices.result === 'lose') ||
+      (result === 'lose' && opponentChoices.result === 'win')
+    )) {
+      const hostWins = matchData.hostChoices.wins || 0;
+      const guestWins = matchData.guestChoices.wins || 0;
+      if (result === 'win' && isHost || result === 'lose' && !isHost) {
+        updateData.hostChoices = {
+          ...matchData.hostChoices,
+          wins: hostWins + 1,
+          result: ''
+        };
+        updateData.guestChoices = {
+          ...matchData.guestChoices,
+          losses: (matchData.guestChoices.losses || 0) + 1,
+          result: ''
+        };
+      } else {
+        updateData.guestChoices = {
+          ...matchData.guestChoices,
+          wins: guestWins + 1,
+          result: ''
+        };
+        updateData.hostChoices = {
+          ...matchData.hostChoices,
+          losses: (matchData.hostChoices.losses || 0) + 1,
+          result: ''
+        };
+      }
+      if (updateData.hostChoices.wins >= 2 || updateData.guestChoices.wins >= 2) {
+        updateData.status = 'finished';
+        const winnerIds = updateData.hostChoices.wins >= 2 ? [matchData.userId, matchData.partnerId] : [matchData.guestId, matchData.guestPartnerId];
+        const loserIds = updateData.hostChoices.wins >= 2 ? [matchData.guestId, matchData.guestPartnerId] : [matchData.userId, matchData.partnerId];
+        const { winPoints, losePoints } = await updateRatings(winnerIds[0], loserIds[0], 'teamRating');
+        await updateDoc(doc(db, 'users', winnerIds[1]), { teamRating: (await getDoc(doc(db, 'users', winnerIds[1]))).data().teamRating + winPoints });
+        await updateDoc(doc(db, 'users', loserIds[1]), { teamRating: (await getDoc(doc(db, 'users', loserIds[1]))).data().teamRating - losePoints });
+        updateData.ratingChanges = {
+          [winnerIds[0]]: winPoints,
+          [winnerIds[1]]: winPoints,
+          [loserIds[0]]: -losePoints,
+          [loserIds[1]]: -losePoints
+        };
+      }
+    }
+  }
+
+  await updateDoc(matchRef, updateData);
+  res.send('OK');
 });
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
