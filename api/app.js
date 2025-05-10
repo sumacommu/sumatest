@@ -215,18 +215,19 @@ passport.use(new GoogleStrategy({
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       const userData = {
-        handleName: '', // ハンドルネーム（初期値空）
-        bio: '', // 自己紹介文（初期値空）
-        profileImage: '/default.png', // デフォルト画像
+        handleName: '',
+        bio: '',
+        profileImage: '/default.png',
         email: profile.emails[0].value,
         createdAt: new Date().toISOString(),
         matchCount: 0,
         reportCount: 0,
         validReportCount: 0,
         penalty: false,
-        rating: 1500,
-        uploadCount: 0, // 画像アップロード回数
-        lastUploadReset: new Date().toISOString() // アップロード制限リセット日
+        soloRating: 1500, // タイマン用レート
+        teamRating: 1500, // チーム用レート
+        uploadCount: 0,
+        lastUploadReset: new Date().toISOString()
       };
       await setDoc(userRef, userData);
       console.log('新規ユーザー登録成功:', profile.id, userData);
@@ -396,7 +397,7 @@ app.get('/api/solo', async (req, res) => {
       <form action="/api/solo/match" method="POST">
         <button type="submit">マッチング開始</button>
       </form>
-      <p>現在のレート: ${rating}</p>
+      <p>現在のレート: ${soloRating}</p>
     `;
   } else {
     html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
@@ -427,7 +428,7 @@ app.get('/api/solo/check', async (req, res) => {
       <html>
         <body>
           <h1>マッチング待機中</h1>
-          <p>相手を待っています... あなたのレート: ${req.user.rating || 1500}</p>
+          <p>相手を待っています... あなたのレート: ${req.user.soloRating || 1500}</p>
           <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
           <form action="/api/solo/update" method="POST">
             <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
@@ -506,7 +507,7 @@ app.post('/api/solo/match', async (req, res) => {
     return res.redirect('/api/solo');
   }
   const userId = req.user.id;
-  const userRating = req.user.rating || 1500;
+  const userRating = req.user.soloRating || 1500;
 
   try {
     const matchesRef = collection(db, 'matches');
@@ -524,7 +525,7 @@ app.post('/api/solo/match', async (req, res) => {
       if (!guestData.roomId) continue;
       const guestRef = doc(db, 'users', guestData.userId);
       const guestSnap = await getDoc(guestRef);
-      const guestRating = guestSnap.exists() ? (guestSnap.data().rating || 1500) : 1500;
+      const guestRating = guestSnap.exists() ? (guestSnap.data().soloRating || 1500) : 1500;
       if (Math.abs(userRating - guestRating) <= 200) {
         await updateDoc(docSnap.ref, {
           guestId: userId,
@@ -594,8 +595,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const guestSnap = await getDoc(guestRef);
   const hostName = hostSnap.data().handleName || '不明';
   const guestName = guestSnap.data().handleName || '不明';
-  const hostRating = hostSnap.data().rating || 1500;
-  const guestRating = guestSnap.data().rating || 1500;
+  const hostRating = hostSnap.data().soloRating || 1500;
+  const guestRating = guestSnap.data().soloRating || 1500;
 
   const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
   const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
@@ -1642,18 +1643,18 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
   const updateData = {};
 
-  async function updateRatings(winnerId, loserId) {
+  async function updateRatings(winnerId, loserId, ratingType = 'soloRating') {
     const winnerRef = doc(db, 'users', winnerId);
     const loserRef = doc(db, 'users', loserId);
     const [winnerSnap, loserSnap] = await Promise.all([getDoc(winnerRef), getDoc(loserRef)]);
-    const winnerRating = winnerSnap.data()?.rating || 1000;
-    const loserRating = loserSnap.data()?.rating || 1000;
+    const winnerRating = winnerSnap.data()?.[ratingType] || 1500;
+    const loserRating = loserSnap.data()?.[ratingType] || 1500;
     const ratingDiff = loserRating - winnerRating;
     const winPoints = ratingDiff >= 400 ? 0 : Math.floor(16 + ratingDiff * 0.04);
-    const losePoints = winPoints; // 絶対値一致
+    const losePoints = winPoints;
     await Promise.all([
-      updateDoc(winnerRef, { rating: winnerRating + winPoints }),
-      updateDoc(loserRef, { rating: loserRating - losePoints })
+      updateDoc(winnerRef, { [ratingType]: winnerRating + winPoints }),
+      updateDoc(loserRef, { [ratingType]: loserRating - losePoints })
     ]);
     return { winPoints, losePoints };
   }
@@ -1959,7 +1960,8 @@ app.get('/api/user/:userId', async (req, res) => {
             <h1>${userData.handleName || '未設定'}のプロフィール</h1>
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p>自己紹介: ${userData.bio || '未設定'}</p>
-            <p>レート: ${userData.rating}</p>
+            <p>タイマンレート: ${userData.soloRating || 1500}</p>
+            <p>チームレート: ${userData.teamRating || 1500}</p>
             ${isOwnProfile ? `
               <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
               <p><a href="/api/logout">ログアウト</a></p>
