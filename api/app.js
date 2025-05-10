@@ -1790,8 +1790,7 @@ app.get('/api/user/:userId', async (req, res) => {
               .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
               .error { color: red; }
               input, textarea { width: 100%; margin: 10px 0; }
-              img { max-width: 64px; max-height: 64px; }
-              #preview { display: none; margin-top: 10px; }
+              .profile-image { max-width: 64px; max-height: 64px; }
             </style>
           </head>
           <body>
@@ -1807,8 +1806,7 @@ app.get('/api/user/:userId', async (req, res) => {
                 </label>
                 <label>プロフィール画像（64x64、1日5回まで）:
                   <input type="file" id="profileImage" accept="image/*">
-                  <img src="${userData.profileImage}" alt="現在の画像">
-                  <img id="preview" alt="プレビュー">
+                  <img id="profileImageDisplay" class="profile-image" src="${userData.profileImage}" alt="プロフィール画像">
                 </label>
                 <p id="error" class="error"></p>
                 <button type="submit">保存</button>
@@ -1818,7 +1816,7 @@ app.get('/api/user/:userId', async (req, res) => {
             <script>
               const form = document.getElementById('profileForm');
               const profileImageInput = document.getElementById('profileImage');
-              const preview = document.getElementById('preview');
+              const profileImageDisplay = document.getElementById('profileImageDisplay');
               const errorDiv = document.getElementById('error');
       
               // 画像プレビュー
@@ -1834,14 +1832,13 @@ app.get('/api/user/:userId', async (req, res) => {
                       canvas.height = 64;
                       const ctx = canvas.getContext('2d');
                       ctx.drawImage(img, 0, 0, 64, 64);
-                      preview.src = canvas.toDataURL('image/png');
-                      preview.style.display = 'block';
+                      profileImageDisplay.src = canvas.toDataURL('image/png');
                     };
                     img.src = event.target.result;
                   };
                   reader.readAsDataURL(file);
                 } else {
-                  preview.style.display = 'none';
+                  profileImageDisplay.src = '${userData.profileImage}';
                 }
               });
       
@@ -1987,8 +1984,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
             .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
             .error { color: red; }
             input, textarea { width: 100%; margin: 10px 0; }
-            img { max-width: 64px; max-height: 64px; }
-            #preview { display: none; margin-top: 10px; }
+            .profile-image { max-width: 64px; max-height: 64px; }
           </style>
         </head>
         <body>
@@ -2003,8 +1999,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
               </label>
               <label>プロフィール画像（64x64、1日5回まで）:
                 <input type="file" id="profileImage" accept="image/*">
-                <img src="${userData.profileImage}" alt="現在の画像">
-                <img id="preview" alt="プレビュー">
+                <img id="profileImageDisplay" class="profile-image" src="${userData.profileImage}" alt="プロフィール画像">
               </label>
               <p id="error" class="error"></p>
               <button type="submit">保存</button>
@@ -2014,7 +2009,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
           <script>
             const form = document.getElementById('profileForm');
             const profileImageInput = document.getElementById('profileImage');
-            const preview = document.getElementById('preview');
+            const profileImageDisplay = document.getElementById('profileImageDisplay');
             const errorDiv = document.getElementById('error');
     
             // 画像プレビュー
@@ -2030,14 +2025,13 @@ app.get('/api/user/:userId/edit', async (req, res) => {
                     canvas.height = 64;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, 64, 64);
-                    preview.src = canvas.toDataURL('image/png');
-                    preview.style.display = 'block';
+                    profileImageDisplay.src = canvas.toDataURL('image/png');
                   };
                   img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
               } else {
-                preview.style.display = 'none';
+                profileImageDisplay.src = '${userData.profileImage}';
               }
             });
     
@@ -2099,8 +2093,9 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    const handleName = req.body.handleName || '';
-    const bio = req.body.bio || '';
+    // フォームデータの取得
+    const handleName = (req.body.handleName || '').trim();
+    const bio = (req.body.bio || '').trim();
     const profileImage = req.files?.profileImage;
 
     // バリデーション
