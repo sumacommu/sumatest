@@ -1,3 +1,15 @@
+const admin = require('firebase-admin');
+
+// Firebase Admin SDK初期化
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+  }),
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+});
+
 const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -1821,28 +1833,42 @@ app.get('/api/user/:userId', async (req, res) => {
               const profileImageDisplay = document.getElementById('profileImageDisplay');
               const errorDiv = document.getElementById('error');
       
-              // 画像プレビュー
-              profileImageInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                      const canvas = document.createElement('canvas');
-                      canvas.width = 64;
-                      canvas.height = 64;
-                      const ctx = canvas.getContext('2d');
-                      ctx.drawImage(img, 0, 0, 64, 64);
-                      profileImageDisplay.src = canvas.toDataURL('image/png');
-                    };
-                    img.src = event.target.result;
-                  };
-                  reader.readAsDataURL(file);
-                } else {
-                  profileImageDisplay.src = '${userData.profileImage}';
-                }
-              });
+// 画像プレビュー
+profileImageInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    // フォーマット制限
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
+      profileImageInput.value = '';
+      profileImageDisplay.src = '${userData.profileImage}';
+      return;
+    }
+    // サイズ制限（1MB）
+    if (file.size > 1 * 1024 * 1024) {
+      errorDiv.textContent = '画像サイズは1MB以下にしてください';
+      profileImageInput.value = '';
+      profileImageDisplay.src = '${userData.profileImage}';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 64, 64);
+        profileImageDisplay.src = canvas.toDataURL('image/png');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    profileImageDisplay.src = '${userData.profileImage}';
+  }
+});
       
               form.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -2104,6 +2130,18 @@ app.post('/api/user/:userId/update', async (req, res) => {
       return res.status(400).send('ハンドルネームは必須です');
     }
 
+    // 画像フォーマットおよびサイズ制限
+    if (profileImage) {
+      // フォーマット制限（PNG/JPEGのみ）
+      if (!['image/png', 'image/jpeg'].includes(profileImage.mimetype)) {
+        return res.status(400).send('PNGまたはJPEG形式の画像をアップロードしてください');
+      }
+      // サイズ制限（1MB以下）
+      if (profileImage.size > 1 * 1024 * 1024) {
+        return res.status(400).send('画像サイズは1MB以下にしてください');
+      }
+    }
+
     // アップロード制限チェック
     const now = new Date();
     const lastReset = new Date(userData.lastUploadReset || now);
@@ -2121,8 +2159,9 @@ app.post('/api/user/:userId/update', async (req, res) => {
     };
 
     if (profileImage) {
-      const storage = getStorage(firebaseApp);
-      const storageRef = ref(storage, `profile_images/${userId}_${Date.now()}.png`);
+      const bucket = admin.storage().bucket();
+      const fileName = `profile_images/${userId}_${Date.now()}.png`;
+      const file = bucket.file(fileName);
 
       // 画像リサイズ
       const buffer = await sharp(profileImage.data)
@@ -2131,9 +2170,21 @@ app.post('/api/user/:userId/update', async (req, res) => {
         .toBuffer();
 
       try {
-        await uploadBytes(storageRef, buffer);
-        const downloadURL = await getDownloadURL(storageRef);
-        updateData.profileImage = downloadURL;
+        // メタデータ設定（公開アクセス用）
+        await file.save(buffer, {
+          metadata: {
+            contentType: 'image/png',
+            metadata: {
+              firebaseStorageDownloadTokens: Date.now() // 一意のトークン
+            }
+          },
+          public: true // 公開アクセス
+        });
+        const [url] = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491' // 長期有効
+        });
+        updateData.profileImage = url;
         updateData.uploadCount = (userData.uploadCount || 0) + 1;
       } catch (storageError) {
         console.error('Firebase Storageエラー:', {
