@@ -445,8 +445,30 @@ app.get('/api/solo/check', async (req, res) => {
             <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
             <button type="submit">IDを更新</button>
           </form>
-          <p><a href="/api/solo/cancel">キャンセル</a></p>
+          <button onclick="cancelMatch()">キャンセル</button>
+          <div id="error" class="error"></div>
           <script>
+            async function cancelMatch() {
+              const errorDiv = document.getElementById('error');
+              try {
+                const response = await fetch('/api/solo/cancel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include'
+                });
+                const result = await response.json();
+                if (result.success) {
+                  alert('マッチをキャンセルしました');
+                  window.location.href = '/api/solo';
+                } else {
+                  errorDiv.textContent = result.error || 'キャンセルに失敗しました';
+                }
+              } catch (error) {
+                console.error('キャンセルエラー:', error);
+                errorDiv.textContent = 'キャンセルに失敗しました: ' + error.message;
+              }
+            }
+
             setInterval(() => {
               fetch('/api/solo/check/status')
                 .then(response => response.json())
@@ -508,6 +530,40 @@ app.get('/api/solo/cancel', async (req, res) => {
         </body>
       </html>
     `);
+  }
+});
+
+app.post('/api/solo/cancel', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    console.error('ユーザー情報が不正:', req.user);
+    return res.status(401).json({ error: '認証が必要です' });
+  }
+  const userId = req.user.id;
+
+  try {
+    const matchesRef = admin.firestore().collection('matches');
+    const waitingQuery = matchesRef
+      .where('userId', '==', userId)
+      .where('type', '==', 'solo')
+      .where('status', '==', 'waiting');
+
+    const waitingSnapshot = await waitingQuery.get();
+    if (waitingSnapshot.empty) {
+      console.log(`キャンセル対象のマッチなし: userId=${userId}`);
+      return res.status(404).json({ error: '待機中のマッチが見つかりません' });
+    }
+
+    const batch = admin.firestore().batch();
+    waitingSnapshot.forEach((doc) => {
+      batch.delete(doc.ref); // 待機中のマッチを削除
+    });
+    await batch.commit();
+
+    console.log(`マッチキャンセル成功: userId=${userId}, count=${waitingSnapshot.size}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('マッチキャンセルエラー:', error.message, error.stack);
+    res.status(500).json({ error: 'マッチのキャンセルに失敗しました', details: error.message });
   }
 });
 
@@ -1865,65 +1921,68 @@ app.get('/api/user/:userId', async (req, res) => {
             <button type="submit">保存</button>
           </form>
     
-          <script>
-            const form = document.getElementById('profileForm');
-            const profileImageInput = document.querySelector('input[name="profileImage"]');
-            const profileImageDisplay = document.getElementById('profileImageDisplay');
-            const errorDiv = document.getElementById('error');
-    
-            profileImageInput.addEventListener('change', (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                if (!['image/png', 'image/jpeg'].includes(file.type)) {
-                  errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
-                  profileImageInput.value = '';
-                  profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
-                  return;
-                }
-                if (file.size > 1 * 1024 * 1024) {
-                  errorDiv.textContent = '画像サイズは1MB以下にしてください';
-                  profileImageInput.value = '';
-                  profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const img = new Image();
-                  img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 64;
-                    canvas.height = 64;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, 64, 64);
-                    profileImageDisplay.src = canvas.toDataURL('image/png');
-                  };
-                  img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-              } else {
-                profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
-              }
-            });
-    
-            form.addEventListener('submit', async (e) => {
-              e.preventDefault();
-              const formData = new FormData(form);
-              try {
-                const response = await fetch('/api/user/${userId}/update', {
-                  method: 'POST',
-                  body: formData
-                });
-                if (response.ok) {
-                  window.location.href = '/api/user/${userId}';
-                } else {
-                  const errorText = await response.text();
-                  errorDiv.textContent = errorText;
-                }
-              } catch (error) {
-                errorDiv.textContent = 'エラーが発生しました';
-              }
-            });
-          </script>
+<script>
+  const form = document.getElementById('profileForm');
+  const profileImageInput = document.querySelector('input[name="profileImage"]');
+  const profileImageDisplay = document.getElementById('profileImageDisplay');
+  const errorDiv = document.getElementById('error');
+
+  profileImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!['image/png', 'image/jpeg'].includes(file.type)) {
+        errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
+        profileImageInput.value = '';
+        profileImageDisplay.src = '${userData.profileImage}';
+        return;
+      }
+      if (file.size > 1 * 1024 * 1024) {
+        errorDiv.textContent = '画像サイズは1MB以下にしてください';
+        profileImageInput.value = '';
+        profileImageDisplay.src = '${userData.profileImage}';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, 64, 64);
+          profileImageDisplay.src = canvas.toDataURL('image/png');
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      profileImageDisplay.src = '${userData.profileImage}';
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    errorDiv.textContent = ''; // エラーメッセージをリセット
+    try {
+      const response = await fetch('/api/user/${userId}/update', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        window.location.href = result.redirect;
+      } else {
+        errorDiv.textContent = result.error || 'プロフィール更新に失敗しました';
+      }
+    } catch (error) {
+      console.error('更新エラー:', error);
+      errorDiv.textContent = 'プロフィール更新に失敗しました: ' + error.message;
+    }
+  });
+</script>
         </body>
         </html>
       `);
@@ -2097,171 +2156,120 @@ app.get('/api/user/:userId/edit', async (req, res) => {
       </form>
       <a href="/api/user/${userId}">戻る</a>
 
-      <script>
-        const form = document.getElementById('profileForm');
-        const profileImageInput = document.querySelector('input[name="profileImage"]');
-        const profileImageDisplay = document.getElementById('profileImageDisplay');
-        const errorDiv = document.getElementById('error');
+<script>
+  const form = document.getElementById('profileForm');
+  const profileImageInput = document.querySelector('input[name="profileImage"]');
+  const profileImageDisplay = document.getElementById('profileImageDisplay');
+  const errorDiv = document.getElementById('error');
 
-        profileImageInput.addEventListener('change', (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            if (!['image/png', 'image/jpeg'].includes(file.type)) {
-              errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
-              profileImageInput.value = '';
-              profileImageDisplay.src = '${userData.profileImage}';
-              return;
-            }
-            if (file.size > 1 * 1024 * 1024) {
-              errorDiv.textContent = '画像サイズは1MB以下にしてください';
-              profileImageInput.value = '';
-              profileImageDisplay.src = '${userData.profileImage}';
-              return;
-            }
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const img = new Image();
-              img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 64;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, 64, 64);
-                profileImageDisplay.src = canvas.toDataURL('image/png');
-              };
-              img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-          } else {
-            profileImageDisplay.src = '${userData.profileImage}';
-          }
-        });
+  profileImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!['image/png', 'image/jpeg'].includes(file.type)) {
+        errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
+        profileImageInput.value = '';
+        profileImageDisplay.src = '${userData.profileImage}';
+        return;
+      }
+      if (file.size > 1 * 1024 * 1024) {
+        errorDiv.textContent = '画像サイズは1MB以下にしてください';
+        profileImageInput.value = '';
+        profileImageDisplay.src = '${userData.profileImage}';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, 64, 64);
+          profileImageDisplay.src = canvas.toDataURL('image/png');
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      profileImageDisplay.src = '${userData.profileImage}';
+    }
+  });
 
-        form.addEventListener('submit', async (e) => {
-          e.preventDefault();
-          const formData = new FormData(form);
-          try {
-            const response = await fetch('/api/user/${userId}/update', {
-              method: 'POST',
-              body: formData
-            });
-            if (response.ok) {
-              window.location.href = '/api/user/${userId}';
-            } else {
-              const errorText = await response.text();
-              errorDiv.textContent = errorText;
-            }
-          } catch (error) {
-            errorDiv.textContent = 'エラーが発生しました';
-          }
-        });
-      </script>
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    errorDiv.textContent = ''; // エラーメッセージをリセット
+    try {
+      const response = await fetch('/api/user/${userId}/update', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        window.location.href = result.redirect;
+      } else {
+        errorDiv.textContent = result.error || 'プロフィール更新に失敗しました';
+      }
+    } catch (error) {
+      console.error('更新エラー:', error);
+      errorDiv.textContent = 'プロフィール更新に失敗しました: ' + error.message;
+    }
+  });
+</script>
     </body>
     </html>
   `);
 });
 
 // プロフィール更新
-app.post('/api/user/:userId/update', async (req, res) => {
-  const { userId } = req.params;
-  const currentUser = req.user;
+app.post('/api/user/:userId/update', upload.single('profileImage'), async (req, res) => {
+  if (!req.user || !req.user.id) {
+    console.error('ユーザー情報が不正:', req.user);
+    return res.status(401).json({ error: '認証が必要です' });
+  }
+  const userId = req.user.id;
+  const targetUserId = req.params.userId;
 
-  if (!currentUser || currentUser.id !== userId) {
-    return res.status(403).send('権限がありません');
+  if (userId !== targetUserId) {
+    console.error(`権限エラー: userId=${userId}, targetUserId=${targetUserId}`);
+    return res.status(403).json({ error: '自分のプロフィールのみ更新可能です' });
   }
 
   try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      return res.status(404).send('ユーザーが見つかりません');
+    const { handleName, bio } = req.body;
+    const userRef = admin.firestore().doc(`users/${userId}`);
+    const updateData = { handleName: handleName || '', bio: bio || '' };
+
+    if (req.file) {
+      const file = req.file;
+      const fileName = `${userId}_${Date.now()}${path.extname(file.originalname)}`;
+      const filePath = `profile_images/${fileName}`;
+      const blob = bucket.file(filePath);
+      const blobStream = blob.createWriteStream({
+        metadata: { contentType: file.mimetype }
+      });
+
+      await new Promise((resolve, reject) => {
+        blobStream.on('error', (err) => reject(err));
+        blobStream.on('finish', resolve);
+        blobStream.end(file.buffer);
+      });
+
+      const [url] = await blob.getSignedUrl({
+        action: 'read',
+        expires: '2030-01-01'
+      });
+      updateData.profileImage = url;
     }
 
-    const userData = userSnap.data();
-    const handleName = (req.body.handleName || '').trim();
-    const bio = (req.body.bio || '').trim();
-    const profileImage = req.files?.profileImage;
-
-    // バリデーション
-    if (!handleName) {
-      return res.status(400).send('ハンドルネームは必須です');
-    }
-
-    // 画像フォーマットおよびサイズ制限
-    if (profileImage) {
-      // フォーマット制限（PNG/JPEGのみ）
-      if (!['image/png', 'image/jpeg'].includes(profileImage.mimetype)) {
-        return res.status(400).send('PNGまたはJPEG形式の画像をアップロードしてください');
-      }
-      // サイズ制限（1MB以下）
-      if (profileImage.size > 1 * 1024 * 1024) {
-        return res.status(400).send('画像サイズは1MB以下にしてください');
-      }
-    }
-
-    // アップロード制限チェック
-    const now = new Date();
-    const lastReset = new Date(userData.lastUploadReset || now);
-    if (lastReset.toDateString() !== now.toDateString()) {
-      await updateDoc(userRef, { uploadCount: 0, lastUploadReset: now.toISOString() });
-      userData.uploadCount = 0;
-    }
-    if (profileImage && userData.uploadCount >= 5) {
-      return res.status(400).send('1日のアップロード上限（5回）に達しました');
-    }
-
-    const updateData = {
-      handleName: handleName.slice(0, 10),
-      bio: bio.slice(0, 1000)
-    };
-
-    if (profileImage) {
-      const bucket = admin.storage().bucket();
-      const fileName = `profile_images/${userId}_${Date.now()}.png`;
-      const file = bucket.file(fileName);
-
-      // 画像リサイズ
-      const buffer = await sharp(profileImage.data)
-        .resize(64, 64, { fit: 'cover' })
-        .png()
-        .toBuffer();
-
-      try {
-        // メタデータ設定（公開アクセス用）
-        await file.save(buffer, {
-          metadata: {
-            contentType: 'image/png',
-            metadata: {
-              firebaseStorageDownloadTokens: Date.now() // 一意のトークン
-            }
-          },
-          public: true // 公開アクセス
-        });
-        const [url] = await file.getSignedUrl({
-          action: 'read',
-          expires: '03-09-2491' // 長期有効
-        });
-        updateData.profileImage = url;
-        updateData.uploadCount = (userData.uploadCount || 0) + 1;
-      } catch (storageError) {
-        console.error('Firebase Storageエラー:', {
-          message: storageError.message,
-          code: storageError.code,
-          stack: storageError.stack
-        });
-        return res.status(500).send('画像アップロードに失敗しました。権限エラーまたはネットワークエラーが発生しています。');
-      }
-    }
-
-    await updateDoc(userRef, updateData);
-    res.send('OK');
+    await userRef.update(updateData);
+    console.log(`プロフィール更新成功: userId=${userId}`, updateData);
+    res.json({ success: true, redirect: `/api/user/${userId}` });
   } catch (error) {
-    console.error('プロフィール更新エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    res.status(500).send(`エラー: ${error.message}`);
+    console.error('プロフィール更新エラー:', error.message, error.stack);
+    res.status(500).json({ error: 'プロフィール更新に失敗しました', details: error.message });
   }
 });
 
