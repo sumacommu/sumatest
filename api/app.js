@@ -2095,8 +2095,8 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    const handleName = req.body.handleName || '';
-    const bio = req.body.bio || '';
+    const handleName = (req.body.handleName || '').trim();
+    const bio = (req.body.bio || '').trim();
     const profileImage = req.files?.profileImage;
 
     // バリデーション
@@ -2130,16 +2130,29 @@ app.post('/api/user/:userId/update', async (req, res) => {
         .png()
         .toBuffer();
 
-      await uploadBytes(storageRef, buffer);
-      const downloadURL = await getDownloadURL(storageRef);
-      updateData.profileImage = downloadURL;
-      updateData.uploadCount = (userData.uploadCount || 0) + 1;
+      try {
+        await uploadBytes(storageRef, buffer);
+        const downloadURL = await getDownloadURL(storageRef);
+        updateData.profileImage = downloadURL;
+        updateData.uploadCount = (userData.uploadCount || 0) + 1;
+      } catch (storageError) {
+        console.error('Firebase Storageエラー:', {
+          message: storageError.message,
+          code: storageError.code,
+          stack: storageError.stack
+        });
+        return res.status(500).send('画像アップロードに失敗しました。権限エラーまたはネットワークエラーが発生しています。');
+      }
     }
 
     await updateDoc(userRef, updateData);
     res.send('OK');
   } catch (error) {
-    console.error('プロフィール更新エラー:', error);
+    console.error('プロフィール更新エラー:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
