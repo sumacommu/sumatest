@@ -1816,114 +1816,103 @@ app.get('/api/user/:userId', async (req, res) => {
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
 
-    if (isNewUser) {
-      // 初回ログイン時のプロフィール設定ページ
+    if (isNewUser || !userData.handleName) {
       return res.send(`
-        <html>
-          <head>
-            <style>
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-              .error { color: red; }
-              input, textarea { width: 100%; margin: 10px 0; }
-              .profile-image { max-width: 64px; max-height: 64px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h1>プロフィール設定</h1>
-              <p>初回ログインのため、プロフィールを設定してください。</p>
-              <form id="profileForm" enctype="multipart/form-data">
-                <label>ハンドルネーム（最大10文字）:
-                  <input type="text" id="handleName" maxlength="10" value="${userData.handleName}" required>
-                </label>
-                <label>自己紹介（最大1000文字）:
-                  <textarea id="bio" maxlength="1000">${userData.bio}</textarea>
-                </label>
-                <label>プロフィール画像（64x64、1日5回まで）:
-                  <input type="file" id="profileImage" accept="image/*">
-                  <img id="profileImageDisplay" class="profile-image" src="${userData.profileImage}" alt="プロフィール画像">
-                </label>
-                <p id="error" class="error"></p>
-                <button type="submit">保存</button>
-              </form>
-              <p><a href="/api/logout">ログアウト</a></p>
-            </div>
-            <script>
-              const form = document.getElementById('profileForm');
-              const profileImageInput = document.getElementById('profileImage');
-              const profileImageDisplay = document.getElementById('profileImageDisplay');
-              const errorDiv = document.getElementById('error');
-      
-// 画像プレビュー
-profileImageInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    // フォーマット制限
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
-      profileImageInput.value = '';
-      profileImageDisplay.src = '${userData.profileImage}';
-      return;
-    }
-    // サイズ制限（1MB）
-    if (file.size > 1 * 1024 * 1024) {
-      errorDiv.textContent = '画像サイズは1MB以下にしてください';
-      profileImageInput.value = '';
-      profileImageDisplay.src = '${userData.profileImage}';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, 64, 64);
-        profileImageDisplay.src = canvas.toDataURL('image/png');
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  } else {
-    profileImageDisplay.src = '${userData.profileImage}';
-  }
-});
-      
-              form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const handleName = document.getElementById('handleName').value.trim();
-                const bio = document.getElementById('bio').value.trim();
-                const profileImage = document.getElementById('profileImage').files[0];
-      
-                if (!handleName) {
-                  errorDiv.textContent = 'ハンドルネームは必須です';
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>プロフィール設定</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .error { color: red; }
+            img { max-width: 64px; max-height: 64px; }
+            label { display: block; margin: 10px 0; }
+            input, textarea { width: 100%; max-width: 300px; }
+            button { margin-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>プロフィール設定</h1>
+          <form id="profileForm" enctype="multipart/form-data">
+            <label>
+              ハンドルネーム（10文字まで）:
+              <input type="text" name="handleName" value="${userData.handleName || ''}" maxlength="10" required>
+            </label>
+            <label>
+              自己紹介（1000文字まで）:
+              <textarea name="bio" maxlength="1000">${userData.bio || ''}</textarea>
+            </label>
+            <label>
+              プロフィール画像（64x64、PNG/JPEG、1MB以下、1日5回まで）:
+              <input type="file" name="profileImage" accept="image/png,image/jpeg">
+              <img src="${userData.profileImage || '/default.png'}" alt="プロフィール画像" id="profileImageDisplay">
+            </label>
+            <div id="error" class="error"></div>
+            <button type="submit">保存</button>
+          </form>
+    
+          <script>
+            const form = document.getElementById('profileForm');
+            const profileImageInput = document.querySelector('input[name="profileImage"]');
+            const profileImageDisplay = document.getElementById('profileImageDisplay');
+            const errorDiv = document.getElementById('error');
+    
+            profileImageInput.addEventListener('change', (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (!['image/png', 'image/jpeg'].includes(file.type)) {
+                  errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
+                  profileImageInput.value = '';
+                  profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
                   return;
                 }
-      
-                const formData = new FormData();
-                formData.append('handleName', handleName);
-                formData.append('bio', bio);
-                if (profileImage) formData.append('profileImage', profileImage);
-      
-                try {
-                  const response = await fetch('/api/user/${userId}/update', {
-                    method: 'POST',
-                    body: formData
-                  });
-                  if (response.ok) {
-                    window.location.href = '/api/';
-                  } else {
-                    const errorText = await response.text();
-                    errorDiv.textContent = errorText;
-                  }
-                } catch (error) {
-                  errorDiv.textContent = 'エラー: ' + error.message;
+                if (file.size > 1 * 1024 * 1024) {
+                  errorDiv.textContent = '画像サイズは1MB以下にしてください';
+                  profileImageInput.value = '';
+                  profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
+                  return;
                 }
-              });
-            </script>
-          </body>
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 64, 64);
+                    profileImageDisplay.src = canvas.toDataURL('image/png');
+                  };
+                  img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+              } else {
+                profileImageDisplay.src = '${userData.profileImage || '/default.png'}';
+              }
+            });
+    
+            form.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const formData = new FormData(form);
+              try {
+                const response = await fetch('/api/user/${userId}/update', {
+                  method: 'POST',
+                  body: formData
+                });
+                if (response.ok) {
+                  window.location.href = '/api/user/${userId}';
+                } else {
+                  const errorText = await response.text();
+                  errorDiv.textContent = errorText;
+                }
+              } catch (error) {
+                errorDiv.textContent = 'エラーが発生しました';
+              }
+            });
+          </script>
+        </body>
         </html>
       `);
     }
@@ -2011,118 +2000,116 @@ app.get('/api/user/:userId/edit', async (req, res) => {
   const currentUser = req.user;
 
   if (!currentUser || currentUser.id !== userId) {
-    return res.redirect(`/api/user/${userId}`);
+    return res.status(403).send('権限がありません');
   }
 
-  try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
-      return res.status(404).send('ユーザーが見つかりません');
-    }
-
-    const userData = userSnap.data();
-    userData.handleName = userData.handleName || '';
-    userData.bio = userData.bio || '';
-    userData.profileImage = userData.profileImage || '/default.png';
-
-    res.send(`
-      <html>
-        <head>
-          <style>
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            .error { color: red; }
-            input, textarea { width: 100%; margin: 10px 0; }
-            .profile-image { max-width: 64px; max-height: 64px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>プロフィール編集</h1>
-            <form id="profileForm" enctype="multipart/form-data">
-              <label>ハンドルネーム（最大10文字）:
-                <input type="text" id="handleName" maxlength="10" value="${userData.handleName}" required>
-              </label>
-              <label>自己紹介（最大1000文字）:
-                <textarea id="bio" maxlength="1000">${userData.bio}</textarea>
-              </label>
-              <label>プロフィール画像（64x64、1日5回まで）:
-                <input type="file" id="profileImage" accept="image/*">
-                <img id="profileImageDisplay" class="profile-image" src="${userData.profileImage}" alt="プロフィール画像">
-              </label>
-              <p id="error" class="error"></p>
-              <button type="submit">保存</button>
-            </form>
-            <p><a href="/api/user/${userId}">キャンセル</a></p>
-          </div>
-          <script>
-            const form = document.getElementById('profileForm');
-            const profileImageInput = document.getElementById('profileImage');
-            const profileImageDisplay = document.getElementById('profileImageDisplay');
-            const errorDiv = document.getElementById('error');
-    
-            // 画像プレビュー
-            profileImageInput.addEventListener('change', (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const img = new Image();
-                  img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 64;
-                    canvas.height = 64;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, 64, 64);
-                    profileImageDisplay.src = canvas.toDataURL('image/png');
-                  };
-                  img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-              } else {
-                profileImageDisplay.src = '${userData.profileImage}';
-              }
-            });
-    
-            form.addEventListener('submit', async (e) => {
-              e.preventDefault();
-              const handleName = document.getElementById('handleName').value.trim();
-              const bio = document.getElementById('bio').value.trim();
-              const profileImage = document.getElementById('profileImage').files[0];
-    
-              if (!handleName) {
-                errorDiv.textContent = 'ハンドルネームは必須です';
-                return;
-              }
-    
-              const formData = new FormData();
-              formData.append('handleName', handleName);
-              formData.append('bio', bio);
-              if (profileImage) formData.append('profileImage', profileImage);
-    
-              try {
-                const response = await fetch('/api/user/${userId}/update', {
-                  method: 'POST',
-                  body: formData
-                });
-                if (response.ok) {
-                  window.location.href = '/api/user/${userId}';
-                } else {
-                  const errorText = await response.text();
-                  errorDiv.textContent = errorText;
-                }
-              } catch (error) {
-                errorDiv.textContent = 'エラー: ' + error.message;
-              }
-            });
-          </script>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('プロフィール編集ページエラー:', error);
-    res.status(500).send('エラーが発生しました');
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    return res.status(404).send('ユーザーが見つかりません');
   }
+
+  const userData = userSnap.data();
+
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>プロフィール編集</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; }
+        img { max-width: 64px; max-height: 64px; }
+        label { display: block; margin: 10px 0; }
+        input, textarea { width: 100%; max-width: 300px; }
+        button { margin-top: 10px; }
+      </style>
+    </head>
+    <body>
+      <h1>プロフィール編集</h1>
+      <form id="profileForm" enctype="multipart/form-data">
+        <label>
+          ハンドルネーム（10文字まで）:
+          <input type="text" name="handleName" value="${userData.handleName}" maxlength="10" required>
+        </label>
+        <label>
+          自己紹介（1000文字まで）:
+          <textarea name="bio" maxlength="1000">${userData.bio}</textarea>
+        </label>
+        <label>
+          プロフィール画像（64x64、PNG/JPEG、1MB以下、1日5回まで）:
+          <input type="file" name="profileImage" accept="image/png,image/jpeg">
+          <img src="${userData.profileImage}" alt="プロフィール画像" id="profileImageDisplay">
+        </label>
+        <div id="error" class="error"></div>
+        <button type="submit">保存</button>
+      </form>
+      <a href="/api/user/${userId}">戻る</a>
+
+      <script>
+        const form = document.getElementById('profileForm');
+        const profileImageInput = document.querySelector('input[name="profileImage"]');
+        const profileImageDisplay = document.getElementById('profileImageDisplay');
+        const errorDiv = document.getElementById('error');
+
+        profileImageInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            if (!['image/png', 'image/jpeg'].includes(file.type)) {
+              errorDiv.textContent = 'PNGまたはJPEG形式の画像を選択してください';
+              profileImageInput.value = '';
+              profileImageDisplay.src = '${userData.profileImage}';
+              return;
+            }
+            if (file.size > 1 * 1024 * 1024) {
+              errorDiv.textContent = '画像サイズは1MB以下にしてください';
+              profileImageInput.value = '';
+              profileImageDisplay.src = '${userData.profileImage}';
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, 64, 64);
+                profileImageDisplay.src = canvas.toDataURL('image/png');
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+          } else {
+            profileImageDisplay.src = '${userData.profileImage}';
+          }
+        });
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const formData = new FormData(form);
+          try {
+            const response = await fetch('/api/user/${userId}/update', {
+              method: 'POST',
+              body: formData
+            });
+            if (response.ok) {
+              window.location.href = '/api/user/${userId}';
+            } else {
+              const errorText = await response.text();
+              errorDiv.textContent = errorText;
+            }
+          } catch (error) {
+            errorDiv.textContent = 'エラーが発生しました';
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 // プロフィール更新
