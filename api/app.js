@@ -26,7 +26,6 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// 環境変数ログ（デバッグ用、一時的）
 console.log('環境変数確認:', {
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
@@ -34,15 +33,19 @@ console.log('環境変数確認:', {
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? '設定済み' : '未設定'
 });
 
-// Firebase Admin SDK初期化
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-  }),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
-});
+const serviceAccount = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+};
+
+// シングルトンで初期化
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+  });
+}
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
