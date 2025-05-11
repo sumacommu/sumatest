@@ -2586,10 +2586,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     `);
   } catch (error) {
     console.error('チームセットアップ画面エラー:', {
-      message: error.message,
-      ​​​​​​code: error.stack
+        message: error.message,
+        stack: error.stack,
+        code: error.code || 'N/A' // エラーコードが存在する場合のみログ
     });
-    res.status(500).send('エラーが発生しました');
+    res.status(500).send(`エラーが発生しました: ${error.message}`);
   }
 });
 
