@@ -2117,8 +2117,30 @@ app.post('/api/user/:userId/update', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
 
-  if (!currentUser || currentUser.id !== userId) {
-    return res.status(403).send('権限がありません');
+  // 認証状態のログ
+  console.log('プロフィール更新リクエスト:', {
+    userId,
+    currentUser: currentUser ? { id: currentUser.id, handleName: currentUser.handleName } : null,
+    sessionID: req.sessionID,
+    session: req.session,
+    body: {
+      handleName: req.body.handleName,
+      bio: req.body.bio,
+      hasProfileImage: !!req.files?.profileImage
+    }
+  });
+
+  if (!currentUser) {
+    console.error('認証エラー: ユーザーが認証されていません');
+    return res.status(401).send('認証が必要です。ログインしてください。');
+  }
+
+  if (currentUser.id !== userId) {
+    console.error('権限エラー: ユーザーIDが一致しません', {
+      requestedUserId: userId,
+      authenticatedUserId: currentUser.id
+    });
+    return res.status(403).send('自分のプロフィールのみ編集可能です');
   }
 
   try {
@@ -2140,11 +2162,9 @@ app.post('/api/user/:userId/update', async (req, res) => {
 
     // 画像フォーマットおよびサイズ制限
     if (profileImage) {
-      // フォーマット制限（PNG/JPEGのみ）
       if (!['image/png', 'image/jpeg'].includes(profileImage.mimetype)) {
         return res.status(400).send('PNGまたはJPEG形式の画像をアップロードしてください');
       }
-      // サイズ制限（1MB以下）
       if (profileImage.size > 1 * 1024 * 1024) {
         return res.status(400).send('画像サイズは1MB以下にしてください');
       }
@@ -2178,19 +2198,18 @@ app.post('/api/user/:userId/update', async (req, res) => {
         .toBuffer();
 
       try {
-        // メタデータ設定（公開アクセス用）
         await file.save(buffer, {
           metadata: {
             contentType: 'image/png',
             metadata: {
-              firebaseStorageDownloadTokens: Date.now() // 一意のトークン
+              firebaseStorageDownloadTokens: Date.now()
             }
           },
-          public: true // 公開アクセス
+          public: true
         });
         const [url] = await file.getSignedUrl({
           action: 'read',
-          expires: '03-09-2491' // 長期有効
+          expires: '03-09-2491'
         });
         updateData.profileImage = url;
         updateData.uploadCount = (userData.uploadCount || 0) + 1;
@@ -2200,11 +2219,13 @@ app.post('/api/user/:userId/update', async (req, res) => {
           code: storageError.code,
           stack: storageError.stack
         });
-        return res.status(500).send('画像アップロードに失敗しました。権限エラーまたはネットワークエラーが発生しています。');
+        return res.status(500).send('画像アップロードに失敗しました');
       }
     }
 
+    console.log('プロフィール更新データ:', updateData);
     await updateDoc(userRef, updateData);
+    console.log('プロフィール更新成功:', { userId, updateData });
     res.send('OK');
   } catch (error) {
     console.error('プロフィール更新エラー:', {
