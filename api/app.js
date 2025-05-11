@@ -2233,4 +2233,5 @@ app.get('/api/team', async (req, res) => {
   `);
 });
 
+
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
