@@ -2144,9 +2144,11 @@ app.post('/api/user/:userId/update', async (req, res) => {
   }
 
   try {
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) {
+    // firebase-admin の Firestore を使用
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
       return res.status(404).send('ユーザーが見つかりません');
     }
 
@@ -2174,7 +2176,7 @@ app.post('/api/user/:userId/update', async (req, res) => {
     const now = new Date();
     const lastReset = new Date(userData.lastUploadReset || now);
     if (lastReset.toDateString() !== now.toDateString()) {
-      await updateDoc(userRef, { uploadCount: 0, lastUploadReset: now.toISOString() });
+      await userRef.update({ uploadCount: 0, lastUploadReset: now.toISOString() });
       userData.uploadCount = 0;
     }
     if (profileImage && userData.uploadCount >= 5) {
@@ -2224,7 +2226,7 @@ app.post('/api/user/:userId/update', async (req, res) => {
     }
 
     console.log('プロフィール更新データ:', updateData);
-    await updateDoc(userRef, updateData);
+    await userRef.update(updateData);
     console.log('プロフィール更新成功:', { userId, updateData });
     res.send('OK');
   } catch (error) {
