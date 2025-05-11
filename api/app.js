@@ -499,7 +499,6 @@ app.get('/api/solo/cancel', async (req, res) => {
   }
 });
 
-// タイマン用マッチング処理
 app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
@@ -524,7 +523,8 @@ app.post('/api/solo/match', async (req, res) => {
       if (!guestData.roomId) continue;
       const guestRef = db.collection('users').doc(guestData.userId);
       const guestSnap = await guestRef.get();
-      const guestsoloRating = guestSnap.exists() ? (guestSnap.data().soloRating || 1500) : 1500;
+      // exists() メソッドを exists プロパティに変更
+      const guestsoloRating = guestSnap.exists ? (guestSnap.data().soloRating || 1500) : 1500;
       if (Math.abs(usersoloRating - guestsoloRating) <= 200) {
         await docSnap.ref.update({
           guestId: userId,
