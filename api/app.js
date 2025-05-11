@@ -215,9 +215,9 @@ passport.use(new GoogleStrategy({
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       const userData = {
-        handleName: '', // ハンドルネーム（初期値空）
-        bio: '', // 自己紹介文（初期値空）
-        profileImage: '/default.png', // デフォルト画像
+        handleName: '',
+        bio: '',
+        profileImage: '/default.png',
         email: profile.emails[0].value,
         createdAt: new Date().toISOString(),
         matchCount: 0,
@@ -225,8 +225,11 @@ passport.use(new GoogleStrategy({
         validReportCount: 0,
         penalty: false,
         soloRating: 1500,
-        uploadCount: 0, // 画像アップロード回数
-        lastUploadReset: new Date().toISOString() // アップロード制限リセット日
+        teamRating: 1500, // チーム用レーティング追加
+        uploadCount: 0,
+        lastUploadReset: new Date().toISOString(),
+        tagPartner: '', // タッグ相手のユーザーID（空文字はタッグなし）
+        tagStatus: 'none' // タッグ状態：none, requesting, tagged
       };
       await setDoc(userRef, userData);
       console.log('新規ユーザー登録成功:', profile.id, userData);
@@ -391,13 +394,27 @@ app.get('/api/solo', async (req, res) => {
         <p>待機中: ${waitingCount}人</p>
   `;
   if (req.user) {
-    const soloRating = req.user.soloRating || 1500;
-    html += `
-      <form action="/api/solo/match" method="POST">
-        <button type="submit">マッチング開始</button>
-      </form>
-      <p>現在のレート: ${soloRating}</p>
-    `;
+    const userRef = doc(db, 'users', req.user.id);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.data();
+    const soloRating = userData.soloRating || 1500;
+    if (userData.tagStatus !== 'none') {
+      html += `
+        <p>タッグを組んでいるためマッチングを開始できません</p>
+        <p>現在のレート: ${soloRating}</p>
+        <script>
+          document.querySelector('button[type="submit"]').disabled = true;
+          alert('タッグを組んでいるためマッチングを開始できません');
+        </script>
+      `;
+    } else {
+      html += `
+        <form action="/api/solo/match" method="POST">
+          <button type="submit">マッチング開始</button>
+        </form>
+        <p>現在のレート: ${soloRating}</p>
+      `;
+    }
   } else {
     html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
   }
@@ -1805,8 +1822,15 @@ app.get('/api/user/:userId', async (req, res) => {
       `);
     }
 
-    const userData = userSnap.data();
-    // 既存ユーザー向けデフォルト値
+    let userData = userSnap.data();
+    const updates = {};
+    if (userData.teamRating === undefined) updates.teamRating = 1500;
+    if (userData.tagPartner === undefined) updates.tagPartner = '';
+    if (userData.tagStatus === undefined) updates.tagStatus = 'none';
+    if (Object.keys(updates).length > 0) {
+      await updateDoc(userRef, updates);
+      userData = { ...userData, ...updates };
+    }
     userData.handleName = userData.handleName || '';
     userData.bio = userData.bio || '';
     userData.profileImage = userData.profileImage || '/default.png';
@@ -1916,6 +1940,33 @@ app.get('/api/user/:userId', async (req, res) => {
         </html>
       `);
     }
+    
+    // タッグボタンのロジック
+    let tagButton = '';
+    if (currentUser && !isOwnProfile) {
+      const currentUserRef = doc(db, 'users', currentUser.id);
+      const currentUserSnap = await getDoc(currentUserRef);
+      const currentUserData = currentUserSnap.data();
+      if (currentUserData.tagStatus === 'none' && userData.tagStatus === 'none') {
+        tagButton = `
+          <form action="/api/user/${userId}/tag" method="POST">
+            <button type="submit">タッグを組む</button>
+          </form>
+        `;
+      } else if (
+        (currentUserData.tagStatus === 'requesting' && currentUserData.tagPartner === userId) ||
+        (userData.tagStatus === 'requesting' && userData.tagPartner === currentUser.id) ||
+        (currentUserData.tagStatus === 'tagged' && currentUserData.tagPartner === userId)
+      ) {
+        tagButton = `
+          <form action="/api/user/${userId}/untag" method="POST">
+            <button type="submit">タッグを解除する</button>
+          </form>
+        `;
+      } else {
+        tagButton = '<p>タッグを組めません（既に他のタッグが存在します）</p>';
+      }
+    }
 
     // マッチング履歴の取得
     const matchesRef = collection(db, 'matches');
@@ -1959,7 +2010,9 @@ app.get('/api/user/:userId', async (req, res) => {
             <h1>${userData.handleName || '未設定'}のプロフィール</h1>
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p>自己紹介: ${userData.bio || '未設定'}</p>
-            <p>レート: ${userData.soloRating}</p>
+            <p>ソロレート: ${userData.soloRating}</p>
+            <p>チームレート: ${userData.teamRating}</p>
+            ${tagButton}
             ${isOwnProfile ? `
               <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
               <p><a href="/api/logout">ログアウト</a></p>
@@ -2241,16 +2294,151 @@ app.post('/api/user/:userId/update', async (req, res) => {
 
 // チーム用ページ（仮）
 app.get('/api/team', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.send(`
+      <html>
+        <body>
+          <h1>チーム用ページ</h1>
+          <p>ログインが必要です</p>
+          <p><a href="/api/auth/google?redirect=/api/team">Googleでログイン</a></p>
+          <p><a href="/api/">戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  const userId = req.user.id;
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.data();
+
+  if (userData.tagStatus !== 'tagged') {
+    return res.send(`
+      <html>
+        <body>
+          <h1>チーム用ページ</h1>
+          <p>タッグを組んでいる相手が必要です</p>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </body>
+      </html>
+    `);
+  }
+
+  const partnerRef = doc(db, 'users', userData.tagPartner);
+  const partnerSnap = await getDoc(partnerRef);
+  const partnerData = partnerSnap.data();
+
+  const matchesRef = collection(db, 'matches');
+  const waitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
+  const waitingSnapshot = await getDocs(waitingQuery);
+  const waitingCount = waitingSnapshot.size;
+
   res.send(`
     <html>
+      <head>
+        <style>
+          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+        </style>
+      </head>
       <body>
-        <h1>チーム用ページ</h1>
-        <p>準備中です</p>
-        <p><a href="/api/">戻る</a></p>
+        <div class="container">
+          <h1>チーム用ページ</h1>
+          <p>タッグ相手: ${partnerData.handleName}</p>
+          <p>あなたのチームレート: ${userData.teamRating}</p>
+          <p>タッグ相手のチームレート: ${partnerData.teamRating}</p>
+          <p>待機中: ${waitingCount}チーム</p>
+          <form action="/api/team/match" method="POST">
+            <button type="submit">マッチング開始</button>
+          </form>
+          <p><a href="/api/">戻る</a></p>
+        </div>
       </body>
     </html>
   `);
 });
 
+// タッグを組む
+app.post('/api/user/:userId/tag', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).send('ログインが必要です');
+  }
+  const currentUserId = req.user.id;
+  const targetUserId = req.params.userId;
+  if (currentUserId === targetUserId) {
+    return res.status(400).send('自分自身とタッグを組むことはできません');
+  }
+
+  try {
+    const currentUserRef = doc(db, 'users', currentUserId);
+    const targetUserRef = doc(db, 'users', targetUserId);
+    const [currentUserSnap, targetUserSnap] = await Promise.all([
+      getDoc(currentUserRef),
+      getDoc(targetUserRef)
+    ]);
+
+    if (!targetUserSnap.exists()) {
+      return res.status(404).send('対象ユーザーが見つかりません');
+    }
+
+    const currentUserData = currentUserSnap.data();
+    const targetUserData = targetUserSnap.data();
+
+    if (currentUserData.tagStatus !== 'none' || targetUserData.tagStatus !== 'none') {
+      return res.status(400).send('既にタッグを組んでいるか、リクエスト中です');
+    }
+
+    await Promise.all([
+      updateDoc(currentUserRef, { tagPartner: targetUserId, tagStatus: 'requesting' }),
+      updateDoc(targetUserRef, { tagPartner: currentUserId, tagStatus: 'requesting' })
+    ]);
+
+    res.redirect(`/api/user/${targetUserId}`);
+  } catch (error) {
+    console.error('タッグエラー:', error);
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
+
+// タッグを解除する
+app.post('/api/user/:userId/untag', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).send('ログインが必要です');
+  }
+  const currentUserId = req.user.id;
+  const targetUserId = req.params.userId;
+
+  try {
+    const currentUserRef = doc(db, 'users', currentUserId);
+    const targetUserRef = doc(db, 'users', targetUserId);
+    const [currentUserSnap, targetUserSnap] = await Promise.all([
+      getDoc(currentUserRef),
+      getDoc(targetUserRef)
+    ]);
+
+    if (!targetUserSnap.exists()) {
+      return res.status(404).send('対象ユーザーが見つかりません');
+    }
+
+    const currentUserData = currentUserSnap.data();
+    const targetUserData = targetUserSnap.data();
+
+    if (
+      (currentUserData.tagPartner !== targetUserId || targetUserData.tagPartner !== currentUserId) ||
+      (currentUserData.tagStatus === 'none' || targetUserData.tagStatus === 'none')
+    ) {
+      return res.status(400).send('タッグが存在しません');
+    }
+
+    await Promise.all([
+      updateDoc(currentUserRef, { tagPartner: '', tagStatus: 'none' }),
+      updateDoc(targetUserRef, { tagPartner: '', tagStatus: 'none' })
+    ]);
+
+    res.redirect(`/api/user/${targetUserId}`);
+  } catch (error) {
+    console.error('タッグ解除エラー:', error);
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
