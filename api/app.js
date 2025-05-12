@@ -2534,152 +2534,159 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-          <script>
-            var firebaseConfig = {
-              apiKey: "${process.env.FIREBASE_API_KEY}",
-              authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
-              projectId: "${process.env.FIREBASE_PROJECT_ID}",
-              storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
-              messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
-              appId: "${process.env.FIREBASE_APP_ID}",
-              measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
-            };
-            firebase.initializeApp(firebaseConfig);
-            var db = firebase.firestore();
+<script>
+  var firebaseConfig = {
+    apiKey: "${process.env.FIREBASE_API_KEY}",
+    authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+    projectId: "${process.env.FIREBASE_PROJECT_ID}",
+    storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+    messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+    appId: "${process.env.FIREBASE_APP_ID}",
+    measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var db = firebase.firestore();
 
-            // 結果送信
-            async function submitResult(result) {
-              try {
-                const response = await fetch('/api/team/setup/${matchId}', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ result })
-                });
-                if (!response.ok) {
-                  alert('結果の送信に失敗しました: ' + await response.text());
-                }
-              } catch (error) {
-                alert('ネットワークエラー: ' + error.message);
-              }
-            }
+  // 結果送信
+  async function submitResult(result) {
+    try {
+      const response = await fetch('/api/team/setup/${matchId}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result })
+      });
+      if (!response.ok) {
+        alert('結果の送信に失敗しました: ' + await response.text());
+      }
+    } catch (error) {
+      alert('ネットワークエラー: ' + error.message);
+    }
+  }
 
-            // チャット送信
-            async function sendChat() {
-              const textarea = document.getElementById('chatInput');
-              const message = textarea.value.trim();
-              if (!message) return;
-              try {
-                const response = await fetch('/api/team/setup/${matchId}/chat', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ message })
-                });
-                if (!response.ok) {
-                  alert('チャット送信に失敗しました: ' + await response.text());
-                } else {
-                  textarea.value = '';
-                  updateCharCount();
-                }
-              } catch (error) {
-                alert('ネットワークエラー: ' + error.message);
-              }
-            }
+  // チャット送信
+  async function sendChat() {
+    const textarea = document.getElementById('chatInput');
+    const message = textarea.value.trim();
+    if (!message) return;
+    try {
+      const response = await fetch('/api/team/setup/${matchId}/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      if (!response.ok) {
+        alert('チャット送信に失敗しました: ' + await response.text());
+      } else {
+        textarea.value = '';
+        updateCharCount();
+      }
+    } catch (error) {
+      alert('ネットワークエラー: ' + error.message);
+    }
+  }
 
-            // 文字数カウンター
-            function updateCharCount() {
-              const textarea = document.getElementById('chatInput');
-              const charCount = document.getElementById('charCount');
-              const count = textarea.value.length;
-              charCount.innerText = count + '/500';
-              if (count > 500) {
-                charCount.style.color = 'red';
-                textarea.value = textarea.value.substring(0, 500);
-                charCount.innerText = '500/500';
-              } else {
-                charCount.style.color = '#555';
-              }
-            }
+  // 文字数カウンター
+  function updateCharCount() {
+    const textarea = document.getElementById('chatInput');
+    const charCount = document.getElementById('charCount');
+    const count = textarea.value.length;
+    charCount.innerText = count + '/500';
+    if (count > 500) {
+      charCount.style.color = 'red';
+      textarea.value = textarea.value.substring(0, 500);
+      charCount.innerText = '500/500';
+    } else {
+      charCount.style.color = '#555';
+    }
+  }
 
-            // 結果とレートの更新
-            db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
-              if (!doc.exists) {
-                alert('マッチが終了しました。');
-                return;
-              }
-              const data = doc.data();
-              const hostChoices = data.hostChoices || {};
-              const guestChoices = data.guestChoices || {};
-              const isHost = ${isHost};
-              const hostResult = hostChoices.result || '対戦中';
-              const guestResult = guestChoices.result || '対戦中';
-              const hostRatingElement = document.getElementById('hostRating');
-              const guestRatingElement = document.getElementById('guestRating');
-              const hostResultElement = document.getElementById('hostResult');
-              const guestResultElement = document.getElementById('guestResult');
-              const buttons = document.querySelectorAll('.result-btn');
+  // 結果とレートの更新
+  db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
+    if (!doc.exists) {
+      alert('マッチが終了しました。');
+      return;
+    }
+    const data = doc.data();
+    const hostChoices = data.hostChoices || {};
+    const guestChoices = data.guestChoices || {};
+    const isHost = ${isHost};
+    const hostResult = hostChoices.result || '対戦中';
+    const guestResult = guestChoices.result || '対戦中';
+    const hostRatingElement = document.getElementById('hostRating');
+    const guestRatingElement = document.getElementById('guestRating');
+    const hostResultElement = document.getElementById('hostResult');
+    const guestResultElement = document.getElementById('guestResult');
+    const buttons = document.querySelectorAll('.result-btn');
 
-              // 結果表示の更新（日本語変換）
-              const resultMap = {
-                'win': '勝ち',
-                'lose': '負け',
-                'cancel': '対戦中止',
-                '対戦中': '対戦中'
-              };
-              hostResultElement.innerText = '状態: ' + resultMap[hostResult];
-              guestResultElement.innerText = '状態: ' + resultMap[guestResult];
+    // 結果表示の更新（日本語変換）
+    const resultMap = {
+      'win': '勝ち',
+      'lose': '負け',
+      'cancel': '対戦中止',
+      '対戦中': '対戦中'
+    };
+    hostResultElement.innerText = '状態: ' + resultMap[hostResult];
+    guestResultElement.innerText = '状態: ' + resultMap[guestResult];
 
-              // ボタン制御
-              const isValidResult = 
-                (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
-                (hostChoices.result === 'lose' && guestChoices.result === 'win') ||
-                (hostChoices.result === 'cancel' && guestChoices.result === 'cancel');
-              buttons.forEach(btn => {
-                if (isValidResult) {
-                  btn.classList.add('disabled');
-                  btn.style.pointerEvents = 'none';
-                  btn.style.cursor = 'not-allowed';
-                } else {
-                  btn.classList.remove('disabled');
-                  btn.style.pointerEvents = 'auto';
-                  btn.style.cursor = 'pointer';
-                }
-              });
+    // ボタン制御
+    const isValidResult = 
+      (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
+      (hostChoices.result === 'lose' && guestChoices.result === 'win') ||
+      (hostChoices.result === 'cancel' && guestChoices.result === 'cancel');
+    buttons.forEach(btn => {
+      if (isValidResult) {
+        btn.classList.add('disabled');
+        btn.style.pointerEvents = 'none';
+        btn.style.cursor = 'not-allowed';
+      } else {
+        btn.classList.remove('disabled');
+        btn.style.pointerEvents = 'auto';
+        btn.style.cursor = 'pointer';
+      }
+    });
 
-              // レート更新（マッチ終了時）
-              if (data.status === 'finished' && data.teamRatingChanges) {
-                const hostRatingChange = data.teamRatingChanges['${hostId}'] || 0;
-                const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
-                const newHostRating = ${hostTeamRating} + hostRatingChange;
-                const newGuestRating = ${guestTeamRating} + guestRatingChange;
-                hostRatingElement.innerText = 'レート: ' + newHostRating;
-                guestRatingElement.innerText = 'レート: ' + newGuestRating;
-              } else {
-                hostRatingElement.innerText = 'レート: ${hostTeamRating}';
-                guestRatingElement.innerText = 'レート: ${guestTeamRating}';
-              }
-            });
+    // レート更新（マッチ終了時）
+    if (data.status === 'finished' && data.teamRatingChanges) {
+      const hostRatingChange = data.teamRatingChanges['${hostId}'] || 0;
+      const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
+      const newHostRating = ${hostTeamRating} + hostRatingChange;
+      const newGuestRating = ${guestTeamRating} + guestRatingChange;
+      hostRatingElement.innerText = 'レート: ' + newHostRating;
+      guestRatingElement.innerText = 'レート: ' + newGuestRating;
+    } else {
+      hostRatingElement.innerText = 'レート: ${hostTeamRating}';
+      guestRatingElement.innerText = 'レート: ${guestTeamRating}';
+    }
+  }, (error) => {
+    console.error('マッチスナップショットエラー:', error);
+    alert('マッチデータの取得に失敗しました: ' + error.message);
+  });
 
-            // チャットメッセージのリアルタイム更新
-            db.collection('matches').doc('${matchId}').collection('chats')
-              .orderBy('timestamp', 'desc').limit(20)
-              .onSnapshot((snapshot) => {
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = '';
-                snapshot.forEach(doc => {
-                  const data = doc.data();
-                  const messageDiv = document.createElement('div');
-                  messageDiv.className = 'chat-message';
-                  const time = new Date(data.timestamp).toLocaleTimeString();
-                  messageDiv.innerHTML = \`
-                    <span class="timestamp">[\${time}]</span>
-                    <strong>\${data.handleName}:</strong>
-                    \${data.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-                  \`;
-                  chatMessages.insertBefore(messageDiv, chatMessages.firstChild);
-                });
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-              });
-          </script>
+  // チャットメッセージのリアルタイム更新
+  db.collection('matches').doc('${matchId}').collection('chats')
+    .orderBy('timestamp', 'desc').limit(20)
+    .onSnapshot((snapshot) => {
+      const chatMessages = document.getElementById('chatMessages');
+      chatMessages.innerHTML = '';
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message';
+        const time = new Date(data.timestamp).toLocaleTimeString();
+        messageDiv.innerHTML = \`
+          <span class="timestamp">[\${time}]</span>
+          <strong>\${data.handleName}:</strong>
+          \${data.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        \`;
+        chatMessages.insertBefore(messageDiv, chatMessages.firstChild);
+      });
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, (error) => {
+      console.error('チャットスナップショットエラー:', error);
+      const chatMessages = document.getElementById('chatMessages');
+      chatMessages.innerHTML = '<p>チャットの読み込みに失敗しました: ' + error.message + '</p>';
+    });
+</script>
         </head>
         <body>
           <div class="match-container">
@@ -2814,13 +2821,18 @@ app.post('/api/team/setup/:matchId/chat', async (req, res) => {
   const userId = req.user?.id;
   const { message } = req.body;
 
+  console.log('チャット送信リクエスト:', { matchId, userId, messageLength: message?.length });
+
   if (!userId) {
+    console.error('認証エラー: ユーザーIDが存在しません');
     return res.status(401).send('認証が必要です');
   }
   if (!message || typeof message !== 'string') {
+    console.error('メッセージ無効:', { message });
     return res.status(400).send('メッセージが無効です');
   }
   if (message.length > 500) {
+    console.error('文字数超過:', { length: message.length });
     return res.status(400).send('メッセージは500文字以内にしてください');
   }
 
@@ -2829,10 +2841,13 @@ app.post('/api/team/setup/:matchId/chat', async (req, res) => {
     const matchRef = db.collection('matches').doc(matchId);
     const matchSnap = await matchRef.get();
     if (!matchSnap.exists) {
+      console.error('マッチが見つかりません:', { matchId });
       return res.status(404).send('マッチが見つかりません');
     }
     const matchData = matchSnap.data();
+    console.log('マッチデータ:', { userId: matchData.userId, guestId: matchData.guestId });
     if (matchData.userId !== userId && matchData.guestId !== userId) {
+      console.error('権限エラー: ユーザーはマッチに参加していません', { userId, matchId });
       return res.status(403).send('このマッチに参加していません');
     }
 
@@ -2848,9 +2863,11 @@ app.post('/api/team/setup/:matchId/chat', async (req, res) => {
 
     // 全体制限チェック
     if (totalMessages >= 100) {
+      console.error('メッセージ上限到達:', { totalMessages });
       return res.status(400).send('この対戦ルームのメッセージ上限（100件）に達しました');
     }
     if (totalChars + message.length > 10000) {
+      console.error('文字数上限到達:', { totalChars, additional: message.length });
       return res.status(400).send('この対戦ルームの文字数上限（10,000文字）に達しました');
     }
 
@@ -2864,10 +2881,11 @@ app.post('/api/team/setup/:matchId/chat', async (req, res) => {
     const oneMinute = 60 * 1000;
 
     if (now - lastReset > oneMinute) {
-      // リセット
+      console.log('送信制限リセット:', { userId, matchId });
       limitData = { lastReset: now.toISOString(), sendCount: 0 };
     }
     if (limitData.sendCount >= 10) {
+      console.error('送信回数上限到達:', { userId, sendCount: limitData.sendCount });
       return res.status(429).send('1分間の送信上限（10回）に達しました。しばらくお待ちください');
     }
 
