@@ -2513,7 +2513,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
             .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
-            .player-info img { width: 64px; height: 64px; margin: 5px; }
+            .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
+            .player-info h2 { font-size: 1.2em; margin: 10px 0; }
             .button-group { text-align: center; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
@@ -2569,9 +2570,15 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               const guestResultElement = document.getElementById('guestResult');
               const buttons = document.querySelectorAll('.result-btn');
 
-              // 結果表示の更新
-              hostResultElement.innerText = '選択: ' + hostResult;
-              guestResultElement.innerText = '選択: ' + guestResult;
+              // 結果表示の更新（日本語変換）
+              const resultMap = {
+                'win': '勝ち',
+                'lose': '負け',
+                'cancel': '対戦中止',
+                '対戦中': '対戦中'
+              };
+              hostResultElement.innerText = '状態: ' + resultMap[hostResult];
+              guestResultElement.innerText = '状態: ' + resultMap[guestResult];
 
               // ボタン制御
               const isValidResult = 
@@ -2594,11 +2601,13 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               if (data.status === 'finished' && data.teamRatingChanges) {
                 const hostRatingChange = data.teamRatingChanges['${hostId}'] || 0;
                 const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
-                hostRatingElement.innerText = 'チームレート: ${hostTeamRating} (' + (hostRatingChange >= 0 ? '+' : '') + hostRatingChange + ')';
-                guestRatingElement.innerText = 'チームレート: ${guestTeamRating} (' + (guestRatingChange >= 0 ? '+' : '') + guestRatingChange + ')';
+                const newHostRating = ${hostTeamRating} + hostRatingChange;
+                const newGuestRating = ${guestTeamRating} + guestRatingChange;
+                hostRatingElement.innerText = 'レート: ' + newHostRating;
+                guestRatingElement.innerText = 'レート: ' + newGuestRating;
               } else {
-                hostRatingElement.innerText = 'チームレート: ${hostTeamRating}';
-                guestRatingElement.innerText = 'チームレート: ${guestTeamRating}';
+                hostRatingElement.innerText = 'レート: ${hostTeamRating}';
+                guestRatingElement.innerText = 'レート: ${guestTeamRating}';
               }
             });
           </script>
@@ -2608,16 +2617,14 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
             <div class="player-table">
               <div class="player-info">
-                <h2>${hostName}</h2>
-                <img src="${hostProfileImage}" alt="${hostName}のプロフィール画像">
-                <p id="hostRating">チームレート: ${hostTeamRating}</p>
-                <p id="hostResult">選択: 対戦中</p>
+                <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
+                <p id="hostRating">レート: ${hostTeamRating}</p>
+                <p id="hostResult">状態: 対戦中</p>
               </div>
               <div class="player-info">
-                <h2>${guestName}</h2>
-                <img src="${guestProfileImage}" alt="${guestName}のプロフィール画像">
-                <p id="guestRating">チームレート: ${guestTeamRating}</p>
-                <p id="guestResult">選択: 対戦中</p>
+                <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
+                <p id="guestRating">レート: ${guestTeamRating}</p>
+                <p id="guestResult">状態: 対戦中</p>
               </div>
             </div>
             <div class="button-group">
