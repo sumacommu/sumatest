@@ -2698,8 +2698,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
               </div>
               <div class="chat-controls">
-                <button onclick="sendMessage()">送信</button>
                 <span id="charCount">0/500</span>
+                <button onclick="sendMessage()">送信</button>
               </div>
             </div>
             <div class="button-group">
