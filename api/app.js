@@ -2548,8 +2548,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             var guestName = "${guestName}";
             var hostTeamRating = ${hostTeamRating};
             var guestTeamRating = ${guestTeamRating};
-            var messageCount = 0;
-            var lastReset = Date.now();
 
             async function submitResult(result) {
               try {
@@ -2574,24 +2572,16 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 alert('メッセージは500文字以内にしてください。');
                 return;
               }
-              // レートリミットチェック
-              const now = Date.now();
-              if (now - lastReset > 60000) {
-                messageCount = 0;
-                lastReset = now;
-              }
-              if (messageCount >= 10) {
-                alert('1分間に送信できるメッセージは10件までです。');
-                return;
-              }
               try {
-                await db.collection('matches').doc('${matchId}').collection('messages').add({
-                  userId: userId,
-                  handleName: isHost ? hostName : guestName,
-                  message: message,
-                  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                const response = await fetch('/api/team/setup/${matchId}/message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ message })
                 });
-                messageCount++;
+                if (!response.ok) {
+                  alert('メッセージ送信エラー: ' + await response.text());
+                  return;
+                }
                 messageInput.value = '';
               } catch (error) {
                 console.error('チャット送信エラー:', error);
@@ -2835,7 +2825,7 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
     }
 
     // レートリミットチェック
-    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+    const oneMinuteAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60000);
     const messagesRef = matchRef.collection('messages');
     const recentMessagesQuery = messagesRef
       .where('userId', '==', userId)
@@ -2855,7 +2845,7 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       userId: userId,
       handleName: handleName,
       message: message,
-      timestamp: new Date().toISOString()
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
     res.send('OK');
