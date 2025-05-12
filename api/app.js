@@ -819,6 +819,53 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             .button-group {
               text-align: center;
             }
+            .chat-container {
+              margin: 20px 0;
+              border: 1px solid #ccc;
+              border-radius: 5px;
+              padding: 10px;
+            }
+            .chat-log {
+              max-height: 200px;
+              overflow-y: auto;
+              border-bottom: 1px solid #ccc;
+              margin-bottom: 10px;
+              padding: 10px;
+            }
+            .chat-message {
+              margin: 5px 0;
+            }
+            .chat-message .sender {
+              font-weight: bold;
+              margin-right: 5px;
+            }
+            .chat-message .message-time {
+              color: #888;
+              font-size: 0.9em;
+              margin-left: 5px;
+            }
+            .chat-input {
+              width: 100%;
+              margin-bottom: 10px;
+            }
+            .chat-input textarea {
+              width: 100%;
+              height: 50px;
+              resize: none;
+            }
+            .chat-controls {
+              display: flex;
+              align-items: center;
+              justify-content: flex-end;
+            }
+            .chat-controls button {
+              width: 100px;
+              margin-left: 10px;
+            }
+            .char-count {
+              font-size: 0.9em;
+              margin-left: 10px;
+            }
             @media (max-width: 768px) {
               .player-table {
                 flex-direction: column;
@@ -834,6 +881,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               .stage-btn {
                 flex: 0 0 calc((100% - 10px) / 2);
               }
+              .chat-controls button {
+                width: 80px;
+              }                
             }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -1244,6 +1294,41 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
 
+            async function sendMessage() {
+              const messageInput = document.getElementById('messageInput');
+              const message = messageInput.value.trim();
+              if (!message) return;
+              try {
+                const response = await fetch('/api/solo/setup/${matchId}/message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ message })
+                });
+                if (!response.ok) {
+                  alert('メッセージ送信に失敗しました: ' + await response.text());
+                  return;
+                }
+                messageInput.value = '';
+                updateCharCount();
+              } catch (error) {
+                alert('ネットワークエラー: ' + error.message);
+              }
+            }
+
+            function updateCharCount() {
+              const messageInput = document.getElementById('messageInput');
+              const charCount = document.getElementById('charCount');
+              const length = messageInput.value.length;
+              charCount.innerText = length + '/500';
+              if (length > 500) {
+                charCount.style.color = 'red';
+                messageInput.value = messageInput.value.slice(0, 500);
+                charCount.innerText = '500/500';
+              } else {
+                charCount.style.color = 'black';
+              }
+            }
+
             function updateMatchHistory() {
               const matchHistory = document.getElementById('matchHistory');
               if (!matchHistory) return;
@@ -1505,6 +1590,24 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 updateMatchHistory();
               }
             );
+
+            db.collection('matches').doc('${matchId}').collection('messages')
+              .orderBy('timestamp', 'asc')
+              .onSnapshot((snapshot) => {
+                const chatLog = document.getElementById('chatLog');
+                chatLog.innerHTML = '';
+                snapshot.forEach((doc) => {
+                  const msg = doc.data();
+                  const messageElement = document.createElement('div');
+                  messageElement.className = 'chat-message';
+                  messageElement.innerHTML = 
+                    '<span class="sender">' + msg.handleName + ':</span>' + 
+                    msg.message.replace(/\\n/g, '<br>') + 
+                    '<span class="message-time">' + msg.time + '</span>';
+                  chatLog.appendChild(messageElement);
+                });
+                chatLog.scrollTop = chatLog.scrollHeight;
+              });
           </script>
         </head>
         <body>
@@ -1573,6 +1676,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
               <p><a href="/api/solo">戻る</a></p>
+            </div>
+            <div class="chat-container">
+              <div class="chat-log" id="chatLog"></div>
+              <div class="chat-input">
+                <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
+              </div>
+              <div class="chat-controls">
+                <span id="charCount">0/500</span>
+                <button onclick="sendMessage()">送信</button>
+             </div>
             </div>
           </div>
         </body>
@@ -1726,6 +1839,94 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       message: error.message,
       code: error.code,
       stack: error.stack
+    });
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
+
+app.post('/api/solo/setup/:matchId/message', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  const { message } = req.body;
+
+  if (!userId) {
+    return res.status(401).send('認証が必要です');
+  }
+  if (!message || typeof message !== 'string') {
+    return res.status(400).send('メッセージが必要です');
+  }
+  if (message.length > 500) {
+    return res.status(400).send('メッセージは500文字以内にしてください');
+  }
+
+  try {
+    const db = admin.firestore();
+    const matchRef = db.collection('matches').doc(matchId);
+    const userLimitRef = matchRef.collection('userLimits').doc(userId);
+    const messagesRef = matchRef.collection('messages');
+
+    // マッチの存在確認
+    const matchSnap = await matchRef.get();
+    if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
+      return res.status(403).send('このマッチにアクセスする権限がありません');
+    }
+
+    // ルーム全体の制限チェック
+    const matchData = matchSnap.data();
+    const totalMessages = matchData.totalMessages || 0;
+    const totalChars = matchData.totalChars || 0;
+    if (totalMessages >= 100) {
+      return res.status(400).send('このルームのメッセージ回数上限（100回）に達しました');
+    }
+    if (totalChars + message.length > 10000) {
+      return res.status(400).send('このルームの文字数上限（10,000文字）に達しました');
+    }
+
+    // ユーザーごとの制限チェック
+    const userLimitSnap = await userLimitRef.get();
+    let userLimitData = userLimitSnap.exists ? userLimitSnap.data() : { messageCount: 0, lastReset: null, totalChars: 0 };
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+
+    if (!userLimitData.lastReset || new Date(userLimitData.lastReset) < oneMinuteAgo) {
+      userLimitData = { messageCount: 0, lastReset: now.toISOString(), totalChars: userLimitData.totalChars };
+    }
+    if (userLimitData.messageCount >= 10) {
+      return res.status(400).send('1分間の送信回数上限（10回）に達しました。しばらくお待ちください');
+    }
+
+    // JSTで送信時間（hh:mm）を生成
+    const jstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
+
+    // メッセージ保存
+    const userSnap = await db.collection('users').doc(userId).get();
+    const handleName = userSnap.data()?.handleName || '不明';
+    await messagesRef.add({
+      userId,
+      handleName,
+      message,
+      timestamp: now.toISOString(),
+      time: jstTime
+    });
+
+    // 制限データの更新
+    await userLimitRef.set({
+      messageCount: userLimitData.messageCount + 1,
+      lastReset: userLimitData.lastReset,
+      totalChars: userLimitData.totalChars + message.length
+    }, { merge: true });
+
+    await matchRef.update({
+      totalMessages: totalMessages + 1,
+      totalChars: totalChars + message.length
+    });
+
+    res.send('OK');
+  } catch (error) {
+    console.error('メッセージ送信エラー:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
     });
     res.status(500).send(`エラー: ${error.message}`);
   }
