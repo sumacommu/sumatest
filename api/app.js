@@ -2642,6 +2642,9 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 hostRatingDisplay.innerText = 'チームレート: ' + hostTeamRating;
                 guestRatingDisplay.innerText = 'チームレート: ' + guestTeamRating;
               }
+            }, (error) => {
+              console.error('マッチリスナーエラー:', error);
+              alert('マッチデータ取得エラー: ' + error.message);
             });
 
             // チャットメッセージのリアルタイム更新
@@ -2659,6 +2662,9 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                   chatMessages.appendChild(messageDiv);
                   chatMessages.scrollTop = chatMessages.scrollHeight;
                 });
+              }, (error) => {
+                console.error('チャットリスナーエラー:', error);
+                alert('チャットデータ取得エラー: ' + error.message);
               });
           </script>
         </head>
