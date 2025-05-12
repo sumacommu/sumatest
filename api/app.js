@@ -2515,12 +2515,21 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
             .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
             .player-info h2 { font-size: 1.2em; margin: 10px 0; }
-            .button-group { text-align: center; }
+            .button-group { text-align: center; margin-bottom: 20px; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+            .chat-container { border: 1px solid #ccc; border-radius: 5px; padding: 10px; margin-top: 20px; }
+            .chat-messages { max-height: 300px; overflow-y: auto; margin-bottom: 10px; padding: 10px; background: #f9f9f9; }
+            .chat-message { margin: 5px 0; }
+            .chat-message .timestamp { color: #888; font-size: 0.8em; }
+            .chat-input { display: flex; align-items: center; }
+            .chat-input textarea { flex-grow: 1; resize: none; height: 40px; margin-right: 10px; }
+            .chat-input button { padding: 10px 20px; cursor: pointer; }
+            .char-count { font-size: 0.9em; color: #555; margin-left: 10px; }
             @media (max-width: 768px) {
               .player-table { flex-direction: column; align-items: center; }
               .player-info { width: 100%; margin-bottom: 10px; }
+              .chat-messages { max-height: 200px; }
             }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -2538,6 +2547,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             firebase.initializeApp(firebaseConfig);
             var db = firebase.firestore();
 
+            // 結果送信
             async function submitResult(result) {
               try {
                 const response = await fetch('/api/team/setup/${matchId}', {
@@ -2553,6 +2563,44 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               }
             }
 
+            // チャット送信
+            async function sendChat() {
+              const textarea = document.getElementById('chatInput');
+              const message = textarea.value.trim();
+              if (!message) return;
+              try {
+                const response = await fetch('/api/team/setup/${matchId}/chat', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ message })
+                });
+                if (!response.ok) {
+                  alert('チャット送信に失敗しました: ' + await response.text());
+                } else {
+                  textarea.value = '';
+                  updateCharCount();
+                }
+              } catch (error) {
+                alert('ネットワークエラー: ' + error.message);
+              }
+            }
+
+            // 文字数カウンター
+            function updateCharCount() {
+              const textarea = document.getElementById('chatInput');
+              const charCount = document.getElementById('charCount');
+              const count = textarea.value.length;
+              charCount.innerText = count + '/500';
+              if (count > 500) {
+                charCount.style.color = 'red';
+                textarea.value = textarea.value.substring(0, 500);
+                charCount.innerText = '500/500';
+              } else {
+                charCount.style.color = '#555';
+              }
+            }
+
+            // 結果とレートの更新
             db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
               if (!doc.exists) {
                 alert('マッチが終了しました。');
@@ -2610,6 +2658,27 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 guestRatingElement.innerText = 'レート: ${guestTeamRating}';
               }
             });
+
+            // チャットメッセージのリアルタイム更新
+            db.collection('matches').doc('${matchId}').collection('chats')
+              .orderBy('timestamp', 'desc').limit(20)
+              .onSnapshot((snapshot) => {
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = '';
+                snapshot.forEach(doc => {
+                  const data = doc.data();
+                  const messageDiv = document.createElement('div');
+                  messageDiv.className = 'chat-message';
+                  const time = new Date(data.timestamp).toLocaleTimeString();
+                  messageDiv.innerHTML = \`
+                    <span class="timestamp">[\${time}]</span>
+                    <strong>\${data.handleName}:</strong>
+                    \${data.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                  \`;
+                  chatMessages.insertBefore(messageDiv, chatMessages.firstChild);
+                });
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+              });
           </script>
         </head>
         <body>
@@ -2632,6 +2701,15 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
               <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
               <p><a href="/api/team">戻る</a></p>
+            </div>
+            <div class="chat-container">
+              <h3>チャット</h3>
+              <div id="chatMessages" class="chat-messages"></div>
+              <div class="chat-input">
+                <textarea id="chatInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
+                <button onclick="sendChat()">送信</button>
+                <span id="charCount" class="char-count">0/500</span>
+              </div>
             </div>
           </div>
         </body>
@@ -2723,6 +2801,98 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
     res.send('OK');
   } catch (error) {
     console.error('チームマッチデータ更新エラー:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
+    });
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
+
+app.post('/api/team/setup/:matchId/chat', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  const { message } = req.body;
+
+  if (!userId) {
+    return res.status(401).send('認証が必要です');
+  }
+  if (!message || typeof message !== 'string') {
+    return res.status(400).send('メッセージが無効です');
+  }
+  if (message.length > 500) {
+    return res.status(400).send('メッセージは500文字以内にしてください');
+  }
+
+  try {
+    const db = admin.firestore();
+    const matchRef = db.collection('matches').doc(matchId);
+    const matchSnap = await matchRef.get();
+    if (!matchSnap.exists) {
+      return res.status(404).send('マッチが見つかりません');
+    }
+    const matchData = matchSnap.data();
+    if (matchData.userId !== userId && matchData.guestId !== userId) {
+      return res.status(403).send('このマッチに参加していません');
+    }
+
+    // チャットコレクション
+    const chatsRef = matchRef.collection('chats');
+    const chatsQuery = chatsRef.orderBy('timestamp', 'desc').limit(100);
+    const chatsSnap = await chatsQuery.get();
+    const totalMessages = chatsSnap.size;
+    let totalChars = 0;
+    chatsSnap.forEach(doc => {
+      totalChars += doc.data().charCount || 0;
+    });
+
+    // 全体制限チェック
+    if (totalMessages >= 100) {
+      return res.status(400).send('この対戦ルームのメッセージ上限（100件）に達しました');
+    }
+    if (totalChars + message.length > 10000) {
+      return res.status(400).send('この対戦ルームの文字数上限（10,000文字）に達しました');
+    }
+
+    // ユーザーごとの送信制限チェック
+    const userRef = db.collection('users').doc(userId);
+    const limitRef = userRef.collection('chatLimits').doc(matchId);
+    const limitSnap = await limitRef.get();
+    const now = new Date();
+    let limitData = limitSnap.exists ? limitSnap.data() : { lastReset: now.toISOString(), sendCount: 0 };
+    const lastReset = new Date(limitData.lastReset);
+    const oneMinute = 60 * 1000;
+
+    if (now - lastReset > oneMinute) {
+      // リセット
+      limitData = { lastReset: now.toISOString(), sendCount: 0 };
+    }
+    if (limitData.sendCount >= 10) {
+      return res.status(429).send('1分間の送信上限（10回）に達しました。しばらくお待ちください');
+    }
+
+    // メッセージ保存
+    const userSnap = await userRef.get();
+    const handleName = userSnap.data().handleName || '不明';
+    await chatsRef.add({
+      matchId,
+      userId,
+      handleName,
+      message,
+      timestamp: now.toISOString(),
+      charCount: message.length
+    });
+
+    // 送信制限更新
+    await limitRef.set({
+      lastReset: limitData.lastReset,
+      sendCount: limitData.sendCount + 1
+    });
+
+    console.log('チャット送信成功:', { matchId, userId, message });
+    res.send('OK');
+  } catch (error) {
+    console.error('チャット送信エラー:', {
       message: error.message,
       stack: error.stack,
       code: error.code || 'N/A'
