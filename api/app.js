@@ -2517,7 +2517,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .button-group { text-align: center; margin-bottom: 20px; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .status-message { text-align: center; color: #555; margin-bottom: 20px; }
             .chat-container { margin-top: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
             .chat-messages { max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
             .chat-message { margin: 5px 0; }
@@ -2525,6 +2524,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .chat-message.received { text-align: left; color: green; }
             .chat-input { display: flex; }
             .chat-input input { flex-grow: 1; margin-right: 10px; }
+            .chat-counter { font-size: 0.9em; color: #555; }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -2548,6 +2548,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             var guestName = "${guestName}";
             var hostTeamRating = ${hostTeamRating};
             var guestTeamRating = ${guestTeamRating};
+            var messageCount = 0;
+            var lastReset = Date.now();
 
             async function submitResult(result) {
               try {
@@ -2568,6 +2570,20 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               const messageInput = document.getElementById('chatInput');
               const message = messageInput.value.trim();
               if (!message) return;
+              if (message.length > 500) {
+                alert('メッセージは500文字以内にしてください。');
+                return;
+              }
+              // レートリミットチェック
+              const now = Date.now();
+              if (now - lastReset > 60000) {
+                messageCount = 0;
+                lastReset = now;
+              }
+              if (messageCount >= 10) {
+                alert('1分間に送信できるメッセージは10件までです。');
+                return;
+              }
               try {
                 await db.collection('matches').doc('${matchId}').collection('messages').add({
                   userId: userId,
@@ -2575,51 +2591,49 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                   message: message,
                   timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
+                messageCount++;
                 messageInput.value = '';
               } catch (error) {
                 console.error('チャット送信エラー:', error);
+                alert('メッセージ送信エラー: ' + error.message);
               }
+            }
+
+            function updateCharCounter() {
+              const messageInput = document.getElementById('chatInput');
+              const counter = document.getElementById('charCounter');
+              counter.innerText = \`\${messageInput.value.length}/500文字\`;
             }
 
             db.collection('matches').doc('${matchId}').onSnapshot(async (doc) => {
               if (!doc.exists) {
-                document.getElementById('statusMessage').innerText = 'マッチが存在しません。';
+                alert('マッチが存在しません。');
                 return;
               }
               const data = doc.data();
               const hostChoices = data.hostChoices || {};
               const guestChoices = data.guestChoices || {};
-              const statusMessage = document.getElementById('statusMessage');
+              const hostResultDisplay = document.getElementById('hostResult');
+              const guestResultDisplay = document.getElementById('guestResult');
               const hostRatingDisplay = document.getElementById('hostRating');
               const guestRatingDisplay = document.getElementById('guestRating');
 
-              // 結果の状態を更新
-              if (data.status === 'finished') {
-                statusMessage.innerText = 'マッチが終了しました。';
-                document.querySelectorAll('.result-btn').forEach(btn => {
-                  btn.classList.add('disabled');
-                  btn.style.pointerEvents = 'none';
-                });
-                // レートを動的に更新
-                const hostRef = db.collection('users').doc(hostId);
-                const guestRef = db.collection('users').doc(guestId);
-                const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
-                hostTeamRating = hostSnap.data().teamRating || 1500;
-                guestTeamRating = guestSnap.data().teamRating || 1500;
-                hostRatingDisplay.innerText = 'チームレート: ' + hostTeamRating;
-                guestRatingDisplay.innerText = 'チームレート: ' + guestTeamRating;
-              } else if (hostChoices.result && guestChoices.result) {
-                statusMessage.innerText = '両者が結果を送信済みですが、矛盾しています。修正してください。';
-              } else if (hostChoices.result || guestChoices.result) {
-                statusMessage.innerText = '相手が結果を選択中です...';
-              } else {
-                statusMessage.innerText = '結果を選択してください。';
-              }
+              // 結果表示を更新
+              hostResultDisplay.innerText = hostChoices.result
+                ? (hostChoices.result === 'win' ? '勝ち' : hostChoices.result === 'lose' ? '負け' : '対戦中止')
+                : '対戦中';
+              guestResultDisplay.innerText = guestChoices.result
+                ? (guestChoices.result === 'win' ? '勝ち' : guestChoices.result === 'lose' ? '負け' : '対戦中止')
+                : '対戦中';
 
-              // 自分の選択済みボタンを無効化
+              // ボタン制御
+              const isValidResult = (
+                (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
+                (hostChoices.result === 'lose' && guestChoices.result === 'win') ||
+                (hostChoices.result === 'cancel' && guestChoices.result === 'cancel')
+              );
               document.querySelectorAll('.result-btn').forEach(btn => {
-                const ownResult = isHost ? hostChoices.result : guestChoices.result;
-                if (ownResult) {
+                if (data.status === 'finished' || isValidResult) {
                   btn.classList.add('disabled');
                   btn.style.pointerEvents = 'none';
                 } else {
@@ -2627,6 +2641,17 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                   btn.style.pointerEvents = 'auto';
                 }
               });
+
+              // レート更新
+              if (data.status === 'finished') {
+                const hostRef = db.collection('users').doc(hostId);
+                const guestRef = db.collection('users').doc(guestId);
+                const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
+                hostTeamRating = hostSnap.data().teamRating || 1500;
+                guestTeamRating = guestSnap.data().teamRating || 1500;
+                hostRatingDisplay.innerText = 'チームレート: ' + hostTeamRating;
+                guestRatingDisplay.innerText = 'チームレート: ' + guestTeamRating;
+              }
             });
 
             // チャットメッセージのリアルタイム更新
@@ -2650,19 +2675,20 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
         <body>
           <div class="match-container">
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
-            <div class="player-tables">
+            <div class="player-table">
               <div class="player-info">
                 <h2>${hostName}</h2>
                 <img src="${hostProfileImage}" alt="${hostName}のプロフィール画像">
                 <p id="hostRating">チームレート: ${hostTeamRating}</p>
+                <p id="hostResult">対戦中</p>
               </div>
               <div class="player-info">
                 <h2>${guestName}</h2>
                 <img src="${guestProfileImage}" alt="${guestName}のプロフィール画像">
                 <p id="guestRating">チームレート: ${guestTeamRating}</p>
+                <p id="guestResult">対戦中</p>
               </div>
             </div>
-            <p id="statusMessage">結果を選択してください。</p>
             <div class="button-group">
               <button class="result-btn" onclick="submitResult('win')">勝ち</button>
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
@@ -2673,9 +2699,10 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <h3>チャット</h3>
               <div class="chat-messages" id="chatMessages"></div>
               <div class="chat-input">
-                <input type="text" id="chatInput" placeholder="メッセージを入力...">
+                <input type="text" id="chatInput" placeholder="メッセージを入力..." oninput="updateCharCounter()">
                 <button onclick="sendMessage()">送信</button>
               </div>
+              <p class="chat-counter" id="charCounter">0/500文字</p>
             </div>
           </div>
         </body>
@@ -2781,5 +2808,65 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
   }
 });
 
+app.post('/api/team/setup/:matchId/message', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+  const { message } = req.body;
+
+  if (!userId) {
+    return res.status(401).send('認証が必要です');
+  }
+  if (!message || typeof message !== 'string') {
+    return res.status(400).send('メッセージが必要です');
+  }
+  if (message.length > 500) {
+    return res.status(400).send('メッセージは500文字以内にしてください');
+  }
+
+  try {
+    const db = admin.firestore();
+    const matchRef = db.collection('matches').doc(matchId);
+    const matchSnap = await matchRef.get();
+    if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
+      return res.status(403).send('このマッチに参加していません');
+    }
+    if (matchSnap.data().status === 'finished') {
+      return res.status(400).send('マッチは終了しています');
+    }
+
+    // レートリミットチェック
+    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+    const messagesRef = matchRef.collection('messages');
+    const recentMessagesQuery = messagesRef
+      .where('userId', '==', userId)
+      .where('timestamp', '>=', oneMinuteAgo);
+    const recentMessagesSnapshot = await recentMessagesQuery.get();
+    if (recentMessagesSnapshot.size >= 10) {
+      return res.status(429).send('1分間に送信できるメッセージは10件までです');
+    }
+
+    // ユーザー情報取得
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const handleName = userSnap.data().handleName || '不明';
+
+    // メッセージ保存
+    await messagesRef.add({
+      userId: userId,
+      handleName: handleName,
+      message: message,
+      timestamp: new Date().toISOString()
+    });
+
+    res.send('OK');
+  } catch (error) {
+    console.error('チャットメッセージ送信エラー:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
+    });
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
