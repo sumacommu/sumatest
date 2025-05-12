@@ -2514,17 +2514,13 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
             .player-info img { width: 64px; height: 64px; margin: 5px; }
-            .button-group { text-align: center; margin-bottom: 20px; }
+            .button-group { text-align: center; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .chat-container { margin-top: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
-            .chat-messages { max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
-            .chat-message { margin: 5px 0; }
-            .chat-message.sent { text-align: right; color: blue; }
-            .chat-message.received { text-align: left; color: green; }
-            .chat-input { display: flex; }
-            .chat-input input { flex-grow: 1; margin-right: 10px; }
-            .chat-counter { font-size: 0.9em; color: #555; }
+            @media (max-width: 768px) {
+              .player-table { flex-direction: column; align-items: center; }
+              .player-info { width: 100%; margin-bottom: 10px; }
+            }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -2540,14 +2536,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             };
             firebase.initializeApp(firebaseConfig);
             var db = firebase.firestore();
-            var isHost = ${isHost};
-            var userId = "${userId}";
-            var hostId = "${hostId}";
-            var guestId = "${guestId}";
-            var hostName = "${hostName}";
-            var guestName = "${guestName}";
-            var hostTeamRating = ${hostTeamRating};
-            var guestTeamRating = ${guestTeamRating};
 
             async function submitResult(result) {
               try {
@@ -2564,108 +2552,55 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               }
             }
 
-            async function sendMessage() {
-              const messageInput = document.getElementById('chatInput');
-              const message = messageInput.value.trim();
-              if (!message) return;
-              if (message.length > 500) {
-                alert('メッセージは500文字以内にしてください。');
-                return;
-              }
-              try {
-                const response = await fetch('/api/team/setup/${matchId}/message', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ message })
-                });
-                if (!response.ok) {
-                  alert('メッセージ送信エラー: ' + await response.text());
-                  return;
-                }
-                messageInput.value = '';
-              } catch (error) {
-                console.error('チャット送信エラー:', error);
-                alert('メッセージ送信エラー: ' + error.message);
-              }
-            }
-
-            function updateCharCounter() {
-              const messageInput = document.getElementById('chatInput');
-              const counter = document.getElementById('charCounter');
-              counter.innerText = \`\${messageInput.value.length}/500文字\`;
-            }
-
-            db.collection('matches').doc('${matchId}').onSnapshot(async (doc) => {
+            db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
               if (!doc.exists) {
-                alert('マッチが存在しません。');
+                alert('マッチが終了しました。');
                 return;
               }
               const data = doc.data();
               const hostChoices = data.hostChoices || {};
               const guestChoices = data.guestChoices || {};
-              const hostResultDisplay = document.getElementById('hostResult');
-              const guestResultDisplay = document.getElementById('guestResult');
-              const hostRatingDisplay = document.getElementById('hostRating');
-              const guestRatingDisplay = document.getElementById('guestRating');
+              const isHost = ${isHost};
+              const hostResult = hostChoices.result || '対戦中';
+              const guestResult = guestChoices.result || '対戦中';
+              const hostRatingElement = document.getElementById('hostRating');
+              const guestRatingElement = document.getElementById('guestRating');
+              const hostResultElement = document.getElementById('hostResult');
+              const guestResultElement = document.getElementById('guestResult');
+              const buttons = document.querySelectorAll('.result-btn');
 
-              // 結果表示を更新
-              hostResultDisplay.innerText = hostChoices.result
-                ? (hostChoices.result === 'win' ? '勝ち' : hostChoices.result === 'lose' ? '負け' : '対戦中止')
-                : '対戦中';
-              guestResultDisplay.innerText = guestChoices.result
-                ? (guestChoices.result === 'win' ? '勝ち' : guestChoices.result === 'lose' ? '負け' : '対戦中止')
-                : '対戦中';
+              // 結果表示の更新
+              hostResultElement.innerText = '選択: ' + hostResult;
+              guestResultElement.innerText = '選択: ' + guestResult;
 
               // ボタン制御
-              const isValidResult = (
+              const isValidResult = 
                 (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
                 (hostChoices.result === 'lose' && guestChoices.result === 'win') ||
-                (hostChoices.result === 'cancel' && guestChoices.result === 'cancel')
-              );
-              document.querySelectorAll('.result-btn').forEach(btn => {
-                if (data.status === 'finished' || isValidResult) {
+                (hostChoices.result === 'cancel' && guestChoices.result === 'cancel');
+              buttons.forEach(btn => {
+                if (isValidResult) {
                   btn.classList.add('disabled');
                   btn.style.pointerEvents = 'none';
+                  btn.style.cursor = 'not-allowed';
                 } else {
                   btn.classList.remove('disabled');
                   btn.style.pointerEvents = 'auto';
+                  btn.style.cursor = 'pointer';
                 }
               });
 
-              // レート更新
-              if (data.status === 'finished') {
-                const hostRef = db.collection('users').doc(hostId);
-                const guestRef = db.collection('users').doc(guestId);
-                const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
-                hostTeamRating = hostSnap.data().teamRating || 1500;
-                guestTeamRating = guestSnap.data().teamRating || 1500;
-                hostRatingDisplay.innerText = 'チームレート: ' + hostTeamRating;
-                guestRatingDisplay.innerText = 'チームレート: ' + guestTeamRating;
+              // レート更新（マッチ終了時）
+              if (data.status === 'finished' && data.teamRatingChanges) {
+                const hostRatingChange = data.teamRatingChanges['${hostId}'] || 0;
+                const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
+                hostRatingElement.innerText = 'チームレート: ${hostTeamRating} (' + (hostRatingChange >= 0 ? '+' : '') + hostRatingChange + ')';
+                guestRatingElement.innerText = 'チームレート: ${guestTeamRating} (' + (guestRatingChange >= 0 ? '+' : '') + guestRatingChange + ')';
+              } else {
+                hostRatingElement.innerText = 'チームレート: ${hostTeamRating}';
+                guestRatingElement.innerText = 'チームレート: ${guestTeamRating}';
               }
-            }, (error) => {
-              console.error('マッチリスナーエラー:', error);
-              alert('マッチデータ取得エラー: ' + error.message);
             });
-
-            // チャットメッセージのリアルタイム更新
-            db.collection('matches').doc('${matchId}').collection('messages')
-              .orderBy('timestamp', 'asc')
-              .onSnapshot((snapshot) => {
-                const chatMessages = document.getElementById('chatMessages');
-                chatMessages.innerHTML = '';
-                snapshot.forEach(doc => {
-                  const msg = doc.data();
-                  const isSent = msg.userId === userId;
-                  const messageDiv = document.createElement('div');
-                  messageDiv.className = 'chat-message ' + (isSent ? 'sent' : 'received');
-                  messageDiv.innerText = \`\${msg.handleName}: \${msg.message}\`;
-                  chatMessages.appendChild(messageDiv);
-                  chatMessages.scrollTop = chatMessages.scrollHeight;
-                });
-              }, (error) => {
-                console.error('チャットリスナーエラー:', error);
-                alert('チャットデータ取得エラー: ' + error.message);
-              });
           </script>
         </head>
         <body>
@@ -2676,13 +2611,13 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 <h2>${hostName}</h2>
                 <img src="${hostProfileImage}" alt="${hostName}のプロフィール画像">
                 <p id="hostRating">チームレート: ${hostTeamRating}</p>
-                <p id="hostResult">対戦中</p>
+                <p id="hostResult">選択: 対戦中</p>
               </div>
               <div class="player-info">
                 <h2>${guestName}</h2>
                 <img src="${guestProfileImage}" alt="${guestName}のプロフィール画像">
                 <p id="guestRating">チームレート: ${guestTeamRating}</p>
-                <p id="guestResult">対戦中</p>
+                <p id="guestResult">選択: 対戦中</p>
               </div>
             </div>
             <div class="button-group">
@@ -2690,15 +2625,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
               <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
               <p><a href="/api/team">戻る</a></p>
-            </div>
-            <div class="chat-container">
-              <h3>チャット</h3>
-              <div class="chat-messages" id="chatMessages"></div>
-              <div class="chat-input">
-                <input type="text" id="chatInput" placeholder="メッセージを入力..." oninput="updateCharCounter()">
-                <button onclick="sendMessage()">送信</button>
-              </div>
-              <p class="chat-counter" id="charCounter">0/500文字</p>
             </div>
           </div>
         </body>
@@ -2731,6 +2657,7 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
     if (matchData.status === 'finished') {
       return res.status(400).send('このマッチは既に終了しています');
     }
+
     const isHost = matchData.userId === userId;
     const choicesKey = isHost ? 'hostChoices' : 'guestChoices';
     const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
@@ -2752,43 +2679,36 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       return { winPoints, losePoints };
     }
 
-    async function deleteChatMessages() {
-      const messagesRef = matchRef.collection('messages');
-      const messagesSnapshot = await messagesRef.get();
-      const batch = db.batch();
-      messagesSnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      console.log('チャットメッセージ削除成功:', { matchId });
-    }
+    // 選択を保存
+    updateData[choicesKey] = { ...matchData[choicesKey], result: result || '' };
+    updateData[opponentChoicesKey] = matchData[opponentChoicesKey] || {};
 
-    // 結果を保存
-    updateData[choicesKey] = { ...matchData[choicesKey], result };
-    const opponentChoices = matchData[opponentChoicesKey] || {};
-
-    // 終了条件チェック
-    if (opponentChoices.result) {
+    // 両者の選択が揃った場合の処理
+    const hostResult = updateData.hostChoices.result;
+    const guestResult = updateData.guestChoices.result;
+    if (hostResult && guestResult) {
       if (
-        (result === 'win' && opponentChoices.result === 'lose') ||
-        (result === 'lose' && opponentChoices.result === 'win')
+        (hostResult === 'win' && guestResult === 'lose') ||
+        (hostResult === 'lose' && guestResult === 'win')
       ) {
+        // 勝ち負けの場合
         updateData.status = 'finished';
-        const winnerId = result === 'win' ? userId : matchData.guestId;
-        const loserId = result === 'win' ? matchData.guestId : matchData.userId;
+        const winnerId = hostResult === 'win' ? matchData.userId : matchData.guestId;
+        const loserId = hostResult === 'win' ? matchData.guestId : matchData.userId;
         const { winPoints, losePoints } = await updateTeamRatings(winnerId, loserId);
         updateData.teamRatingChanges = {
           [winnerId]: winPoints,
           [loserId]: -losePoints
         };
-        await deleteChatMessages();
-      } else if (result === 'cancel' && opponentChoices.result === 'cancel') {
+      } else if (hostResult === 'cancel' && guestResult === 'cancel') {
+        // 両者対戦中止の場合
         updateData.status = 'finished';
-        updateData.teamRatingChanges = {};
-        await deleteChatMessages();
-      } else {
-        console.log('結果が矛盾:', { ownResult: result, opponentResult: opponentChoices.result });
+        updateData.teamRatingChanges = {
+          [matchData.userId]: 0,
+          [matchData.guestId]: 0
+        };
       }
+      // 矛盾する選択（例：両者勝ち、両者負け）の場合は何もしない
     }
 
     await matchRef.update(updateData);
@@ -2796,67 +2716,6 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
     res.send('OK');
   } catch (error) {
     console.error('チームマッチデータ更新エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
-    res.status(500).send(`エラー: ${error.message}`);
-  }
-});
-
-app.post('/api/team/setup/:matchId/message', async (req, res) => {
-  const matchId = req.params.matchId;
-  const userId = req.user?.id;
-  const { message } = req.body;
-
-  if (!userId) {
-    return res.status(401).send('認証が必要です');
-  }
-  if (!message || typeof message !== 'string') {
-    return res.status(400).send('メッセージが必要です');
-  }
-  if (message.length > 500) {
-    return res.status(400).send('メッセージは500文字以内にしてください');
-  }
-
-  try {
-    const db = admin.firestore();
-    const matchRef = db.collection('matches').doc(matchId);
-    const matchSnap = await matchRef.get();
-    if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
-      return res.status(403).send('このマッチに参加していません');
-    }
-    if (matchSnap.data().status === 'finished') {
-      return res.status(400).send('マッチは終了しています');
-    }
-
-    // レートリミットチェック
-    const oneMinuteAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60000);
-    const messagesRef = matchRef.collection('messages');
-    const recentMessagesQuery = messagesRef
-      .where('userId', '==', userId)
-      .where('timestamp', '>=', oneMinuteAgo);
-    const recentMessagesSnapshot = await recentMessagesQuery.get();
-    if (recentMessagesSnapshot.size >= 10) {
-      return res.status(429).send('1分間に送信できるメッセージは10件までです');
-    }
-
-    // ユーザー情報取得
-    const userRef = db.collection('users').doc(userId);
-    const userSnap = await userRef.get();
-    const handleName = userSnap.data().handleName || '不明';
-
-    // メッセージ保存
-    await messagesRef.add({
-      userId: userId,
-      handleName: handleName,
-      message: message,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    res.send('OK');
-  } catch (error) {
-    console.error('チャットメッセージ送信エラー:', {
       message: error.message,
       stack: error.stack,
       code: error.code || 'N/A'
