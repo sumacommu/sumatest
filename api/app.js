@@ -2522,15 +2522,16 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
             .chat-message { margin: 5px 0; }
             .chat-message .sender { font-weight: bold; margin-right: 5px; }
-            .chat-input { width: 100%; display: flex; align-items: center; }
-            .chat-input textarea { width: 80%; height: 50px; resize: none; }
-            .chat-input button { width: 15%; margin-left: 5px; }
-            .char-count { margin-left: 10px; font-size: 0.9em; }
+            .chat-message .message-time { color: #888; font-size: 0.9em; margin-left: 5px; }
+            .chat-input { width: 100%; margin-bottom: 10px; }
+            .chat-input textarea { width: 100%; height: 50px; resize: none; }
+            .chat-controls { display: flex; align-items: center; justify-content: flex-end; }
+            .chat-controls button { width: 100px; margin-left: 10px; }
+            .char-count { font-size: 0.9em; margin-left: 10px; }
             @media (max-width: 768px) {
               .player-table { flex-direction: column; align-items: center; }
               .player-info { width: 100%; margin-bottom: 10px; }
-              .chat-input textarea { width: 70%; }
-              .chat-input button { width: 20%; }
+              .chat-controls button { width: 80px; }
             }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -2666,7 +2667,10 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                   const msg = doc.data();
                   const messageElement = document.createElement('div');
                   messageElement.className = 'chat-message';
-                  messageElement.innerHTML = '<span class="sender">' + msg.handleName + ':</span>' + msg.message.replace(/\\n/g, '<br>');
+                  messageElement.innerHTML = 
+                    '<span class="sender">' + msg.handleName + ':</span>' + 
+                    msg.message.replace(/\\n/g, '<br>') + 
+                    '<span class="message-time">' + msg.time + '</span>';
                   chatLog.appendChild(messageElement);
                 });
                 chatLog.scrollTop = chatLog.scrollHeight;
@@ -2692,6 +2696,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">
                 <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
+              </div>
+              <div class="chat-controls">
                 <button onclick="sendMessage()">送信</button>
                 <span id="charCount">0/500</span>
               </div>
@@ -2851,6 +2857,9 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       return res.status(400).send('1分間の送信回数上限（10回）に達しました。しばらくお待ちください');
     }
 
+    // JSTで送信時間（hh:mm）を生成
+    const jstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
+
     // メッセージ保存
     const userSnap = await db.collection('users').doc(userId).get();
     const handleName = userSnap.data()?.handleName || '不明';
@@ -2858,7 +2867,8 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       userId,
       handleName,
       message,
-      timestamp: now.toISOString()
+      timestamp: now.toISOString(),
+      time: jstTime
     });
 
     // 制限データの更新
