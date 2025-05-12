@@ -2500,8 +2500,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
     const hostName = hostSnap.data().handleName || '不明';
     const guestName = guestSnap.data().handleName || '不明';
-    const hostTeamRating = hostSnap.data().teamRating || 1500;
-    const guestTeamRating = guestSnap.data().teamRating || 1500;
+    let hostTeamRating = hostSnap.data().teamRating || 1500;
+    let guestTeamRating = guestSnap.data().teamRating || 1500;
     const hostProfileImage = hostSnap.data().profileImage || '/default.png';
     const guestProfileImage = guestSnap.data().profileImage || '/default.png';
 
@@ -2514,9 +2514,17 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
             .player-info img { width: 64px; height: 64px; margin: 5px; }
-            .button-group { text-align: center; }
+            .button-group { text-align: center; margin-bottom: 20px; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+            .status-message { text-align: center; color: #555; margin-bottom: 20px; }
+            .chat-container { margin-top: 20px; border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+            .chat-messages { max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
+            .chat-message { margin: 5px 0; }
+            .chat-message.sent { text-align: right; color: blue; }
+            .chat-message.received { text-align: left; color: green; }
+            .chat-input { display: flex; }
+            .chat-input input { flex-grow: 1; margin-right: 10px; }
           </style>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -2532,6 +2540,14 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             };
             firebase.initializeApp(firebaseConfig);
             var db = firebase.firestore();
+            var isHost = ${isHost};
+            var userId = "${userId}";
+            var hostId = "${hostId}";
+            var guestId = "${guestId}";
+            var hostName = "${hostName}";
+            var guestName = "${guestName}";
+            var hostTeamRating = ${hostTeamRating};
+            var guestTeamRating = ${guestTeamRating};
 
             async function submitResult(result) {
               try {
@@ -2542,43 +2558,124 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 });
                 if (!response.ok) {
                   alert('結果の送信に失敗しました: ' + await response.text());
-                  return;
                 }
-                window.location.href = '/api/team';
               } catch (error) {
                 alert('ネットワークエラー: ' + error.message);
               }
             }
 
-            db.collection('matches').doc('${matchId}').onSnapshot((doc) => {
-              if (!doc.exists) return;
-              const data = doc.data();
-              if (data.status === 'finished') {
-                alert('このマッチは終了しました。');
-                window.location.href = '/api/team';
+            async function sendMessage() {
+              const messageInput = document.getElementById('chatInput');
+              const message = messageInput.value.trim();
+              if (!message) return;
+              try {
+                await db.collection('matches').doc('${matchId}').collection('messages').add({
+                  userId: userId,
+                  handleName: isHost ? hostName : guestName,
+                  message: message,
+                  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                messageInput.value = '';
+              } catch (error) {
+                console.error('チャット送信エラー:', error);
               }
+            }
+
+            db.collection('matches').doc('${matchId}').onSnapshot(async (doc) => {
+              if (!doc.exists) {
+                document.getElementById('statusMessage').innerText = 'マッチが存在しません。';
+                return;
+              }
+              const data = doc.data();
+              const hostChoices = data.hostChoices || {};
+              const guestChoices = data.guestChoices || {};
+              const statusMessage = document.getElementById('statusMessage');
+              const hostRatingDisplay = document.getElementById('hostRating');
+              const guestRatingDisplay = document.getElementById('guestRating');
+
+              // 結果の状態を更新
+              if (data.status === 'finished') {
+                statusMessage.innerText = 'マッチが終了しました。';
+                document.querySelectorAll('.result-btn').forEach(btn => {
+                  btn.classList.add('disabled');
+                  btn.style.pointerEvents = 'none';
+                });
+                // レートを動的に更新
+                const hostRef = db.collection('users').doc(hostId);
+                const guestRef = db.collection('users').doc(guestId);
+                const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
+                hostTeamRating = hostSnap.data().teamRating || 1500;
+                guestTeamRating = guestSnap.data().teamRating || 1500;
+                hostRatingDisplay.innerText = 'チームレート: ' + hostTeamRating;
+                guestRatingDisplay.innerText = 'チームレート: ' + guestTeamRating;
+              } else if (hostChoices.result && guestChoices.result) {
+                statusMessage.innerText = '両者が結果を送信済みですが、矛盾しています。修正してください。';
+              } else if (hostChoices.result || guestChoices.result) {
+                statusMessage.innerText = '相手が結果を選択中です...';
+              } else {
+                statusMessage.innerText = '結果を選択してください。';
+              }
+
+              // 自分の選択済みボタンを無効化
+              document.querySelectorAll('.result-btn').forEach(btn => {
+                const ownResult = isHost ? hostChoices.result : guestChoices.result;
+                if (ownResult) {
+                  btn.classList.add('disabled');
+                  btn.style.pointerEvents = 'none';
+                } else {
+                  btn.classList.remove('disabled');
+                  btn.style.pointerEvents = 'auto';
+                }
+              });
             });
+
+            // チャットメッセージのリアルタイム更新
+            db.collection('matches').doc('${matchId}').collection('messages')
+              .orderBy('timestamp', 'asc')
+              .onSnapshot((snapshot) => {
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = '';
+                snapshot.forEach(doc => {
+                  const msg = doc.data();
+                  const isSent = msg.userId === userId;
+                  const messageDiv = document.createElement('div');
+                  messageDiv.className = 'chat-message ' + (isSent ? 'sent' : 'received');
+                  messageDiv.innerText = \`\${msg.handleName}: \${msg.message}\`;
+                  chatMessages.appendChild(messageDiv);
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+                });
+              });
           </script>
         </head>
         <body>
           <div class="match-container">
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
-            <div class="player-table">
+            <div class="player-tables">
               <div class="player-info">
                 <h2>${hostName}</h2>
                 <img src="${hostProfileImage}" alt="${hostName}のプロフィール画像">
-                <p>チームレート: ${hostTeamRating}</p>
+                <p id="hostRating">チームレート: ${hostTeamRating}</p>
               </div>
               <div class="player-info">
                 <h2>${guestName}</h2>
                 <img src="${guestProfileImage}" alt="${guestName}のプロフィール画像">
-                <p>チームレート: ${guestTeamRating}</p>
+                <p id="guestRating">チームレート: ${guestTeamRating}</p>
               </div>
             </div>
+            <p id="statusMessage">結果を選択してください。</p>
             <div class="button-group">
               <button class="result-btn" onclick="submitResult('win')">勝ち</button>
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
+              <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
               <p><a href="/api/team">戻る</a></p>
+            </div>
+            <div class="chat-container">
+              <h3>チャット</h3>
+              <div class="chat-messages" id="chatMessages"></div>
+              <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="メッセージを入力...">
+                <button onclick="sendMessage()">送信</button>
+              </div>
             </div>
           </div>
         </body>
@@ -2586,9 +2683,9 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     `);
   } catch (error) {
     console.error('チームセットアップ画面エラー:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code || 'N/A' // エラーコードが存在する場合のみログ
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
     });
     res.status(500).send(`エラーが発生しました: ${error.message}`);
   }
@@ -2608,6 +2705,9 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
     if (!matchSnap.exists) return res.status(404).send('マッチが見つかりません');
 
     const matchData = matchSnap.data();
+    if (matchData.status === 'finished') {
+      return res.status(400).send('このマッチは既に終了しています');
+    }
     const isHost = matchData.userId === userId;
     const choicesKey = isHost ? 'hostChoices' : 'guestChoices';
     const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
@@ -2629,21 +2729,42 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       return { winPoints, losePoints };
     }
 
-    if (result) {
-      updateData[choicesKey] = { ...matchData[choicesKey], result };
-      const opponentChoices = matchData[opponentChoicesKey] || {};
-      if (opponentChoices.result && (
+    async function deleteChatMessages() {
+      const messagesRef = matchRef.collection('messages');
+      const messagesSnapshot = await messagesRef.get();
+      const batch = db.batch();
+      messagesSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log('チャットメッセージ削除成功:', { matchId });
+    }
+
+    // 結果を保存
+    updateData[choicesKey] = { ...matchData[choicesKey], result };
+    const opponentChoices = matchData[opponentChoicesKey] || {};
+
+    // 終了条件チェック
+    if (opponentChoices.result) {
+      if (
         (result === 'win' && opponentChoices.result === 'lose') ||
         (result === 'lose' && opponentChoices.result === 'win')
-      )) {
+      ) {
         updateData.status = 'finished';
-        const winnerId = (result === 'win' && isHost) || (result === 'lose' && !isHost) ? matchData.userId : matchData.guestId;
-        const loserId = (result === 'win' && isHost) || (result === 'lose' && !isHost) ? matchData.guestId : matchData.userId;
+        const winnerId = result === 'win' ? userId : matchData.guestId;
+        const loserId = result === 'win' ? matchData.guestId : matchData.userId;
         const { winPoints, losePoints } = await updateTeamRatings(winnerId, loserId);
         updateData.teamRatingChanges = {
           [winnerId]: winPoints,
           [loserId]: -losePoints
         };
+        await deleteChatMessages();
+      } else if (result === 'cancel' && opponentChoices.result === 'cancel') {
+        updateData.status = 'finished';
+        updateData.teamRatingChanges = {};
+        await deleteChatMessages();
+      } else {
+        console.log('結果が矛盾:', { ownResult: result, opponentResult: opponentChoices.result });
       }
     }
 
@@ -2653,8 +2774,8 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
   } catch (error) {
     console.error('チームマッチデータ更新エラー:', {
       message: error.message,
-      code: error.code,
-      stack: error.stack
+      stack: error.stack,
+      code: error.code || 'N/A'
     });
     res.status(500).send(`エラー: ${error.message}`);
   }
