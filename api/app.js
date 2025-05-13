@@ -1447,13 +1447,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 var guideText = '';
                 var canSelectChar = false;
                 var canSelectStage = false;
+                var canSelectsend = true;
                 var canSelectResult = false;
+                var canSelectcancel = true;
 
                 if (isCancelled) {
                   guideText = 'このルームは対戦中止になりました';
                   canSelectChar = false;
                   canSelectStage = false;
+                  canSelectsend = false;
                   canSelectResult = false;
+                  canSelectcancel = false;
                   document.querySelectorAll('.char-btn').forEach(btn => {
                     btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray', 'selected');
                     btn.classList.add('char-normal');
@@ -1497,7 +1501,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   }
                 } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
                   guideText = 'このルームの対戦は終了しました。';
+                  canSelectsend = false;
                   canSelectResult = false;
+                  canSelectcancel = false;
                 } else {
                   if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
                     if (isHost) {
@@ -1607,12 +1613,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.style.pointerEvents = canSelectStage ? 'auto' : 'none';
                   btn.onclick = canSelectStage ? () => selectStage(btn.dataset.id) : null;
                 });
+                document.querySelectorAll('.send-btn').forEach(btn => {
+                  btn.classList.toggle('disabled', !canSelectsend);
+                  btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
+                });
                 document.querySelectorAll('.result-btn').forEach(btn => {
                   btn.classList.toggle('disabled', !canSelectResult);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
                 document.querySelectorAll('.cancel-btn').forEach(btn => {
-                  btn.classList.toggle('disabled', !canSelectResult);
+                  btn.classList.toggle('disabled', !canSelectcancel);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
 
@@ -1703,7 +1713,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               </div>
             </div>
             <div class="button-group">
-              <button onclick="saveSelections('${matchId}')">決定</button>
+              <button class="send-btn" onclick="saveSelections('${matchId}')">決定</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
               <button class="cancel-btn" onclick="cancelMatch()">対戦中止</button>
@@ -2805,8 +2815,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
             .player-info h2 { font-size: 1.2em; margin: 10px 0; }
             .button-group { text-align: center; margin-top: 20px; }
+            .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+            .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
