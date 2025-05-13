@@ -259,6 +259,15 @@ passport.deserializeUser(async (id, done) => {
       await userRef.update({ teamRating: 1500 });
       userData.teamRating = 1500;
     }
+    // tagPartnerId と isTagged が存在しない場合、デフォルト値をセット
+    if (!userData.tagPartnerId || userData.isTagged === undefined) {
+      await userRef.update({
+        tagPartnerId: '',
+        isTagged: false
+      });
+      userData.tagPartnerId = '';
+      userData.isTagged = false;
+    }
     userData.id = id;
     console.log('deserializeUser成功:', userData);
     done(null, userData);
