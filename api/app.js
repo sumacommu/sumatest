@@ -635,15 +635,30 @@ app.post('/api/solo/match', async (req, res) => {
       }
     }
 
-    // ユーザーのチームマッチング状態をチェック
+    // ユーザーのチームマッチング状態をチェック（ホストまたはゲスト）
     const userTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
-      .where('userId', '==', userId)
       .where('status', 'in', ['matched', 'waiting']);
-    const userTeamMatchesSnapshot = await userTeamMatchesQuery.get();
-    if (!userTeamMatchesSnapshot.empty) {
-      console.error('ユーザーがチームマッチング中:', { userId });
+    const userTeamHostQuery = userTeamMatchesQuery.where('userId', '==', userId);
+    const userTeamGuestQuery = userTeamMatchesQuery.where('guestId', '==', userId);
+    const [userTeamHostSnapshot, userTeamGuestSnapshot] = await Promise.all([
+      userTeamHostQuery.get(),
+      userTeamGuestQuery.get()
+    ]);
+
+    if (!userTeamHostSnapshot.empty) {
+      const matchId = userTeamHostSnapshot.docs[0].id;
+      const status = userTeamHostSnapshot.docs[0].data().status;
+      console.error('ユーザーがチームマッチング中（ホスト）:', { userId, matchId, status });
+      if (status === 'matched') {
+        return res.json({ redirect: `/api/team/setup/${matchId}` });
+      }
       return res.status(403).json({ message: 'あなたはチームマッチング中です' });
+    }
+    if (!userTeamGuestSnapshot.empty) {
+      const matchId = userTeamGuestSnapshot.docs[0].id;
+      console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId });
+      return res.json({ redirect: `/api/team/setup/${matchId}` });
     }
 
     // ユーザー情報の取得（タッグ状態チェック用）
@@ -657,15 +672,27 @@ app.post('/api/solo/match', async (req, res) => {
     const isTagged = userData.isTagged || false;
     const tagPartnerId = userData.tagPartnerId || '';
 
-    // タッグ相手のチームマッチング状態をチェック
+    // タッグ相手のチームマッチング状態をチェック（ホストまたはゲスト）
     if (isTagged && tagPartnerId) {
       const partnerTeamMatchesQuery = matchesRef
         .where('type', '==', 'team')
-        .where('userId', '==', tagPartnerId)
         .where('status', 'in', ['matched', 'waiting']);
-      const partnerTeamMatchesSnapshot = await partnerTeamMatchesQuery.get();
-      if (!partnerTeamMatchesSnapshot.empty) {
-        console.error('タッグ相手がチームマッチング中:', { userId, tagPartnerId });
+      const partnerTeamHostQuery = partnerTeamMatchesQuery.where('userId', '==', tagPartnerId);
+      const partnerTeamGuestQuery = partnerTeamMatchesQuery.where('guestId', '==', tagPartnerId);
+      const [partnerTeamHostSnapshot, partnerTeamGuestSnapshot] = await Promise.all([
+        partnerTeamHostQuery.get(),
+        partnerTeamGuestQuery.get()
+      ]);
+
+      if (!partnerTeamHostSnapshot.empty) {
+        const matchId = partnerTeamHostSnapshot.docs[0].id;
+        const status = partnerTeamHostSnapshot.docs[0].data().status;
+        console.error('タッグ相手がチームマッチング中（ホスト）:', { userId, tagPartnerId, matchId, status });
+        return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+      }
+      if (!partnerTeamGuestSnapshot.empty) {
+        const matchId = partnerTeamGuestSnapshot.docs[0].id;
+        console.error('タッグ相手がチームマッチング中（ゲスト）:', { userId, tagPartnerId, matchId });
         return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
       }
     }
