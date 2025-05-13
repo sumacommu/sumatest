@@ -1611,7 +1611,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.classList.toggle('disabled', !canSelectResult);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
-                document.querySelectorAll('.confirm-btn').forEach(btn => {
+                document.querySelectorAll('.cancel-btn').forEach(btn => {
                   btn.classList.toggle('disabled', !canSelectResult);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
@@ -1706,7 +1706,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button onclick="saveSelections('${matchId}')">決定</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
-              <button class="result-btn" onclick="cancelMatch()">対戦中止</button>
+              <button class="cancel-btn" onclick="cancelMatch()">対戦中止</button>
               <p><a href="/api/solo">戻る</a></p>
             </div>
             <div class="chat-container">
@@ -2807,7 +2807,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .button-group { text-align: center; margin-top: 20px; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .confirm-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
+            .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
             .chat-message { margin: 5px 0; }
