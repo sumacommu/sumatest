@@ -2293,7 +2293,6 @@ app.get('/api/user/:userId', async (req, res) => {
             img { max-width: 64px; max-height: 64px; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-            .error { color: red; }
             button { padding: 10px 20px; margin: 5px; cursor: pointer; }
             button.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
           </style>
@@ -2323,7 +2322,6 @@ app.get('/api/user/:userId', async (req, res) => {
               </tbody>
             </table>
             <p><a href="/api/">ホームに戻る</a></p>
-            <div class="error" id="error"></div>
           </div>
           <script>
             const tagButton = document.getElementById('tagButton');
