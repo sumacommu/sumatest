@@ -1435,6 +1435,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 var matchCount = data.matchCount || (hostChoices.wins || 0) + (hostChoices.losses || 0);
                 var isHostWinner = (hostChoices.wins || 0) > (guestChoices.wins || 0);
                 var bothCharsReady = hostChoices.characterReady && guestChoices.characterReady;
+                var isCancelled = data.isCancelled || false;
 
                 if (matchCount > 0 && !hostChoices['character' + (matchCount + 1)] && hostChoices['character' + matchCount]) {
                   if (isHost) selectedChar = hostChoices['character' + matchCount];
