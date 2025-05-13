@@ -26,14 +26,6 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// 環境変数ログ（デバッグ用、一時的）
-console.log('環境変数確認:', {
-  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-  FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
-  FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
-  FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? '設定済み' : '未設定'
-});
-
 // Firebase Admin SDK初期化
 admin.initializeApp({
   credential: admin.credential.cert({
@@ -64,7 +56,7 @@ console.log('環境変数チェック:', {
 });
 
 const redisClient = createClient({
-  url: 'rediss://default:AdSZAAIjcDE2Y2MwY2U4Zjk3ZmQ0YjI0ODM3M2QyMzM5Nzk0M2ZlYnAxMA@present-civet-54425.upstash.io:6379',
+  url: process.env.REDIS_URL,
   socket: {
     connectTimeout: 20000,
     keepAlive: 10000,
@@ -1329,6 +1321,22 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               }
             }
 
+            async function cancelMatch() {
+              try {
+                const response = await fetch('/api/solo/setup/${matchId}/cancel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({})
+                });
+                if (!response.ok) {
+                  alert('キャンセルリクエストに失敗しました: ' + await response.text());
+                  return;
+                }
+              } catch (error) {
+                alert('ネットワークエラー: ' + error.message);
+              }
+            }
+
             function updateMatchHistory() {
               const matchHistory = document.getElementById('matchHistory');
               if (!matchHistory) return;
@@ -1440,7 +1448,25 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 var canSelectStage = false;
                 var canSelectResult = false;
 
-                if (matchCount === 0) {
+                if (isCancelled) {
+                  guideText = 'このルームは対戦中止になりました';
+                  canSelectChar = false;
+                  canSelectStage = false;
+                  canSelectResult = false;
+                  document.querySelectorAll('.char-btn').forEach(btn => {
+                    btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray', 'selected');
+                    btn.classList.add('char-normal');
+                    btn.classList.add('disabled');
+                    btn.style.pointerEvents = 'none';
+                    btn.style.cursor = 'not-allowed';
+                  });
+                  document.querySelectorAll('.stage-btn').forEach(btn => {
+                    btn.classList.remove('temporary', 'banned', 'confirmed', 'counter');
+                    btn.classList.add('disabled');
+                    btn.style.pointerEvents = 'none';
+                    btn.style.cursor = 'not-allowed';
+                  });
+                } else if (matchCount === 0) {
                   if (!hostChoices['character' + (matchCount + 1)] || !guestChoices['character' + (matchCount + 1)]) {
                     guideText = 'キャラクターを選択してください（' + (isHost ? hostName : guestName) + '）';
                     canSelectChar = (isHost && !hostChoices['character' + (matchCount + 1)]) || (!isHost && !guestChoices['character' + (matchCount + 1)]);
@@ -1584,6 +1610,10 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.classList.toggle('disabled', !canSelectResult);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
+                document.querySelectorAll('.confirm-btn').forEach(btn => {
+                  btn.classList.toggle('disabled', !canSelectResult);
+                  btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
+                });
 
                 updateStageButtons();
                 updateCharacterButtons();
@@ -1675,6 +1705,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button onclick="saveSelections('${matchId}')">決定</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
+              <button class="result-btn" onclick="cancelMatch()">対戦中止</button>
               <p><a href="/api/solo">戻る</a></p>
             </div>
             <div class="chat-container">
@@ -1924,6 +1955,62 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
     res.send('OK');
   } catch (error) {
     console.error('メッセージ送信エラー:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
+    });
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
+
+app.post('/api/solo/setup/:matchId/cancel', async (req, res) => {
+  const matchId = req.params.matchId;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).send('認証が必要です');
+  }
+
+  try {
+    const db = admin.firestore();
+    const matchRef = db.collection('matches').doc(matchId);
+    const matchSnap = await matchRef.get();
+
+    if (!matchSnap.exists) {
+      return res.status(404).send('マッチが見つかりません');
+    }
+
+    const matchData = matchSnap.data();
+    const isHost = matchData.userId === userId;
+    const isGuest = matchData.guestId === userId;
+
+    if (!isHost && !isGuest) {
+      return res.status(403).send('このマッチにアクセスする権限がありません');
+    }
+
+    // 既にキャンセル済みの場合は何もしない
+    if (matchData.isCancelled) {
+      return res.send('OK');
+    }
+
+    // キャンセルリクエストを更新
+    const updateData = {};
+    if (isHost) {
+      updateData['hostChoices.cancelRequested'] = true;
+    } else {
+      updateData['guestChoices.cancelRequested'] = true;
+    }
+
+    // 両者がキャンセルリクエストした場合、キャンセル状態に
+    const otherCancelRequested = isHost ? matchData.guestChoices?.cancelRequested : matchData.hostChoices?.cancelRequested;
+    if (otherCancelRequested) {
+      updateData.isCancelled = true;
+    }
+
+    await matchRef.update(updateData);
+    res.send('OK');
+  } catch (error) {
+    console.error('キャンセルエラー:', {
       message: error.message,
       stack: error.stack,
       code: error.code || 'N/A'
@@ -2719,6 +2806,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .button-group { text-align: center; margin-top: 20px; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+            .confirm-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
             .chat-message { margin: 5px 0; }
