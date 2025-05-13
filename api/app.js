@@ -616,26 +616,61 @@ app.post('/api/solo/match', async (req, res) => {
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
 
-    // ユーザーの既存マッチング状態をチェック
-    const userMatchesQuery = matchesRef
+    // ユーザーの既存ソロマッチング状態をチェック
+    const userSoloMatchesQuery = matchesRef
       .where('type', '==', 'solo')
       .where('userId', '==', userId)
       .where('status', 'in', ['matched', 'waiting']);
-    const userMatchesSnapshot = await userMatchesQuery.get();
+    const userSoloMatchesSnapshot = await userSoloMatchesQuery.get();
 
-    if (!userMatchesSnapshot.empty) {
-      const matchDoc = userMatchesSnapshot.docs[0];
+    if (!userSoloMatchesSnapshot.empty) {
+      const matchDoc = userSoloMatchesSnapshot.docs[0];
       const matchData = matchDoc.data();
       if (matchData.status === 'matched') {
-        console.log('既存のマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        console.log('既存のソロマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
       } else if (matchData.status === 'waiting') {
-        console.log('既存の待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        console.log('既存のソロ待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: '/api/solo/check' });
       }
     }
 
-    // 待機中の他のルームを検索
+    // ユーザーのチームマッチング状態をチェック
+    const userTeamMatchesQuery = matchesRef
+      .where('type', '==', 'team')
+      .where('userId', '==', userId)
+      .where('status', 'in', ['matched', 'waiting']);
+    const userTeamMatchesSnapshot = await userTeamMatchesQuery.get();
+    if (!userTeamMatchesSnapshot.empty) {
+      console.error('ユーザーがチームマッチング中:', { userId });
+      return res.status(403).json({ message: 'あなたはチームマッチング中です' });
+    }
+
+    // ユーザー情報の取得（タッグ状態チェック用）
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      console.error('ユーザーが見つかりません:', userId);
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
+    }
+    const userData = userSnap.data();
+    const isTagged = userData.isTagged || false;
+    const tagPartnerId = userData.tagPartnerId || '';
+
+    // タッグ相手のチームマッチング状態をチェック
+    if (isTagged && tagPartnerId) {
+      const partnerTeamMatchesQuery = matchesRef
+        .where('type', '==', 'team')
+        .where('userId', '==', tagPartnerId)
+        .where('status', 'in', ['matched', 'waiting']);
+      const partnerTeamMatchesSnapshot = await partnerTeamMatchesQuery.get();
+      if (!partnerTeamMatchesSnapshot.empty) {
+        console.error('タッグ相手がチームマッチング中:', { userId, tagPartnerId });
+        return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+      }
+    }
+
+    // 待機中の他のソロルームを検索
     const waitingQuery = matchesRef
       .where('type', '==', 'solo')
       .where('status', '==', 'waiting')
