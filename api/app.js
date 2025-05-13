@@ -3032,10 +3032,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
             .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
-            .player-info .player-row { display: flex; align-items: center; justify-content: center; margin: 10px 0; }
-            .player-info .icon-container { width: 40px; flex-shrink: 0; }
+            .player-group { display: inline-flex; flex-direction: column; margin: 0 auto; }
+            .player-row { display: flex; align-items: center; justify-content: flex-start; margin: 10px 0; }
+            .icon-container { width: 40px; flex-shrink: 0; }
             .player-info img { width: 32px; height: 32px; vertical-align: middle; }
-            .player-info .name { font-size: 1.2em; }
+            .name { font-size: 1.2em; margin-left: 8px; }
             .button-group { text-align: center; margin-top: 20px; }
             .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
@@ -3207,25 +3208,29 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
             <div class="player-table">
               <div class="player-info">
-                <div class="player-row">
-                  <span class="icon-container"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></span>
-                  <span class="name">${hostName}</span>
-                </div>
-                <div class="player-row">
-                  <span class="icon-container"><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"></span>
-                  <span class="name">${hostTagPartnerName}</span>
+                <div class="player-group">
+                  <div class="player-row">
+                    <span class="icon-container"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></span>
+                    <span class="name">${hostName}</span>
+                  </div>
+                  <div class="player-row">
+                    <span class="icon-container"><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"></span>
+                    <span class="name">${hostTagPartnerName}</span>
+                  </div>
                 </div>
                 <p id="hostRating">レート: ${hostTeamRating}</p>
                 <p id="hostResult">状態: 対戦中</p>
               </div>
               <div class="player-info">
-                <div class="player-row">
-                  <span class="icon-container"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"></span>
-                  <span class="name">${guestName}</span>
-                </div>
-                <div class="player-row">
-                  <span class="icon-container"><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"></span>
-                  <span class="name">${guestTagPartnerName}</span>
+                <div class="player-group">
+                  <div class="player-row">
+                    <span class="icon-container"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"></span>
+                    <span class="name">${guestName}</span>
+                  </div>
+                  <div class="player-row">
+                    <span class="icon-container"><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"></span>
+                    <span class="name">${guestTagPartnerName}</span>
+                  </div>
                 </div>
                 <p id="guestRating">レート: ${guestTeamRating}</p>
                 <p id="guestResult">状態: 対戦中</p>
