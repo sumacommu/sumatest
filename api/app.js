@@ -3016,6 +3016,12 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 <p id="guestResult">状態: 対戦中</p>
               </div>
             </div>
+            <div class="button-group">
+              <button class="result-btn" onclick="submitResult('win')">勝ち</button>
+              <button class="result-btn" onclick="submitResult('lose')">負け</button>
+              <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
+              <p><a href="/api/team">戻る</a></p>
+            </div>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">
@@ -3025,12 +3031,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 <span id="charCount">0/500</span>
                 <button onclick="sendMessage()">送信</button>
               </div>
-            </div>
-            <div class="button-group">
-              <button class="result-btn" onclick="submitResult('win')">勝ち</button>
-              <button class="result-btn" onclick="submitResult('lose')">負け</button>
-              <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
-              <p><a href="/api/team">戻る</a></p>
             </div>
           </div>
         </body>
