@@ -2740,10 +2740,40 @@ app.post('/api/team/match', async (req, res) => {
     return res.redirect('/api/team');
   }
   const userId = req.user.id;
-  const userTeamRating = req.user.teamRating || 1500;
 
   try {
     const db = admin.firestore();
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      console.error('ユーザーが見つかりません:', userId);
+      return res.status(404).send(`
+        <html>
+          <body>
+            <h1>ユーザーが見つかりません</h1>
+            <p><a href="/api/team">戻る</a></p>
+          </body>
+        </html>
+      `);
+    }
+    const userData = userSnap.data();
+    const isTagged = userData.isTagged || false;
+
+    // タッグ状態のチェック
+    if (!isTagged) {
+      console.error('タッグしていないユーザーのマッチング試行:', userId);
+      return res.status(403).send(`
+        <html>
+          <body>
+            <h1>マッチングできません</h1>
+            <p>チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。</p>
+            <p><a href="/api/team">戻る</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    const userTeamRating = userData.teamRating || 1500;
     const matchesRef = db.collection('matches');
     const waitingQuery = matchesRef
       .where('type', '==', 'team')
@@ -2967,12 +2997,42 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     const hostRef = db.collection('users').doc(hostId);
     const guestRef = db.collection('users').doc(guestId);
     const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
-    const hostName = hostSnap.data().handleName || '不明';
-    const guestName = guestSnap.data().handleName || '不明';
-    let hostTeamRating = hostSnap.data().teamRating || 1500;
-    let guestTeamRating = guestSnap.data().teamRating || 1500;
-    const hostProfileImage = hostSnap.data().profileImage || '/default.png';
-    const guestProfileImage = guestSnap.data().profileImage || '/default.png';
+    const hostData = hostSnap.data();
+    const guestData = guestSnap.data();
+    const hostName = hostData.handleName || '不明';
+    const guestName = guestData.handleName || '不明';
+    let hostTeamRating = hostData.teamRating || 1500;
+    let guestTeamRating = guestData.teamRating || 1500;
+    const hostProfileImage = hostData.profileImage || '/default.png';
+    const guestProfileImage = guestData.profileImage || '/default.png';
+
+    // タッグパートナーのデータ取得
+    let hostTagPartnerHtml = '';
+    let guestTagPartnerHtml = '';
+    if (hostData.tagPartnerId && hostData.isTagged) {
+      const hostTagPartnerRef = db.collection('users').doc(hostData.tagPartnerId);
+      const hostTagPartnerSnap = await hostTagPartnerRef.get();
+      if (hostTagPartnerSnap.exists) {
+        const hostTagPartnerData = hostTagPartnerSnap.data();
+        const hostTagPartnerName = hostTagPartnerData.handleName || '不明';
+        const hostTagPartnerImage = hostTagPartnerData.profileImage || '/default.png';
+        hostTagPartnerHtml = `
+          <h2><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"> ${hostTagPartnerName}</h2>
+        `;
+      }
+    }
+    if (guestData.tagPartnerId && guestData.isTagged) {
+      const guestTagPartnerRef = db.collection('users').doc(guestData.tagPartnerId);
+      const guestTagPartnerSnap = await guestTagPartnerRef.get();
+      if (guestTagPartnerSnap.exists) {
+        const guestTagPartnerData = guestTagPartnerSnap.data();
+        const guestTagPartnerName = guestTagPartnerData.handleName || '不明';
+        const guestTagPartnerImage = guestTagPartnerData.profileImage || '/default.png';
+        guestTagPartnerHtml = `
+          <h2><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"> ${guestTagPartnerName}</h2>
+        `;
+      }
+    }
 
     res.send(`
       <html>
@@ -2989,8 +3049,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }           
-            .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
+            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+            .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
             .chat-message { margin: 5px 0; }
@@ -3151,37 +3211,38 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
           </script>
         </head>
         <body>
-          <div class="match-container">
-            <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
-            <div class="player-table">
-              <div class="player-info">
-                <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
-                <p id="hostRating">レート: ${hostTeamRating}</p>
-                <p id="hostResult">状態: 対戦中</p>
-              </div>
-              <div class="player-info">
-                <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
-                <p id="guestRating">レート: ${guestTeamRating}</p>
-                <p id="guestResult">状態: 対戦中</p>
-              </div>
+          <div class="player-table">
+            <div class="player-info">
+              <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
+              ${hostTagPartnerHtml}
+              <p id="hostRating">レート: ${hostTeamRating}</p>
+              <p id="hostResult">状態: 対戦中</p>
             </div>
-            <div class="button-group">
-              <button class="result-btn" onclick="submitResult('win')">勝ち</button>
-              <button class="result-btn" onclick="submitResult('lose')">負け</button>
-              <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
-              <p><a href="/api/team">戻る</a></p>
-            </div>
-            <div class="chat-container">
-              <div class="chat-log" id="chatLog"></div>
-              <div class="chat-input">
-                <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
-              </div>
-              <div class="chat-controls">
-                <span id="charCount">0/500</span>
-                <button onclick="sendMessage()">送信</button>
-              </div>
+            <div class="player-info">
+              <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
+              ${guestTagPartnerHtml}
+              <p id="guestRating">レート: ${guestTeamRating}</p>
+              <p id="guestResult">状態: 対戦中</p>
             </div>
           </div>
+          <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
+          <div class="button-group">
+            <button class="result-btn" onclick="submitResult('win')">勝ち</button>
+            <button class="result-btn" onclick="submitResult('lose')">負け</button>
+            <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
+            <p><a href="/api/team">戻る</a></p>
+          </div>
+          <div class="chat-container">
+            <div class="chat-log" id="chatLog"></div>
+            <div class="chat-input">
+              <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
+            </div>
+            <div class="chat-controls">
+              <span id="charCount">0/500</span>
+              <button onclick="sendMessage()">送信</button>
+            </div>
+          </div>
+        </div>
         </body>
       </html>
     `);
