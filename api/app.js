@@ -2156,6 +2156,11 @@ app.get('/api/user/:userId', async (req, res) => {
           <button id="tagButton">タッグを組む</button>
         `;
       }
+    } else if (isOwnProfile && userData.isTagged && userData.tagPartnerId) {
+      // 自分のページでタッグを組んでいる場合
+      tagButtonHtml = `
+        <button id="untagButton">タッグを解除する</button>
+      `;
     }
 
     if (isNewUser || !userData.handleName) {
@@ -2321,13 +2326,12 @@ app.get('/api/user/:userId', async (req, res) => {
               </tbody>
             </table>
             <p><a href="/api/">ホームに戻る</a></p>
+            <div class="error" id="error"></div>
           </div>
           <script>
             const tagButton = document.getElementById('tagButton');
             const untagButton = document.getElementById('untagButton');
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error';
-            document.querySelector('.container').appendChild(errorDiv);
+            const errorDiv = document.getElementById('error');
 
             if (tagButton) {
               tagButton.addEventListener('click', async () => {
@@ -2659,6 +2663,14 @@ app.post('/api/user/:userId/tag', async (req, res) => {
     const currentUserRef = db.collection('users').doc(currentUser.id);
     const targetUserRef = db.collection('users').doc(userId);
 
+    // 現在のユーザーデータを取得
+    const currentUserSnap = await currentUserRef.get();
+    if (!currentUserSnap.exists) {
+      console.error('エラー: 現在のユーザーが見つかりません', { userId: currentUser.id });
+      return res.status(404).send('ユーザーが見つかりません');
+    }
+    const currentUserData = currentUserSnap.data();
+
     // 対象ユーザーの存在確認
     const targetUserSnap = await targetUserRef.get();
     if (!targetUserSnap.exists) {
@@ -2667,6 +2679,14 @@ app.post('/api/user/:userId/tag', async (req, res) => {
     }
 
     if (action === 'tag') {
+      // 既にタッグを組んでいる場合
+      if (currentUserData.isTagged) {
+        console.error('エラー: 既に他のユーザーとタッグを組んでいます', {
+          userId: currentUser.id,
+          currentTagPartnerId: currentUserData.tagPartnerId
+        });
+        return res.status(400).send('既に他のユーザーとタッグを組んでいます');
+      }
       // タッグを組む処理
       await currentUserRef.update({
         tagPartnerId: userId,
@@ -2675,6 +2695,11 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
       res.send('OK');
     } else if (action === 'untag') {
+      // 既に解除済みの場合、何もしない
+      if (!currentUserData.isTagged) {
+        console.log('タッグ解除済み、変更なし:', { userId: currentUser.id });
+        return res.send('OK');
+      }
       // タッグ解除処理
       await currentUserRef.update({
         tagPartnerId: '',
@@ -2784,21 +2809,54 @@ app.post('/api/team/match', async (req, res) => {
     }
     const userData = userSnap.data();
     const isTagged = userData.isTagged || false;
+    const tagPartnerId = userData.tagPartnerId || '';
 
     // タッグ状態のチェック
-    if (!isTagged) {
+    if (!isTagged || !tagPartnerId) {
       console.error('タッグしていないユーザーのマッチング試行:', userId);
       return res.status(403).json({ message: 'チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。' });
     }
 
+    // 相互タッグの検証
+    const tagPartnerRef = db.collection('users').doc(tagPartnerId);
+    const tagPartnerSnap = await tagPartnerRef.get();
+    if (!tagPartnerSnap.exists) {
+      console.error('タッグ相手が見つかりません:', tagPartnerId);
+      return res.status(404).json({ message: 'タッグ相手が見つかりません' });
+    }
+    const tagPartnerData = tagPartnerSnap.data();
+    if (!tagPartnerData.isTagged || tagPartnerData.tagPartnerId !== userId) {
+      console.error('相互タッグが未成立:', { userId, tagPartnerId });
+      return res.status(403).json({ message: 'タッグ相手と相互にタッグを組む必要があります' });
+    }
+
+    // タッグ相手のマッチング状態チェック（チーム）
+    const partnerTeamMatchesQuery = db.collection('matches')
+      .where('type', '==', 'team')
+      .where('status', 'in', ['waiting', 'matched'])
+      .where('userId', '==', tagPartnerId);
+    const partnerTeamMatchesSnap = await partnerTeamMatchesQuery.get();
+    if (!partnerTeamMatchesSnap.empty) {
+      console.error('タッグ相手がマッチング中:', { userId, tagPartnerId });
+      return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+    }
+
+    // 自分とタッグ相手のタイマンマッチング状態チェック
+    const userIds = [userId, tagPartnerId];
+    const soloMatchesQuery = db.collection('matches')
+      .where('type', '==', 'solo')
+      .where('status', 'in', ['waiting', 'matched'])
+      .where('userId', 'in', userIds);
+    const soloMatchesSnap = await soloMatchesQuery.get();
+    if (!soloMatchesSnap.empty) {
+      console.error('タイマンとチームの同時使用:', { userId, tagPartnerId });
+      return res.status(403).json({ message: 'あなたまたはタッグ相手がタイマンマッチング中です' });
+    }
+
     // ユーザーとタッグパートナーの高い方のレートを取得
     let userTeamRating = userData.teamRating || 1500;
-    if (userData.tagPartnerId) {
-      const tagPartnerRef = db.collection('users').doc(userData.tagPartnerId);
-      const tagPartnerSnap = await tagPartnerRef.get();
-      const tagPartnerRating = tagPartnerSnap.exists ? (tagPartnerSnap.data().teamRating || 1500) : 1500;
-      userTeamRating = Math.max(userTeamRating, tagPartnerRating);
-    }
+    const tagPartnerRating = tagPartnerData.teamRating || 1500;
+    userTeamRating = Math.max(userTeamRating, tagPartnerRating);
 
     const matchesRef = db.collection('matches');
     const waitingQuery = matchesRef
