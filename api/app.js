@@ -2716,7 +2716,22 @@ app.get('/api/team', async (req, res) => {
           <p>待機中のチーム: ${waitingCount}</p>
   `;
   if (req.user) {
-    const teamRating = req.user.teamRating || 1500;
+    const userId = req.user.id;
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() || {};
+    const userTeamRating = userData.teamRating || 1500;
+    let teamRating = userTeamRating;
+
+    // タッグパートナーのレートを取得
+    if (userData.isTagged && userData.tagPartnerId) {
+      const tagPartnerRef = db.collection('users').doc(userData.tagPartnerId);
+      const tagPartnerSnap = await tagPartnerRef.get();
+      const tagPartnerRating = tagPartnerSnap.exists ? (tagPartnerSnap.data().teamRating || 1500) : 1500;
+      teamRating = Math.max(userTeamRating, tagPartnerRating);
+    }
+
     html += `
       <form id="matchForm">
         <button type="button" id="matchButton">マッチング開始</button>
@@ -2776,7 +2791,15 @@ app.post('/api/team/match', async (req, res) => {
       return res.status(403).json({ message: 'チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。' });
     }
 
-    const userTeamRating = userData.teamRating || 1500;
+    // ユーザーとタッグパートナーの高い方のレートを取得
+    let userTeamRating = userData.teamRating || 1500;
+    if (userData.tagPartnerId) {
+      const tagPartnerRef = db.collection('users').doc(userData.tagPartnerId);
+      const tagPartnerSnap = await tagPartnerRef.get();
+      const tagPartnerRating = tagPartnerSnap.exists ? (tagPartnerSnap.data().teamRating || 1500) : 1500;
+      userTeamRating = Math.max(userTeamRating, tagPartnerRating);
+    }
+
     const matchesRef = db.collection('matches');
     const waitingQuery = matchesRef
       .where('type', '==', 'team')
@@ -2790,7 +2813,17 @@ app.post('/api/team/match', async (req, res) => {
       if (!guestData.roomId) continue;
       const guestRef = db.collection('users').doc(guestData.userId);
       const guestSnap = await guestRef.get();
-      const guestTeamRating = guestSnap.exists ? (guestSnap.data().teamRating || 1500) : 1500;
+      const guestDataFull = guestSnap.exists ? guestSnap.data() : {};
+      let guestTeamRating = guestDataFull.teamRating || 1500;
+
+      // ゲストのタッグパートナーのレートを取得
+      if (guestDataFull.tagPartnerId) {
+        const guestTagPartnerRef = db.collection('users').doc(guestDataFull.tagPartnerId);
+        const guestTagPartnerSnap = await guestTagPartnerRef.get();
+        const guestTagPartnerRating = guestTagPartnerSnap.exists ? (guestTagPartnerSnap.data().teamRating || 1500) : 1500;
+        guestTeamRating = Math.max(guestTeamRating, guestTagPartnerRating);
+      }
+
       if (Math.abs(userTeamRating - guestTeamRating) <= 200) {
         await docSnap.ref.update({
           guestId: userId,
@@ -2995,10 +3028,25 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     const guestData = guestSnap.data();
     const hostName = hostData.handleName || '不明';
     const guestName = guestData.handleName || '不明';
-    let hostTeamRating = hostData.teamRating || 1500;
-    let guestTeamRating = guestData.teamRating || 1500;
     const hostProfileImage = hostData.profileImage || '/default.png';
     const guestProfileImage = guestData.profileImage || '/default.png';
+
+    // ホストチームの高い方のレート
+    let hostTeamRating = hostData.teamRating || 1500;
+    if (hostData.isTagged && hostData.tagPartnerId) {
+      const hostTagPartnerRef = db.collection('users').doc(hostData.tagPartnerId);
+      const hostTagPartnerSnap = await hostTagPartnerRef.get();
+      const hostTagPartnerRating = hostTagPartnerSnap.exists ? (hostTagPartnerSnap.data().teamRating || 1500) : 1500;
+      hostTeamRating = Math.max(hostTeamRating, hostTagPartnerRating);
+    }
+    // ゲストチームの高い方のレート
+    let guestTeamRating = guestData.teamRating || 1500;
+    if (guestData.isTagged && guestData.tagPartnerId) {
+      const guestTagPartnerRef = db.collection('users').doc(guestData.tagPartnerId);
+      const guestTagPartnerSnap = await guestTagPartnerRef.get();
+      const guestTagPartnerRating = guestTagPartnerSnap.exists ? (guestTagPartnerSnap.data().teamRating || 1500) : 1500;
+      guestTeamRating = Math.max(guestTeamRating, guestTagPartnerRating);
+    }
 
     // タッグパートナーのデータ取得
     let hostTagPartnerName = '不明';
@@ -3289,20 +3337,46 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
     const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
     const updateData = {};
 
-    async function updateTeamRatings(winnerId, loserId) {
-      const winnerRef = db.collection('users').doc(winnerId);
-      const loserRef = db.collection('users').doc(loserId);
-      const [winnerSnap, loserSnap] = await Promise.all([winnerRef.get(), loserRef.get()]);
-      const winnerTeamRating = winnerSnap.data()?.teamRating || 1500;
-      const loserTeamRating = loserSnap.data()?.teamRating || 1500;
+    async function updateTeamRatings(winnerIds, loserIds) {
+      const winnerRefs = winnerIds.map(id => db.collection('users').doc(id));
+      const loserRefs = loserIds.map(id => db.collection('users').doc(id));
+      const winnerSnaps = await Promise.all(winnerRefs.map(ref => ref.get()));
+      const loserSnaps = await Promise.all(loserRefs.map(ref => ref.get()));
+
+      // 勝者チームの高い方のレート
+      const winnerRatings = winnerSnaps.map(snap => snap.exists ? (snap.data().teamRating || 1500) : 1500);
+      const winnerTeamRating = Math.max(...winnerRatings);
+      // 敗者チームの高い方のレート
+      const loserRatings = loserSnaps.map(snap => snap.exists ? (snap.data().teamRating || 1500) : 1500);
+      const loserTeamRating = Math.max(...loserRatings);
+
       const teamRatingDiff = loserTeamRating - winnerTeamRating;
       const winPoints = teamRatingDiff >= 400 ? 0 : Math.floor(16 + teamRatingDiff * 0.04);
       const losePoints = winPoints;
-      await Promise.all([
-        winnerRef.update({ teamRating: winnerTeamRating + winPoints }),
-        loserRef.update({ teamRating: loserTeamRating - losePoints })
-      ]);
-      return { winPoints, losePoints };
+
+      // 勝者チームのレート更新
+      const winnerUpdates = winnerSnaps.map((snap, index) => {
+        const userId = winnerIds[index];
+        const currentRating = snap.exists ? (snap.data().teamRating || 1500) : 1500;
+        return winnerRefs[index].update({ teamRating: currentRating + winPoints });
+      });
+      // 敗者チームのレート更新
+      const loserUpdates = loserSnaps.map((snap, index) => {
+        const userId = loserIds[index];
+        const currentRating = snap.exists ? (snap.data().teamRating || 1500) : 1500;
+        return loserRefs[index].update({ teamRating: currentRating - losePoints });
+      });
+
+      await Promise.all([...winnerUpdates, ...loserUpdates]);
+
+      return {
+        winPoints,
+        losePoints,
+        ratingChanges: {
+          ...winnerIds.reduce((acc, id) => ({ ...acc, [id]: winPoints }), {}),
+          ...loserIds.reduce((acc, id) => ({ ...acc, [id]: -losePoints }), {})
+        }
+      };
     }
 
     // 選択を保存
@@ -3319,19 +3393,32 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       ) {
         // 勝ち負けの場合
         updateData.status = 'finished';
-        const winnerId = hostResult === 'win' ? matchData.userId : matchData.guestId;
-        const loserId = hostResult === 'win' ? matchData.guestId : matchData.userId;
-        const { winPoints, losePoints } = await updateTeamRatings(winnerId, loserId);
-        updateData.teamRatingChanges = {
-          [winnerId]: winPoints,
-          [loserId]: -losePoints
-        };
+        const hostRef = db.collection('users').doc(matchData.userId);
+        const guestRef = db.collection('users').doc(matchData.guestId);
+        const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
+        const hostData = hostSnap.data();
+        const guestData = guestSnap.data();
+
+        // ホストとゲストのタッグパートナーIDを取得
+        const hostTagPartnerId = hostData.tagPartnerId || '';
+        const guestTagPartnerId = guestData.tagPartnerId || '';
+        const winnerIds = hostResult === 'win'
+          ? [matchData.userId, hostTagPartnerId].filter(id => id)
+          : [matchData.guestId, guestTagPartnerId].filter(id => id);
+        const loserIds = hostResult === 'win'
+          ? [matchData.guestId, guestTagPartnerId].filter(id => id)
+          : [matchData.userId, hostTagPartnerId].filter(id => id);
+
+        const { winPoints, losePoints, ratingChanges } = await updateTeamRatings(winnerIds, loserIds);
+        updateData.teamRatingChanges = ratingChanges;
       } else if (hostResult === 'cancel' && guestResult === 'cancel') {
         // 両者対戦中止の場合
         updateData.status = 'finished';
         updateData.teamRatingChanges = {
           [matchData.userId]: 0,
-          [matchData.guestId]: 0
+          [matchData.guestId]: 0,
+          ...(matchData.hostTagPartnerId ? { [matchData.hostTagPartnerId]: 0 } : {}),
+          ...(matchData.guestTagPartnerId ? { [matchData.guestTagPartnerId]: 0 } : {})
         };
       }
       // 矛盾する選択（例：両者勝ち、両者負け）の場合は何もしない
