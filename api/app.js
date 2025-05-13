@@ -2146,18 +2146,15 @@ app.get('/api/user/:userId', async (req, res) => {
       currentUserIsTagged = currentUserData.isTagged || false;
 
       if (currentUserIsTagged && currentUserTagPartnerId === userId) {
-        // 既にタッグを組んでいる場合
         tagButtonHtml = `
           <button id="untagButton">タッグを解除する</button>
         `;
       } else {
-        // タッグを組んでいない場合
         tagButtonHtml = `
           <button id="tagButton">タッグを組む</button>
         `;
       }
     } else if (isOwnProfile && userData.isTagged && userData.tagPartnerId) {
-      // 自分のページでタッグを組んでいる場合
       tagButtonHtml = `
         <button id="untagButton">タッグを解除する</button>
       `;
@@ -2269,7 +2266,7 @@ app.get('/api/user/:userId', async (req, res) => {
     const matchesRef = db.collection('matches');
     const userMatchesQuery = matchesRef
       .where('status', '==', 'finished')
-      .where('userId', 'in', [userId, userId]); // ホストまたはゲスト
+      .where('userId', 'in', [userId, userId]);
     const matchesSnapshot = await userMatchesQuery.get();
     let matchHistory = '';
     matchesSnapshot.forEach(doc => {
@@ -2342,12 +2339,14 @@ app.get('/api/user/:userId', async (req, res) => {
                     body: JSON.stringify({ action: 'tag' })
                   });
                   if (response.ok) {
-                    window.location.reload(); // ページをリロードしてボタンを更新
+                    window.location.reload();
                   } else {
-                    const errorText = await response.text();
-                    errorDiv.textContent = errorText;
+                    const data = await response.json();
+                    alert(data.message);
+                    errorDiv.textContent = data.message;
                   }
                 } catch (error) {
+                  alert('エラーが発生しました');
                   errorDiv.textContent = 'エラーが発生しました';
                 }
               });
@@ -2362,12 +2361,14 @@ app.get('/api/user/:userId', async (req, res) => {
                     body: JSON.stringify({ action: 'untag' })
                   });
                   if (response.ok) {
-                    window.location.reload(); // ページをリロードしてボタンを更新
+                    window.location.reload();
                   } else {
-                    const errorText = await response.text();
-                    errorDiv.textContent = errorText;
+                    const data = await response.json();
+                    alert(data.message);
+                    errorDiv.textContent = data.message;
                   }
                 } catch (error) {
+                  alert('エラーが発生しました');
                   errorDiv.textContent = 'エラーが発生しました';
                 }
               });
@@ -2641,53 +2642,47 @@ app.post('/api/user/:userId/update', async (req, res) => {
 
 // タッグ処理エンドポイント
 app.post('/api/user/:userId/tag', async (req, res) => {
-  const { userId } = req.params; // タッグを組む対象のユーザーID
+  const { userId } = req.params;
   const currentUser = req.user;
 
-  // 認証チェック
   if (!currentUser) {
     console.error('認証エラー: ユーザーが認証されていません');
-    return res.status(401).send('認証が必要です。ログインしてください。');
+    return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
 
-  // 自分自身にタッグを組めないようにする
   if (currentUser.id === userId) {
     console.error('エラー: 自分自身にタッグは組めません', { userId });
-    return res.status(400).send('自分自身にタッグを組むことはできません');
+    return res.status(400).json({ message: '自分自身にタッグを組むことはできません' });
   }
 
-  const { action } = req.body; // "tag" または "untag"
+  const { action } = req.body;
 
   try {
     const db = admin.firestore();
     const currentUserRef = db.collection('users').doc(currentUser.id);
     const targetUserRef = db.collection('users').doc(userId);
 
-    // 現在のユーザーデータを取得
     const currentUserSnap = await currentUserRef.get();
     if (!currentUserSnap.exists) {
       console.error('エラー: 現在のユーザーが見つかりません', { userId: currentUser.id });
-      return res.status(404).send('ユーザーが見つかりません');
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
     }
     const currentUserData = currentUserSnap.data();
 
-    // 対象ユーザーの存在確認
     const targetUserSnap = await targetUserRef.get();
     if (!targetUserSnap.exists) {
       console.error('エラー: 対象ユーザーが見つかりません', { userId });
-      return res.status(404).send('対象ユーザーが見つかりません');
+      return res.status(404).json({ message: '対象ユーザーが見つかりません' });
     }
 
     if (action === 'tag') {
-      // 既にタッグを組んでいる場合
       if (currentUserData.isTagged) {
         console.error('エラー: 既に他のユーザーとタッグを組んでいます', {
           userId: currentUser.id,
           currentTagPartnerId: currentUserData.tagPartnerId
         });
-        return res.status(400).send('既に他のユーザーとタッグを組んでいます');
+        return res.status(400).json({ message: '既に他のユーザーとタッグを組んでいます' });
       }
-      // タッグを組む処理
       await currentUserRef.update({
         tagPartnerId: userId,
         isTagged: true
@@ -2695,12 +2690,10 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
       res.send('OK');
     } else if (action === 'untag') {
-      // 既に解除済みの場合、何もしない
       if (!currentUserData.isTagged) {
         console.log('タッグ解除済み、変更なし:', { userId: currentUser.id });
         return res.send('OK');
       }
-      // タッグ解除処理
       await currentUserRef.update({
         tagPartnerId: '',
         isTagged: false
@@ -2709,7 +2702,7 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       res.send('OK');
     } else {
       console.error('エラー: 無効なアクション', { action });
-      return res.status(400).send('無効なアクションです');
+      return res.status(400).json({ message: '無効なアクションです' });
     }
   } catch (error) {
     console.error('タッグ処理エラー:', {
@@ -2717,7 +2710,7 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       stack: error.stack,
       code: error.code || 'N/A'
     });
-    res.status(500).send(`エラー: ${error.message}`);
+    return res.status(500).json({ message: `エラー: ${error.message}` });
   }
 });
 
@@ -2937,6 +2930,7 @@ app.get('/api/team/check', async (req, res) => {
         <head>
           <style>
             .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
           </style>
         </head>
         <body>
@@ -2948,7 +2942,8 @@ app.get('/api/team/check', async (req, res) => {
               <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
               <button type="submit">IDを更新</button>
             </form>
-            <p><a href="/api/team/cancel">キャンセル</a></p>
+            <button id="cancelButton">キャンセル</button>
+            <p><a href="/api/team">戻る</a></p>
             <script>
               setInterval(() => {
                 fetch('/api/team/check/status')
@@ -2960,11 +2955,67 @@ app.get('/api/team/check', async (req, res) => {
                   })
                   .catch(error => console.error('ポーリングエラー:', error));
               }, 2000);
+
+              document.addEventListener('DOMContentLoaded', () => {
+                const cancelButton = document.getElementById('cancelButton');
+                cancelButton.addEventListener('click', async () => {
+                  try {
+                    const response = await fetch('/api/team/check/cancel', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    if (response.ok) {
+                      window.location.href = '/api/team';
+                    } else {
+                      const data = await response.json();
+                      alert(data.message);
+                    }
+                  } catch (error) {
+                    alert('エラーが発生しました: ' + error.message);
+                  }
+                });
+              });
             </script>
           </div>
         </body>
       </html>
     `);
+  }
+});
+
+app.post('/api/team/check/cancel', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    console.error('ユーザー情報が不正:', req.user);
+    return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
+  }
+  const userId = req.user.id;
+
+  try {
+    const db = admin.firestore();
+    const matchesRef = db.collection('matches');
+    const waitingQuery = matchesRef
+      .where('type', '==', 'team')
+      .where('status', '==', 'waiting')
+      .where('userId', '==', userId);
+    const waitingSnapshot = await waitingQuery.get();
+
+    if (waitingSnapshot.empty) {
+      console.log('待機中のルームが見つかりません:', { userId });
+      return res.send('OK'); // ルームがない場合もリダイレクトを許可
+    }
+
+    const matchDoc = waitingSnapshot.docs[0];
+    await matchDoc.ref.delete();
+    console.log('マッチングキャンセル成功:', { userId, matchId: matchDoc.id });
+
+    res.send('OK');
+  } catch (error) {
+    console.error('マッチングキャンセルエラー:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
 });
 
