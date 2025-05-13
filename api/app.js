@@ -1783,6 +1783,11 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
     const opponentChoicesKey = isHost ? 'guestChoices' : 'hostChoices';
     const updateData = {};
 
+    if (matchData.isCancelled) {
+      await matchRef.update({ status: 'finished' });
+      return res.send('OK');
+    }
+
     async function updatesoloRatings(winnerId, loserId) {
       const winnerRef = db.collection('users').doc(winnerId);
       const loserRef = db.collection('users').doc(loserId);
