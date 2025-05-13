@@ -221,7 +221,9 @@ passport.use(new GoogleStrategy({
         soloRating: 1500,
         teamRating: 1500, // 追加
         uploadCount: 0,
-        lastUploadReset: new Date().toISOString()
+        lastUploadReset: new Date().toISOString(),
+        tagPartnerId: '', // タッグ初期化
+        isTagged: false // タッグ初期化
       };
       await userRef.set(userData);
       console.log('新規ユーザー登録成功:', profile.id, userData);
@@ -2117,11 +2119,38 @@ app.get('/api/user/:userId', async (req, res) => {
     userData.profileImage = userData.profileImage || '/default.png';
     userData.uploadCount = userData.uploadCount || 0;
     userData.lastUploadReset = userData.lastUploadReset || new Date().toISOString();
+    userData.tagPartnerId = userData.tagPartnerId || '';
+    userData.isTagged = userData.isTagged || false;
 
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
 
+    // タッグ状態のチェック
+    let tagButtonHtml = '';
+    let currentUserTagPartnerId = '';
+    let currentUserIsTagged = false;
+    if (currentUser && !isOwnProfile) {
+      const currentUserRef = db.collection('users').doc(currentUser.id);
+      const currentUserSnap = await currentUserRef.get();
+      const currentUserData = currentUserSnap.data();
+      currentUserTagPartnerId = currentUserData.tagPartnerId || '';
+      currentUserIsTagged = currentUserData.isTagged || false;
+
+      if (currentUserIsTagged && currentUserTagPartnerId === userId) {
+        // 既にタッグを組んでいる場合
+        tagButtonHtml = `
+          <button id="untagButton">タッグを解除する</button>
+        `;
+      } else {
+        // タッグを組んでいない場合
+        tagButtonHtml = `
+          <button id="tagButton">タッグを組む</button>
+        `;
+      }
+    }
+
     if (isNewUser || !userData.handleName) {
+      // 新規ユーザー向けプロフィール設定ページ（変更なし）
       return res.send(`
         <!DOCTYPE html>
         <html lang="ja">
@@ -2254,6 +2283,8 @@ app.get('/api/user/:userId', async (req, res) => {
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
             .error { color: red; }
+            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+            button.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
           </style>
         </head>
         <body>
@@ -2266,6 +2297,7 @@ app.get('/api/user/:userId', async (req, res) => {
               <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
               <p><a href="/api/logout">ログアウト</a></p>
             ` : ''}
+            ${tagButtonHtml}
             <h2>マッチング履歴</h2>
             <table>
               <thead>
@@ -2281,6 +2313,53 @@ app.get('/api/user/:userId', async (req, res) => {
             </table>
             <p><a href="/api/">ホームに戻る</a></p>
           </div>
+          <script>
+            const tagButton = document.getElementById('tagButton');
+            const untagButton = document.getElementById('untagButton');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            document.querySelector('.container').appendChild(errorDiv);
+
+            if (tagButton) {
+              tagButton.addEventListener('click', async () => {
+                try {
+                  const response = await fetch('/api/user/${userId}/tag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'tag' })
+                  });
+                  if (response.ok) {
+                    window.location.reload(); // ページをリロードしてボタンを更新
+                  } else {
+                    const errorText = await response.text();
+                    errorDiv.textContent = errorText;
+                  }
+                } catch (error) {
+                  errorDiv.textContent = 'エラーが発生しました';
+                }
+              });
+            }
+
+            if (untagButton) {
+              untagButton.addEventListener('click', async () => {
+                try {
+                  const response = await fetch('/api/user/${userId}/tag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'untag' })
+                  });
+                  if (response.ok) {
+                    window.location.reload(); // ページをリロードしてボタンを更新
+                  } else {
+                    const errorText = await response.text();
+                    errorDiv.textContent = errorText;
+                  }
+                } catch (error) {
+                  errorDiv.textContent = 'エラーが発生しました';
+                }
+              });
+            }
+          </script>
         </body>
       </html>
     `);
@@ -2542,6 +2621,67 @@ app.post('/api/user/:userId/update', async (req, res) => {
       message: error.message,
       code: error.code,
       stack: error.stack
+    });
+    res.status(500).send(`エラー: ${error.message}`);
+  }
+});
+
+// タッグ処理エンドポイント
+app.post('/api/user/:userId/tag', async (req, res) => {
+  const { userId } = req.params; // タッグを組む対象のユーザーID
+  const currentUser = req.user;
+
+  // 認証チェック
+  if (!currentUser) {
+    console.error('認証エラー: ユーザーが認証されていません');
+    return res.status(401).send('認証が必要です。ログインしてください。');
+  }
+
+  // 自分自身にタッグを組めないようにする
+  if (currentUser.id === userId) {
+    console.error('エラー: 自分自身にタッグは組めません', { userId });
+    return res.status(400).send('自分自身にタッグを組むことはできません');
+  }
+
+  const { action } = req.body; // "tag" または "untag"
+
+  try {
+    const db = admin.firestore();
+    const currentUserRef = db.collection('users').doc(currentUser.id);
+    const targetUserRef = db.collection('users').doc(userId);
+
+    // 対象ユーザーの存在確認
+    const targetUserSnap = await targetUserRef.get();
+    if (!targetUserSnap.exists) {
+      console.error('エラー: 対象ユーザーが見つかりません', { userId });
+      return res.status(404).send('対象ユーザーが見つかりません');
+    }
+
+    if (action === 'tag') {
+      // タッグを組む処理
+      await currentUserRef.update({
+        tagPartnerId: userId,
+        isTagged: true
+      });
+      console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
+      res.send('OK');
+    } else if (action === 'untag') {
+      // タッグ解除処理
+      await currentUserRef.update({
+        tagPartnerId: '',
+        isTagged: false
+      });
+      console.log('タッグ解除成功:', { userId: currentUser.id });
+      res.send('OK');
+    } else {
+      console.error('エラー: 無効なアクション', { action });
+      return res.status(400).send('無効なアクションです');
+    }
+  } catch (error) {
+    console.error('タッグ処理エラー:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
     });
     res.status(500).send(`エラー: ${error.message}`);
   }
