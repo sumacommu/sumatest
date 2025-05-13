@@ -399,22 +399,51 @@ app.get('/api/solo', async (req, res) => {
 
   let html = `
     <html>
+      <head>
+        <style>
+          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+          button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        </style>
+      </head>
       <body>
-        <h1>タイマン用ページ</h1>
-        <p>待機中: ${waitingCount}人</p>
+        <div class="container">
+          <h1>タイマン用ページ</h1>
+          <p>待機中: ${waitingCount}人</p>
   `;
   if (req.user) {
     const soloRating = req.user.soloRating || 1500;
     html += `
-      <form action="/api/solo/match" method="POST">
-        <button type="submit">マッチング開始</button>
+      <form id="matchForm">
+        <button type="button" id="matchButton">マッチング開始</button>
       </form>
       <p>現在のレート: ${soloRating}</p>
+      <script>
+        document.getElementById('matchButton').addEventListener('click', async () => {
+          try {
+            const response = await fetch('/api/solo/match', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (response.ok) {
+              window.location.href = data.redirect;
+            } else {
+              alert(data.message);
+            }
+          } catch (error) {
+            alert('ネットワークエラー: ' + error.message);
+          }
+        });
+      </script>
     `;
   } else {
     html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
   }
-  html += `<p><a href="/api/">戻る</a></p></body></html>`;
+  html += `
+          <p><a href="/api/">戻る</a></p>
+        </div>
+      </body>
+    </html>`;
   res.send(html);
 });
 
@@ -425,43 +454,106 @@ app.get('/api/solo/check', async (req, res) => {
   }
   const userId = req.user.id;
   const matchesRef = collection(db, 'matches');
-  const userMatchQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'matched'));
+  const userMatchQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'matched'), where('type', '==', 'solo'));
   const userMatchSnapshot = await getDocs(userMatchQuery);
 
   if (!userMatchSnapshot.empty) {
-    const matchData = userMatchSnapshot.docs[0].data();
     const matchId = userMatchSnapshot.docs[0].id;
     res.redirect(`/api/solo/setup/${matchId}`);
   } else {
-    const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
+    const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'), where('type', '==', 'solo'));
     const waitingSnapshot = await getDocs(waitingQuery);
     const roomId = waitingSnapshot.empty ? '' : waitingSnapshot.docs[0].data().roomId;
     res.send(`
       <html>
+        <head>
+          <style>
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
+            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+          </style>
+        </head>
         <body>
-          <h1>マッチング待機中</h1>
-          <p>相手を待っています... あなたのレート: ${req.user.soloRating || 1500}</p>
-          <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
-          <form action="/api/solo/update" method="POST">
-            <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
-            <button type="submit">IDを更新</button>
-          </form>
-          <p><a href="/api/solo/cancel">キャンセル</a></p>
-          <script>
-            setInterval(() => {
-              fetch('/api/solo/check/status')
-                .then(response => response.json())
-                .then(data => {
-                  if (data.matched) {
-                    window.location.href = '/api/solo/setup/' + data.matchId;
+          <div class="container">
+            <h1>マッチング待機中</h1>
+            <p>相手を待っています... あなたのレート: ${req.user.soloRating || 1500}</p>
+            <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
+            <form action="/api/solo/update" method="POST">
+              <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+              <button type="submit">IDを更新</button>
+            </form>
+            <button id="cancelButton">ルームを削除する</button>
+            <script>
+              setInterval(() => {
+                fetch('/api/solo/check/status')
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.matched) {
+                      window.location.href = '/api/solo/setup/' + data.matchId;
+                    }
+                  })
+                  .catch(error => console.error('ポーリングエラー:', error));
+              }, 2000);
+
+              document.addEventListener('DOMContentLoaded', () => {
+                const cancelButton = document.getElementById('cancelButton');
+                cancelButton.addEventListener('click', async () => {
+                  try {
+                    const response = await fetch('/api/solo/check/cancel', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    if (response.ok) {
+                      window.location.href = '/api/solo';
+                    } else {
+                      const data = await response.json();
+                      alert(data.message);
+                    }
+                  } catch (error) {
+                    alert('エラーが発生しました: ' + error.message);
                   }
-                })
-                .catch(error => console.error('ポーリングエラー:', error));
-            }, 2000);
-          </script>
+                });
+              });
+            </script>
+          </div>
         </body>
       </html>
     `);
+  }
+});
+
+app.post('/api/solo/check/cancel', async (req, res) => {
+  if (!req.user || !req.user.id) {
+    console.error('ユーザー情報が不正:', req.user);
+    return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
+  }
+  const userId = req.user.id;
+
+  try {
+    const db = admin.firestore();
+    const matchesRef = db.collection('matches');
+    const waitingQuery = matchesRef
+      .where('type', '==', 'solo')
+      .where('status', '==', 'waiting')
+      .where('userId', '==', userId);
+    const waitingSnapshot = await waitingQuery.get();
+
+    if (waitingSnapshot.empty) {
+      console.log('待機中のルームが見つかりません:', { userId });
+      return res.send('OK'); // ルームがない場合もリダイレクトを許可
+    }
+
+    const matchDoc = waitingSnapshot.docs[0];
+    await matchDoc.ref.delete();
+    console.log('マッチングキャンセル成功:', { userId, matchId: matchDoc.id });
+
+    res.send('OK');
+  } catch (error) {
+    console.error('マッチングキャンセルエラー:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
 });
 
@@ -483,7 +575,7 @@ app.get('/api/solo/check/status', async (req, res) => {
   }
 });
 
-// 待機キャンセルルート
+// 待機キャンセルルート（不要になったので後で削除）
 app.get('/api/solo/cancel', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/api/solo');
@@ -515,15 +607,35 @@ app.get('/api/solo/cancel', async (req, res) => {
 app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
-    return res.redirect('/api/solo');
+    return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
-  const usersoloRating = req.user.soloRating || 1500;
+  const userSoloRating = req.user.soloRating || 1500;
 
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
+
+    // ユーザーの既存マッチング状態をチェック
+    const userMatchesQuery = matchesRef
+      .where('type', '==', 'solo')
+      .where('userId', '==', userId)
+      .where('status', 'in', ['matched', 'waiting']);
+    const userMatchesSnapshot = await userMatchesQuery.get();
+
+    if (!userMatchesSnapshot.empty) {
+      const matchDoc = userMatchesSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      if (matchData.status === 'matched') {
+        console.log('既存のマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
+      } else if (matchData.status === 'waiting') {
+        console.log('既存の待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        return res.json({ redirect: '/api/solo/check' });
+      }
+    }
+
+    // 待機中の他のルームを検索
     const waitingQuery = matchesRef
       .where('type', '==', 'solo')
       .where('status', '==', 'waiting')
@@ -536,9 +648,8 @@ app.post('/api/solo/match', async (req, res) => {
       if (!guestData.roomId) continue;
       const guestRef = db.collection('users').doc(guestData.userId);
       const guestSnap = await guestRef.get();
-      // exists() メソッドを exists プロパティに変更
-      const guestsoloRating = guestSnap.exists ? (guestSnap.data().soloRating || 1500) : 1500;
-      if (Math.abs(usersoloRating - guestsoloRating) <= 200) {
+      const guestSoloRating = guestSnap.exists ? (guestSnap.data().soloRating || 1500) : 1500;
+      if (Math.abs(userSoloRating - guestSoloRating) <= 200) {
         await docSnap.ref.update({
           guestId: userId,
           status: 'matched',
@@ -549,8 +660,7 @@ app.post('/api/solo/match', async (req, res) => {
         });
         console.log(`マッチ成立: matchId=${docSnap.id}, hostId=${guestData.userId}, guestId=${userId}`);
         matched = true;
-        res.redirect(`/api/solo/setup/${docSnap.id}`);
-        break;
+        return res.json({ redirect: `/api/solo/setup/${docSnap.id}` });
       }
     }
 
@@ -565,7 +675,7 @@ app.post('/api/solo/match', async (req, res) => {
         guestChoices: { wins: 0, losses: 0, matchResults: [null, null, null] }
       });
       console.log(`マッチ作成: matchId=${matchRef.id}, hostId=${userId}`);
-      res.redirect('/api/solo/check');
+      return res.json({ redirect: '/api/solo/check' });
     }
   } catch (error) {
     console.error('マッチングエラー:', {
@@ -573,15 +683,7 @@ app.post('/api/solo/match', async (req, res) => {
       code: error.code,
       stack: error.stack
     });
-    res.send(`
-      <html>
-        <body>
-          <h1>マッチングに失敗しました</h1>
-          <p>エラー: ${error.message}</p>
-          <p><a href="/api/solo">戻る</a></p>
-        </body>
-      </html>
-    `);
+    return res.status(500).json({ message: `マッチングに失敗しました: ${error.message}` });
   }
 });
 
@@ -3051,7 +3153,7 @@ app.get('/api/team/check/status', async (req, res) => {
   }
 });
 
-// 待機キャンセル
+// 待機キャンセル（不要になったので後で消す）
 app.get('/api/team/cancel', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/api/team');
