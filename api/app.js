@@ -2825,8 +2825,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
             .player-info h2 { font-size: 1.2em; margin: 10px 0; }
             .button-group { text-align: center; margin-top: 20px; }
+            .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+            .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }           
             .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
