@@ -2326,7 +2326,6 @@ app.get('/api/user/:userId', async (req, res) => {
           <script>
             const tagButton = document.getElementById('tagButton');
             const untagButton = document.getElementById('untagButton');
-            const errorDiv = document.getElementById('error');
 
             if (tagButton) {
               tagButton.addEventListener('click', async () => {
@@ -2341,11 +2340,9 @@ app.get('/api/user/:userId', async (req, res) => {
                   } else {
                     const data = await response.json();
                     alert(data.message);
-                    errorDiv.textContent = data.message;
                   }
                 } catch (error) {
-                  alert('エラーが発生しました');
-                  errorDiv.textContent = 'エラーが発生しました';
+                    alert('エラーが発生しました: ' + error.message);
                 }
               });
             }
@@ -2363,11 +2360,9 @@ app.get('/api/user/:userId', async (req, res) => {
                   } else {
                     const data = await response.json();
                     alert(data.message);
-                    errorDiv.textContent = data.message;
                   }
                 } catch (error) {
-                  alert('エラーが発生しました');
-                  errorDiv.textContent = 'エラーが発生しました';
+                    alert('エラーが発生しました: ' + error.message);
                 }
               });
             }
@@ -2940,8 +2935,7 @@ app.get('/api/team/check', async (req, res) => {
               <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
               <button type="submit">IDを更新</button>
             </form>
-            <button id="cancelButton">キャンセル</button>
-            <p><a href="/api/team">戻る</a></p>
+            <button id="cancelButton">ルームを削除する</button>
             <script>
               setInterval(() => {
                 fetch('/api/team/check/status')
