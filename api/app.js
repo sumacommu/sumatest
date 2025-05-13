@@ -751,6 +751,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               pointer-events: none;
               cursor: not-allowed;
             }
+            .cancel-btn {
+              padding: 10px 20px;
+              margin: 5px;
+              cursor: pointer;
+            }
+            .cancel-btn.disabled {
+              opacity: 0.5;
+              pointer-events: none;
+              cursor: not-allowed;
+            }
             .match-container {
               max-width: 1000px;
               margin: 0 auto;
