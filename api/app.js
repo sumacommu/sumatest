@@ -2718,10 +2718,28 @@ app.get('/api/team', async (req, res) => {
   if (req.user) {
     const teamRating = req.user.teamRating || 1500;
     html += `
-      <form action="/api/team/match" method="POST">
-        <button type="submit">マッチング開始</button>
+      <form id="matchForm">
+        <button type="button" id="matchButton">マッチング開始</button>
       </form>
       <p>現在のチームレート: ${teamRating}</p>
+      <script>
+        document.getElementById('matchButton').addEventListener('click', async () => {
+          try {
+            const response = await fetch('/api/team/match', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (response.ok) {
+              window.location.href = data.redirect;
+            } else {
+              alert(data.message);
+            }
+          } catch (error) {
+            alert('ネットワークエラー: ' + error.message);
+          }
+        });
+      </script>
     `;
   } else {
     html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/team">ログイン</a>してください</p>`;
@@ -2737,7 +2755,7 @@ app.get('/api/team', async (req, res) => {
 app.post('/api/team/match', async (req, res) => {
   if (!req.user || !req.user.id) {
     console.error('ユーザー情報が不正:', req.user);
-    return res.status(401).json({ message: '認証が必要です。ログインしてください' });
+    return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
 
@@ -2755,9 +2773,7 @@ app.post('/api/team/match', async (req, res) => {
     // タッグ状態のチェック
     if (!isTagged) {
       console.error('タッグしていないユーザーのマッチング試行:', userId);
-      return res.status(403).json({
-        message: 'チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。'
-      });
+      return res.status(403).json({ message: 'チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。' });
     }
 
     const userTeamRating = userData.teamRating || 1500;
@@ -2987,7 +3003,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     // タッグパートナーのデータ取得
     let hostTagPartnerName = '不明';
     let hostTagPartnerImage = '/default.png';
-    if (hostData.isTagged && hostData.tagPartnerId) {
+    if (hostData.tagPartnerId && hostData.isTagged) {
       const hostTagPartnerRef = db.collection('users').doc(hostData.tagPartnerId);
       const hostTagPartnerSnap = await hostTagPartnerRef.get();
       if (hostTagPartnerSnap.exists) {
@@ -2998,7 +3014,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     }
     let guestTagPartnerName = '不明';
     let guestTagPartnerImage = '/default.png';
-    if (guestData.isTagged && guestData.tagPartnerId) {
+    if (guestData.tagPartnerId && guestData.isTagged) {
       const guestTagPartnerRef = db.collection('users').doc(guestData.tagPartnerId);
       const guestTagPartnerSnap = await guestTagPartnerRef.get();
       if (guestTagPartnerSnap.exists) {
@@ -3016,9 +3032,10 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
             .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
             .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
-            .player-info .player-name { display: flex; align-items: center; margin: 10px 0; }
-            .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
-            .player-info h2 { font-size: 1.2em; margin: 0; }
+            .player-info .player-row { display: flex; align-items: center; justify-content: center; margin: 10px 0; }
+            .player-info .icon-container { width: 40px; flex-shrink: 0; }
+            .player-info img { width: 32px; height: 32px; vertical-align: middle; }
+            .player-info .name { font-size: 1.2em; }
             .button-group { text-align: center; margin-top: 20px; }
             .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
@@ -3190,25 +3207,25 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
             <div class="player-table">
               <div class="player-info">
-                <div class="player-name">
-                  <img src="${hostProfileImage}" alt="${hostName}のプロフィール画像">
-                  <h2>${hostName}</h2>
+                <div class="player-row">
+                  <span class="icon-container"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></span>
+                  <span class="name">${hostName}</span>
                 </div>
-                <div class="player-name">
-                  <img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像">
-                  <h2>${hostTagPartnerName}</h2>
+                <div class="player-row">
+                  <span class="icon-container"><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"></span>
+                  <span class="name">${hostTagPartnerName}</span>
                 </div>
                 <p id="hostRating">レート: ${hostTeamRating}</p>
                 <p id="hostResult">状態: 対戦中</p>
               </div>
               <div class="player-info">
-                <div class="player-name">
-                  <img src="${guestProfileImage}" alt="${guestName}のプロフィール画像">
-                  <h2>${guestName}</h2>
+                <div class="player-row">
+                  <span class="icon-container"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"></span>
+                  <span class="name">${guestName}</span>
                 </div>
-                <div class="player-name">
-                  <img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像">
-                  <h2>${guestTagPartnerName}</h2>
+                <div class="player-row">
+                  <span class="icon-container"><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"></span>
+                  <span class="name">${guestTagPartnerName}</span>
                 </div>
                 <p id="guestRating">レート: ${guestTeamRating}</p>
                 <p id="guestResult">状態: 対戦中</p>
