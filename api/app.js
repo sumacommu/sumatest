@@ -2787,6 +2787,28 @@ app.post('/api/team/match', async (req, res) => {
 
   try {
     const db = admin.firestore();
+
+    // ユーザーの既存マッチング状態をチェック
+    const matchesRef = db.collection('matches');
+    const userMatchesQuery = matchesRef
+      .where('type', '==', 'team')
+      .where('userId', '==', userId)
+      .where('status', 'in', ['matched', 'waiting']);
+    const userMatchesSnapshot = await userMatchesQuery.get();
+
+    if (!userMatchesSnapshot.empty) {
+      const matchDoc = userMatchesSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      if (matchData.status === 'matched') {
+        console.log('既存のマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        return res.json({ redirect: `/api/team/setup/${matchDoc.id}` });
+      } else if (matchData.status === 'waiting') {
+        console.log('既存の待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        return res.json({ redirect: '/api/team/check' });
+      }
+    }
+
+    // ユーザー情報の取得
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
@@ -2844,7 +2866,7 @@ app.post('/api/team/match', async (req, res) => {
     const tagPartnerRating = tagPartnerData.teamRating || 1500;
     userTeamRating = Math.max(userTeamRating, tagPartnerRating);
 
-    const matchesRef = db.collection('matches');
+    // 待機中の他のルームを検索
     const waitingQuery = matchesRef
       .where('type', '==', 'team')
       .where('status', '==', 'waiting')
@@ -2885,7 +2907,7 @@ app.post('/api/team/match', async (req, res) => {
         userId: userId,
         type: 'team',
         status: 'waiting',
-        ROOMID: '',
+        roomId: '',
         timestamp: new Date().toISOString()
       });
       console.log(`チームマッチ作成: matchId=${matchRef.id}, hostId=${userId}`);
