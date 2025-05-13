@@ -731,6 +731,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               opacity: 1.0 !important;
               filter: none !important;
             }
+            .send-btn {
+              padding: 10px 20px;
+              margin: 5px;
+              cursor: pointer;
+            }
+            .send-btn.disabled {
+              opacity: 0.5;
+              pointer-events: none;
+              cursor: not-allowed;
+            }
             .result-btn {
               padding: 10px 20px;
               margin: 5px;
@@ -1447,17 +1457,17 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 var guideText = '';
                 var canSelectChar = false;
                 var canSelectStage = false;
-                var canSelectsend = true;
+                var canSelectSend = true;
                 var canSelectResult = false;
-                var canSelectcancel = true;
+                var canSelectCancel = true;
 
                 if (isCancelled) {
                   guideText = 'このルームは対戦中止になりました';
                   canSelectChar = false;
                   canSelectStage = false;
-                  canSelectsend = false;
+                  canSelectSend = false;
                   canSelectResult = false;
-                  canSelectcancel = false;
+                  canSelectCancel = false;
                   document.querySelectorAll('.char-btn').forEach(btn => {
                     btn.classList.remove('char-normal', 'char-dim', 'char-dim-gray', 'selected');
                     btn.classList.add('char-normal');
@@ -1501,9 +1511,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   }
                 } else if (hostChoices.wins >= 2 || guestChoices.wins >= 2) {
                   guideText = 'このルームの対戦は終了しました。';
-                  canSelectsend = false;
+                  canSelectSend = false;
                   canSelectResult = false;
-                  canSelectcancel = false;
+                  canSelectCancel = false;
                 } else {
                   if ((!hostChoices.bannedStages || hostChoices.bannedStages.length === 0) || (!guestChoices.bannedStages || guestChoices.bannedStages.length === 0)) {
                     if (isHost) {
@@ -1614,16 +1624,16 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.onclick = canSelectStage ? () => selectStage(btn.dataset.id) : null;
                 });
                 document.querySelectorAll('.send-btn').forEach(btn => {
-                  btn.classList.toggle('disabled', !canSelectsend);
-                  btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
+                  btn.classList.toggle('disabled', !canSelectSend);
+                  btn.style.cursor = canSelectSend ? 'auto' : 'not-allowed';
                 });
                 document.querySelectorAll('.result-btn').forEach(btn => {
                   btn.classList.toggle('disabled', !canSelectResult);
                   btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
                 });
                 document.querySelectorAll('.cancel-btn').forEach(btn => {
-                  btn.classList.toggle('disabled', !canSelectcancel);
-                  btn.style.cursor = canSelectResult ? 'auto' : 'not-allowed';
+                  btn.classList.toggle('disabled', !canSelectCancel);
+                  btn.style.cursor = canSelectCancel ? 'auto' : 'not-allowed';
                 });
 
                 updateStageButtons();
@@ -2815,11 +2825,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             .player-info img { width: 32px; height: 32px; vertical-align: middle; margin-right: 5px; }
             .player-info h2 { font-size: 1.2em; margin: 10px 0; }
             .button-group { text-align: center; margin-top: 20px; }
-            .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
             .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
             .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }            
             .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
             .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
