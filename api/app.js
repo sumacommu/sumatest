@@ -450,7 +450,7 @@ app.get('/api/solo/check', async (req, res) => {
               <form action="/api/solo/update" method="POST">
                 <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
                 <div class="button-group">
-                  <input type="submit" value="IDを更新">
+                  <button type="submit">IDを更新</button>
                   <button type="button" id="cancelButton">ルームを削除する</button>
                 </div>
               </form>
@@ -466,27 +466,20 @@ app.get('/api/solo/check', async (req, res) => {
                 const db = firebase.firestore();
                 const userId = "${userId}";
                 const matchesRef = db.collection('matches');
-                const userMatchQuery = matchesRef
+                const waitingQuery = matchesRef
                   .where('userId', '==', userId)
-                  .where('status', '==', 'matched')
+                  .where('status', '==', 'waiting')
                   .where('type', '==', 'solo');
 
-                userMatchQuery.onSnapshot((snapshot) => {
+                waitingQuery.onSnapshot((snapshot) => {
                   snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added' || change.type === 'modified') {
+                    if (change.type === 'modified' && change.doc.data().status === 'matched') {
                       const matchId = change.doc.id;
                       window.location.href = '/api/solo/setup/' + matchId;
                     }
                   });
                 }, (error) => {
                   console.error('リアルタイムリスナーエラー:', error);
-                  fetch('/api/solo/check/signout')
-                    .then(response => response.json())
-                    .then(data => {
-                      if (data.redirect) {
-                        window.location.href = data.redirect;
-                      }
-                    });
                 });
 
                 const cancelButton = document.getElementById('cancelButton');
@@ -496,10 +489,10 @@ app.get('/api/solo/check', async (req, res) => {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' }
                     });
-                    const data = await response.json();
                     if (response.ok) {
                       window.location.href = '/api/';
                     } else {
+                      const data = await response.json();
                       alert(data.message || 'キャンセルに失敗しました');
                     }
                   } catch (error) {
@@ -531,13 +524,13 @@ app.post('/api/solo/check/cancel', async (req, res) => {
     const waitingSnapshot = await waitingQuery.get();
 
     if (waitingSnapshot.empty) {
-      return res.send('OK');
+      return res.json({ success: true });
     }
 
     const matchDoc = waitingSnapshot.docs[0];
     await matchDoc.ref.delete();
 
-    res.send('OK');
+    res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
