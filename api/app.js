@@ -658,7 +658,7 @@ app.post('/api/solo/match', async (req, res) => {
     if (!userTeamGuestSnapshot.empty) {
       const matchId = userTeamGuestSnapshot.docs[0].id;
       console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId });
-      return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
+      return res.status(403).json({ message: 'あなたはチーム版で対戦中です' });
     }
 
     // ユーザー情報の取得（タッグ状態チェック用）
