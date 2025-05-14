@@ -267,7 +267,7 @@ app.get('/api/', async (req, res) => {
       return res.redirect(`/api/user/${userData.id}`);
     }
 
-    // チームレート計算（/api/team から移植）
+    // チームレート計算
     const userId = userData.id;
     const userRef = admin.firestore().collection('users').doc(userId);
     const userSnap = await userRef.get();
@@ -298,26 +298,30 @@ app.get('/api/', async (req, res) => {
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p><a href="/api/user/${userData.id}">マイページ</a></p>
 
-            <!-- タイマン用セクション（/api/solo から移植） -->
-            <h2>タイマン用</h2>
-            <p>待機中: ${soloWaitingCount}人</p>
-            <form id="soloMatchForm">
-              <button type="button" id="soloMatchButton">マッチング開始</button>
-            </form>
-            <p>現在のレート: ${userData.soloRating || 1500}</p>
+            <!-- タイマン用セクション -->
+            <div class="match-section">
+              <h2>タイマン用</h2>
+              <p>待機中: ${soloWaitingCount}人</p>
+              <form id="soloMatchForm">
+                <button type="button" id="soloMatchButton">マッチング開始</button>
+              </form>
+              <p>現在のレート: ${userData.soloRating || 1500}</p>
+            </div>
 
-            <!-- チーム用セクション（/api/team から移植） -->
-            <h2>チーム用</h2>
-            <p>待機中のチーム: ${teamWaitingCount}</p>
-            <form id="teamMatchForm">
-              <button type="button" id="teamMatchButton">マッチング開始</button>
-            </form>
-            <p>現在のチームレート: ${teamRating}</p>
+            <!-- チーム用セクション -->
+            <div class="match-section">
+              <h2>チーム用</h2>
+              <p>待機中のチーム: ${teamWaitingCount}</p>
+              <form id="teamMatchForm">
+                <button type="button" id="teamMatchButton">マッチング開始</button>
+              </form>
+              <p>現在のチームレート: ${teamRating}</p>
+            </div>
 
             <p><a href="/api/logout">ログアウト</a></p>
           </div>
           <script>
-            // タイマン用マッチングスクリプト（/api/solo から移植）
+            // タイマン用マッチングスクリプト
             document.getElementById('soloMatchButton').addEventListener('click', async () => {
               try {
                 const response = await fetch('/api/solo/match', {
@@ -335,7 +339,7 @@ app.get('/api/', async (req, res) => {
               }
             });
 
-            // チーム用マッチングスクリプト（/api/team から移植）
+            // チーム用マッチングスクリプト
             document.getElementById('teamMatchButton').addEventListener('click', async () => {
               try {
                 const response = await fetch('/api/team/match', {
@@ -371,15 +375,19 @@ app.get('/api/', async (req, res) => {
           <div class="container">
             <h1>スマブラマッチング</h1>
 
-            <!-- タイマン用セクション（未ログイン） -->
-            <h2>タイマン用</h2>
-            <p>待機中: ${soloWaitingCount}人</p>
-            <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+            <!-- タイマン用セクション -->
+            <div class="match-section">
+              <h2>タイマン用</h2>
+              <p>待機中: ${soloWaitingCount}人</p>
+              <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+            </div>
 
-            <!-- チーム用セクション（未ログイン） -->
-            <h2>チーム用</h2>
-            <p>待機中のチーム: ${teamWaitingCount}</p>
-            <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+            <!-- チーム用セクション -->
+            <div class="match-section">
+              <h2>チーム用</h2>
+              <p>待機中のチーム: ${teamWaitingCount}</p>
+              <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+            </div>
 
             <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
           </div>
@@ -1867,18 +1875,11 @@ app.post('/api/solo/update', async (req, res) => {
     }
     res.redirect('/api/solo/check');
   } catch (error) {
-    res.send(`
-      <html>
-        <body>
-          <h1>ID更新に失敗しました</h1>
-          <p>エラー: ${error.message}</p>
-          <p><a href="/api/">戻る</a></p>
-        </body>
-      </html>
-    `);
+    return res.status(500).json({ message: 'ID更新に失敗しました' });
   }
 });
 
+//
 app.get('/api/user/:userId', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -2900,15 +2901,7 @@ app.post('/api/team/update', async (req, res) => {
     }
     res.redirect('/api/team/check');
   } catch (error) {
-    res.send(`
-      <html>
-        <body>
-          <h1>ID更新に失敗しました</h1>
-          <p>エラー: ${error.message}</p>
-          <p><a href="/api/">戻る</a></p>
-        </body>
-      </html>
-    `);
+    return res.status(500).json({ message: 'ID更新に失敗しました' });
   }
 });
 

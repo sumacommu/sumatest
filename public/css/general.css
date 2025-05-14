@@ -112,6 +112,41 @@ button.disabled {
     cursor: pointer;
 }
 
+/* マッチングセクションのスタイル */
+.match-section {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #f9f9f9;
+}
+
+/* セクションタイトルのスタイル */
+.match-section h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #333;
+    font-size: 24px;
+}
+
+/* ボタンとテキストの整列 */
+.match-section p {
+    margin: 10px 0;
+}
+
+.match-section button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.match-section button:hover {
+    background-color: #0056b3;
+}
+
+
 /* スマホ用ハンバーガーメニュー */
 @media (max-width: 768px) {
     .site-header {
@@ -156,6 +191,15 @@ button.disabled {
         padding: 10px 0;
         font-size: 18px;
         display: block;
+    }
+
+    .match-section {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .match-section h2 {
+        font-size: 20px;
     }
 }
 
