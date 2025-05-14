@@ -9,6 +9,7 @@
     { "src": "/characters/(.*)", "dest": "/public/characters/$1" },
     { "src": "/stages/(.*)", "dest": "/public/stages/$1" },
     { "src": "/default.png", "dest": "/public/default.png" },
+    { "src": "/js/(.*)", "dest": "/public/js/$1" },
     { "src": "/api/(.*)", "dest": "/api/app.js" },
     { "src": "/(.*)", "dest": "/api/app.js" }
   ]
