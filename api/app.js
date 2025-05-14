@@ -617,22 +617,36 @@ app.post('/api/solo/match', async (req, res) => {
     const matchesRef = db.collection('matches');
 
     // ユーザーの既存ソロマッチング状態をチェック
-    const userSoloMatchesQuery = matchesRef
-      .where('type', '==', 'solo')
+    const userSoloMatchesQuery = matchesRef.where('type', '==', 'solo');
+    const userSoloHostQuery = userSoloMatchesQuery
       .where('userId', '==', userId)
       .where('status', 'in', ['matched', 'waiting']);
-    const userSoloMatchesSnapshot = await userSoloMatchesQuery.get();
+    const userSoloGuestQuery = userSoloMatchesQuery
+      .where('guestId', '==', userId)
+      .where('status', '==', 'matched');
+    const [userSoloHostSnapshot, userSoloGuestSnapshot] = await Promise.all([
+      userSoloHostQuery.get(),
+      userSoloGuestQuery.get()
+    ]);
 
-    if (!userSoloMatchesSnapshot.empty) {
-      const matchDoc = userSoloMatchesSnapshot.docs[0];
+    if (!userSoloHostSnapshot.empty) {
+      const matchDoc = userSoloHostSnapshot.docs[0];
       const matchData = matchDoc.data();
       if (matchData.status === 'matched') {
-        console.log('既存のソロマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        console.log('既存のソロマッチング済みルームにリダイレクト（ホスト）:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
       } else if (matchData.status === 'waiting') {
         console.log('既存のソロ待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: '/api/solo/check' });
       }
+    }
+    if (!userSoloGuestSnapshot.empty) {
+      const matchDoc = userSoloGuestSnapshot.docs[0];
+      console.log('既存のソロマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId: matchDoc.id });
+      if (userSoloGuestSnapshot.size > 1) {
+        console.warn('複数のソロゲストルーム検出:', { userId, count: userSoloGuestSnapshot.size });
+      }
+      return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
     }
 
     // ユーザーのチームマッチング状態をチェック（ホストまたはゲスト）
