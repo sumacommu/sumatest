@@ -470,7 +470,7 @@ app.get('/api/solo/check', async (req, res) => {
                 const matchesRef = db.collection('matches');
                 const waitingQuery = matchesRef
                   .where('userId', '==', userId)
-                  .where('status', '==', 'waiting')
+                  .where('status', 'in', ['waiting', 'matched'])
                   .where('type', '==', 'solo');
 
                 waitingQuery.onSnapshot((snapshot) => {
