@@ -154,12 +154,28 @@ button.disabled {
     margin-top: 10px;
 }
 
-/* ボタンの幅を調整 */
+.match-section h1 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #333;
+    font-size: 28px;
+}
+
+.profile-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
 .button-group button,
 .button-group input[type="submit"] {
-    flex: 1;
-    max-width: 150px;
+    padding: 10px 20px;
+    font-size: 16px;
+    height: 40px;
+    box-sizing: border-box;
 }
+
 
 
 /* スマホ用ハンバーガーメニュー */
@@ -222,9 +238,18 @@ button.disabled {
         gap: 5px;
     }
 
+    .match-section h1 {
+        font-size: 24px;
+    }
+
+    .profile-display {
+        gap: 8px;
+    }
+
     .button-group button,
     .button-group input[type="submit"] {
-        max-width: 100%;
+        height: 36px;
+        font-size: 14px;
     }
 }
 

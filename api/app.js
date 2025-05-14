@@ -442,7 +442,7 @@ app.get('/api/solo/check', async (req, res) => {
           <div class="container">
             <div class="match-section">
               <h1>マッチング待機中</h1>
-              <p>(<img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName})</p>
+              <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
               <p>レート: ${req.user.soloRating || 1500}</p>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/solo/update" method="POST">
