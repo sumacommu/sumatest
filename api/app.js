@@ -2798,34 +2798,60 @@ app.get('/api/team/check', async (req, res) => {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'), where('type', '==', 'team'));
     const waitingSnapshot = await getDocs(waitingQuery);
     const roomId = waitingSnapshot.empty ? '' : waitingSnapshot.docs[0].data().roomId;
+    const hostProfileImage = req.user.profileImage || '/default.png';
+    const hostName = req.user.handleName || 'ゲスト';
+
     res.send(`
       <html>
         <head>
           <link rel="stylesheet" href="/css/general.css">
+          <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+          <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
         </head>
         <body>
           <div class="container">
-            <h1>チームマッチング待機中</h1>
-            <p>相手チームを待っています... あなたのチームレート: ${req.user.teamRating || 1500}</p>
-            <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
-            <form action="/api/team/update" method="POST">
-              <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
-              <button type="submit">IDを更新</button>
-            </form>
-            <button id="cancelButton">ルームを削除する</button>
-            <script>
-              setInterval(() => {
-                fetch('/api/team/check/status')
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.matched) {
-                      window.location.href = '/api/team/setup/' + data.matchId;
-                    }
-                  })
-                  .catch(error => console.error('ポーリングエラー:', error));
-              }, 2000);
+            <div class="match-section">
+              <h1>チームマッチング待機中</h1>
+              <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
+              <p>レート: ${req.user.teamRating || 1500}</p>
+              <p>部屋を作成し、以下に部屋IDを入力してください。</p>
+              <form action="/api/team/update" method="POST">
+                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+                <div class="button-group">
+                  <button type="submit">IDを更新</button>
+                  <button type="button" id="cancelButton">ルームを削除する</button>
+                </div>
+              </form>
+              <script>
+                var firebaseConfig = {
+                  apiKey: "${process.env.FIREBASE_API_KEY}",
+                  authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+                  projectId: "${process.env.FIREBASE_PROJECT_ID}",
+                  storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+                  messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+                  appId: "${process.env.FIREBASE_APP_ID}",
+                  measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
+                };
+                firebase.initializeApp(firebaseConfig);
+                const db = firebase.firestore();
+                const userId = "${userId}";
+                const matchesRef = db.collection('matches');
+                const waitingQuery = matchesRef
+                  .where('userId', '==', userId)
+                  .where('status', 'in', ['waiting', 'matched'])
+                  .where('type', '==', 'team');
 
-              document.addEventListener('DOMContentLoaded', () => {
+                waitingQuery.onSnapshot((snapshot) => {
+                  snapshot.docChanges().forEach((change) => {
+                    if (change.doc.data().status === 'matched') {
+                      const matchId = change.doc.id;
+                      window.location.href = '/api/team/setup/' + matchId;
+                    }
+                  });
+                }, (error) => {
+                  console.error('リアルタイムリスナーエラー:', error);
+                });
+
                 const cancelButton = document.getElementById('cancelButton');
                 cancelButton.addEventListener('click', async () => {
                   try {
@@ -2837,14 +2863,14 @@ app.get('/api/team/check', async (req, res) => {
                       window.location.href = '/api/';
                     } else {
                       const data = await response.json();
-                      alert(data.message);
+                      alert(data.message || 'キャンセルに失敗しました');
                     }
                   } catch (error) {
-                    alert('エラーが発生しました: ' + error.message);
+                    alert('ネットワークエラー: ' + error.message);
                   }
                 });
-              });
-            </script>
+              </script>
+            </div>
           </div>
         </body>
       </html>
@@ -2868,13 +2894,13 @@ app.post('/api/team/check/cancel', async (req, res) => {
     const waitingSnapshot = await waitingQuery.get();
 
     if (waitingSnapshot.empty) {
-      return res.send('OK');
+      return res.json({ success: true });
     }
 
     const matchDoc = waitingSnapshot.docs[0];
     await matchDoc.ref.delete();
 
-    res.send('OK');
+    res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
