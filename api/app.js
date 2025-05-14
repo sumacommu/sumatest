@@ -466,7 +466,7 @@ app.get('/api/solo/check', async (req, res) => {
                       headers: { 'Content-Type': 'application/json' }
                     });
                     if (response.ok) {
-                      window.location.href = '/api/solo';
+                      window.location.href = '/api/';
                     } else {
                       const data = await response.json();
                       alert(data.message);
@@ -1570,7 +1570,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
               <button class="cancel-btn" onclick="cancelMatch()">対戦中止</button>
-              <p><a href="/api/solo">戻る</a></p>
+              <p><a href="/api/">戻る</a></p>
             </div>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
@@ -1872,7 +1872,7 @@ app.post('/api/solo/update', async (req, res) => {
         <body>
           <h1>ID更新に失敗しました</h1>
           <p>エラー: ${error.message}</p>
-          <p><a href="/api/solo">戻る</a></p>
+          <p><a href="/api/">戻る</a></p>
         </body>
       </html>
     `);
@@ -2815,7 +2815,7 @@ app.get('/api/team/check', async (req, res) => {
                       headers: { 'Content-Type': 'application/json' }
                     });
                     if (response.ok) {
-                      window.location.href = '/api/team';
+                      window.location.href = '/api/';
                     } else {
                       const data = await response.json();
                       alert(data.message);
@@ -2905,7 +2905,7 @@ app.post('/api/team/update', async (req, res) => {
         <body>
           <h1>ID更新に失敗しました</h1>
           <p>エラー: ${error.message}</p>
-          <p><a href="/api/team">戻る</a></p>
+          <p><a href="/api/">戻る</a></p>
         </body>
       </html>
     `);
@@ -3162,7 +3162,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="submitResult('win')">勝ち</button>
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
               <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
-              <p><a href="/api/team">戻る</a></p>
+              <p><a href="/api/">戻る</a></p>
             </div>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
