@@ -2325,7 +2325,7 @@ app.get('/api/user/:userId', async (req, res) => {
         .where('status', 'in', ['matched', 'waiting']);
       const userSoloGuestQuery = matchesRef
         .where('type', '==', 'solo')
-        .where('guestId', '==', userId)
+        .where('guestId', '==', guestId)
         .where('status', '==', 'matched');
       const userTeamHostQuery = matchesRef
         .where('type', '==', 'team')
@@ -2333,7 +2333,7 @@ app.get('/api/user/:userId', async (req, res) => {
         .where('status', 'in', ['matched', 'waiting']);
       const userTeamGuestQuery = matchesRef
         .where('type', '==', 'team')
-        .where('guestId', '==', userId)
+        .where('guestId', '==', guestId)
         .where('status', '==', 'matched');
       const [
         userSoloHostSnapshot,
