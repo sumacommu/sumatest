@@ -2801,6 +2801,25 @@ app.get('/api/team/check', async (req, res) => {
     const hostProfileImage = req.user.profileImage || '/default.png';
     const hostName = req.user.handleName || 'ゲスト';
 
+    const userRef = admin.firestore().collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const userData = userSnap.exists ? userSnap.data() : {};
+    let teamRating = userData.teamRating || 1500;
+
+    let tagPartnerProfileImage = '/default.png';
+    let tagPartnerName = 'ゲスト';
+    if (userData.isTagged && userData.tagPartnerId) {
+      const tagPartnerRef = admin.firestore().collection('users').doc(userData.tagPartnerId);
+      const tagPartnerSnap = await tagPartnerRef.get();
+      if (tagPartnerSnap.exists) {
+        const tagPartnerData = tagPartnerSnap.data();
+        tagPartnerProfileImage = tagPartnerData.profileImage || '/default.png';
+        tagPartnerName = tagPartnerData.handleName || 'ゲスト';
+        const tagPartnerRating = tagPartnerData.teamRating || 1500;
+        teamRating = Math.max(teamRating, tagPartnerRating);
+      }
+    }
+
     res.send(`
       <html>
         <head>
@@ -2813,7 +2832,8 @@ app.get('/api/team/check', async (req, res) => {
             <div class="match-section">
               <h1>チームマッチング待機中</h1>
               <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
-              <p>レート: ${req.user.teamRating || 1500}</p>
+              <p class="profile-display"><img src="${tagPartnerProfileImage}" alt="${tagPartnerName}のプロフィール画像"> ${tagPartnerName}</p>
+              <p>レート: ${teamRating}</p>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/team/update" method="POST">
                 <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
