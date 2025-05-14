@@ -472,8 +472,10 @@ app.get('/api/solo/check', async (req, res) => {
                   .where('type', '==', 'solo');
 
                 waitingQuery.onSnapshot((snapshot) => {
+                  console.log('Snapshot received:', snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                   snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'modified' && change.doc.data().status === 'matched') {
+                    console.log('Change:', { type: change.type, id: change.doc.id, data: change.doc.data() });
+                    if (change.doc.data().status === 'matched') {
                       const matchId = change.doc.id;
                       window.location.href = '/api/solo/setup/' + matchId;
                     }
@@ -485,10 +487,12 @@ app.get('/api/solo/check', async (req, res) => {
                 const cancelButton = document.getElementById('cancelButton');
                 cancelButton.addEventListener('click', async () => {
                   try {
+                    console.log('Cancel button clicked');
                     const response = await fetch('/api/solo/check/cancel', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' }
                     });
+                    console.log('Response status:', response.status);
                     if (response.ok) {
                       window.location.href = '/api/';
                     } else {
@@ -496,6 +500,7 @@ app.get('/api/solo/check', async (req, res) => {
                       alert(data.message || 'キャンセルに失敗しました');
                     }
                   } catch (error) {
+                    console.error('Cancel error:', error);
                     alert('ネットワークエラー: ' + error.message);
                   }
                 });
