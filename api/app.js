@@ -12,21 +12,6 @@ require('dotenv').config();
 
 const app = express();
 
-// 環境変数チェック
-const requiredEnvVars = [
-  'FIREBASE_PROJECT_ID',
-  'FIREBASE_PRIVATE_KEY',
-  'FIREBASE_CLIENT_EMAIL',
-  'FIREBASE_STORAGE_BUCKET'
-];
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`エラー: 環境変数 ${envVar} が設定されていません`);
-    process.exit(1);
-  }
-}
-
-// Firebase Admin SDK初期化
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -48,13 +33,6 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-console.log('環境変数チェック:', {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET
-});
-
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: {
@@ -63,10 +41,6 @@ const redisClient = createClient({
     reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
   }
 });
-redisClient.on('error', (err) => console.error('Redisエラー:', err));
-redisClient.on('connect', () => console.log('Redisに接続成功'));
-redisClient.on('ready', () => console.log('Redis準備完了'));
-redisClient.connect().catch(console.error);
 
 class CustomRedisStore extends EventEmitter {
   constructor(client) {
@@ -78,12 +52,9 @@ class CustomRedisStore extends EventEmitter {
   async get(key, cb) {
     try {
       const fullKey = this.prefix + key;
-      console.log('Redis get開始:', fullKey);
       const data = await this.client.get(fullKey);
-      console.log('Redis get結果:', fullKey, data);
       cb(null, data ? JSON.parse(data) : null);
     } catch (err) {
-      console.error('Redis getエラー:', err);
       cb(err);
     }
   }
@@ -91,12 +62,9 @@ class CustomRedisStore extends EventEmitter {
   async set(key, sess, cb) {
     try {
       const fullKey = this.prefix + key;
-      console.log('Redis set開始:', fullKey, sess);
       await this.client.set(fullKey, JSON.stringify(sess), { EX: 604800 });
-      console.log('Redis set成功:', fullKey);
       cb(null);
     } catch (err) {
-      console.error('Redis setエラー:', err);
       cb(err);
     }
   }
@@ -104,36 +72,27 @@ class CustomRedisStore extends EventEmitter {
   async destroy(key, cb) {
     try {
       const fullKey = this.prefix + key;
-      console.log('Redis destroy開始:', fullKey);
       await this.client.del(fullKey);
-      console.log('Redis destroy成功:', fullKey);
       cb(null);
     } catch (err) {
-      console.error('Redis destroyエラー:', err);
       cb(err);
     }
   }
 
   async regenerate(req, cb) {
-    console.log('Regenerate開始:', req.sessionID);
     const oldSessionId = req.sessionID;
     req.session.destroy((err) => {
       if (err) {
-        console.error('Regenerateエラー:', err);
         return cb(err);
       }
-      console.log('Regenerate: 古いセッション削除:', oldSessionId);
       req.sessionStore.generate(req);
-      console.log('Regenerate成功:', req.sessionID);
       cb(null);
     });
   }
 
   generate(req) {
-    console.log('セッション生成開始');
     req.session = new session.Session(req);
     req.sessionID = req.session.id;
-    console.log('セッション生成成功:', req.sessionID);
   }
 }
 
@@ -160,7 +119,6 @@ app.use(session({
 }));
 app.use((req, res, next) => {
   const cookieHeader = req.headers.cookie;
-  console.log('受信クッキー:', cookieHeader);
   if (cookieHeader) {
     const cookies = cookieHeader.split('; ').reduce((acc, cookie) => {
       const [name, value] = cookie.split('=');
@@ -169,41 +127,31 @@ app.use((req, res, next) => {
     }, {});
     const receivedSid = cookies['connect.sid'];
     if (receivedSid && receivedSid !== req.sessionID) {
-      console.log('セッションIDをクッキーに同期:', receivedSid);
       req.sessionID = receivedSid.split('.')[0];
     }
   }
-  console.log('セッションID:', req.sessionID);
   req.sessionStore.get(req.sessionID, (err, session) => {
     if (err) {
-      console.error('セッション取得エラー:', err);
       return next();
     }
     if (session) {
-      console.log('セッション手動ロード:', session);
       Object.assign(req.session, session);
     }
-    console.log('Passport前: req.session:', req.session);
     next();
   });
 });
 app.use(passport.initialize());
 app.use(passport.session());
 app.use((req, res, next) => {
-  console.log('Passport後: req.session:', req.session);
-  console.log('Passport後: req.session.passport:', req.session.passport);
   next();
 });
 
-// Google認証ストラテジー
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: 'https://sumatest.vercel.app/api/auth/google/callback'
 }, async (accessToken, refreshToken, profile, done) => {
-  console.log('Google認証開始:', profile.id);
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const userRef = db.collection('users').doc(profile.id);
     const userSnap = await userRef.get();
@@ -219,70 +167,44 @@ passport.use(new GoogleStrategy({
         validReportCount: 0,
         penalty: false,
         soloRating: 1500,
-        teamRating: 1500, // 追加
+        teamRating: 1500,
         uploadCount: 0,
         lastUploadReset: new Date().toISOString(),
-        tagPartnerId: '', // タッグ初期化
-        isTagged: false // タッグ初期化
+        tagPartnerId: '',
+        isTagged: false
       };
       await userRef.set(userData);
-      console.log('新規ユーザー登録成功:', profile.id, userData);
-    } else {
-      console.log('既存ユーザー確認:', profile.id, userSnap.data());
     }
-    console.log('認証成功:', profile.id);
     return done(null, profile);
   } catch (error) {
-    console.error('認証エラー:', error.message, error.stack);
     return done(error);
   }
 }));
 
 passport.serializeUser((user, done) => {
-  console.log('serializeUser:', user.id);
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
-  console.log('deserializeUser開始:', id);
   try {
     const db = admin.firestore();
     const userRef = db.collection('users').doc(id);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
-      console.error('ユーザーが見つかりません:', id);
       return done(null, false);
     }
     let userData = userSnap.data();
-    // teamRating が存在しない場合、デフォルト値1500をセット
-    if (!userData.teamRating) {
-      await userRef.update({ teamRating: 1500 });
-      userData.teamRating = 1500;
-    }
-    // tagPartnerId と isTagged が存在しない場合、デフォルト値をセット
-    if (!userData.tagPartnerId || userData.isTagged === undefined) {
-      await userRef.update({
-        tagPartnerId: '',
-        isTagged: false
-      });
-      userData.tagPartnerId = '';
-      userData.isTagged = false;
-    }
     userData.id = id;
-    console.log('deserializeUser成功:', userData);
     done(null, userData);
   } catch (error) {
-    console.error('deserializeUserエラー:', error.message, error.stack);
     done(error);
   }
 });
 
 app.get('/api/auth/google', (req, res, next) => {
   const redirectTo = req.query.redirect || '/api/';
-  console.log('認証開始、リダイレクト先:', redirectTo);
   passport.authenticate('google', { scope: ['profile', 'email'], state: redirectTo }, (err) => {
     if (err) {
-      console.error('認証エラー:', err);
       return res.redirect('/api/');
     }
   })(req, res, next);
@@ -291,15 +213,10 @@ app.get('/api/auth/google', (req, res, next) => {
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/' }), 
   (req, res) => {
-    console.log('コールバック成功:', req.user.id);
-    console.log('コールバック後: req.session:', req.session);
-    console.log('コールバック後: セッションID:', req.sessionID);
     req.session.save((err) => {
       if (err) {
-        console.error('セッション保存エラー:', err);
         return res.redirect('/api/');
       }
-      console.log('セッション保存成功、クッキー更新:', req.sessionID);
       res.set('Set-Cookie', `connect.sid=${req.sessionID}; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax`);
       const redirectTo = req.query.state || '/api/';
       res.status(302).set('Location', redirectTo).end();
@@ -307,17 +224,13 @@ app.get('/api/auth/google/callback',
   }
 );
 
-// ルートパスを/api/にリダイレクト
 app.get('/', (req, res) => {
   res.redirect('/api/');
 });
 
 app.get('/api/', async (req, res) => {
-  console.log('ルートアクセス、req.session:', req.session);
-  console.log('ルートアクセス、req.user:', req.user);
   if (req.user) {
     const userData = req.user;
-    // 初回ログインならプロフィール設定へリダイレクト
     if (!userData.handleName) {
       return res.redirect(`/api/user/${userData.id}`);
     }
@@ -367,15 +280,12 @@ app.get('/api/logout', (req, res) => {
   if (req.user) {
     req.logout((err) => {
       if (err) {
-        console.error('ログアウトエラー:', err);
         return res.redirect('/api/');
       }
       req.session.destroy((err) => {
         if (err) {
-          console.error('セッション破棄エラー:', err);
           return res.redirect('/api/');
         }
-        console.log('セッション破棄成功、クッキー削除');
         res.clearCookie('connect.sid', {
           path: '/',
           secure: process.env.NODE_ENV === 'production',
@@ -390,7 +300,6 @@ app.get('/api/logout', (req, res) => {
   }
 });
 
-// タイマン用ページ
 app.get('/api/solo', async (req, res) => {
   const matchesRef = collection(db, 'matches');
   const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
@@ -447,7 +356,6 @@ app.get('/api/solo', async (req, res) => {
   res.send(html);
 });
 
-// マッチング状態チェック用ルート
 app.get('/api/solo/check', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/api/solo');
@@ -523,7 +431,6 @@ app.get('/api/solo/check', async (req, res) => {
 
 app.post('/api/solo/check/cancel', async (req, res) => {
   if (!req.user || !req.user.id) {
-    console.error('ユーザー情報が不正:', req.user);
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
@@ -538,26 +445,18 @@ app.post('/api/solo/check/cancel', async (req, res) => {
     const waitingSnapshot = await waitingQuery.get();
 
     if (waitingSnapshot.empty) {
-      console.log('待機中のルームが見つかりません:', { userId });
-      return res.send('OK'); // ルームがない場合もリダイレクトを許可
+      return res.send('OK');
     }
 
     const matchDoc = waitingSnapshot.docs[0];
     await matchDoc.ref.delete();
-    console.log('マッチングキャンセル成功:', { userId, matchId: matchDoc.id });
 
     res.send('OK');
   } catch (error) {
-    console.error('マッチングキャンセルエラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
 });
 
-// ポーリング用エンドポイント
 app.get('/api/solo/check/status', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ matched: false });
@@ -575,38 +474,8 @@ app.get('/api/solo/check/status', async (req, res) => {
   }
 });
 
-// 待機キャンセルルート（不要になったので後で削除）
-app.get('/api/solo/cancel', async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.redirect('/api/solo');
-  }
-  const userId = req.user.id;
-  const matchesRef = collection(db, 'matches');
-  const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'));
-  const waitingSnapshot = await getDocs(waitingQuery);
-
-  try {
-    waitingSnapshot.forEach(async (docSnap) => {
-      await deleteDoc(docSnap.ref);
-    });
-    res.redirect('/api/solo');
-  } catch (error) {
-    console.error('キャンセルエラー:', error.message, error.stack);
-    res.send(`
-      <html>
-        <body>
-          <h1>キャンセルに失敗しました</h1>
-          <p>エラー: ${error.message}</p>
-          <p><a href="/api/solo">戻る</a></p>
-        </body>
-      </html>
-    `);
-  }
-});
-
 app.post('/api/solo/match', async (req, res) => {
   if (!req.user || !req.user.id) {
-    console.error('ユーザー情報が不正:', req.user);
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
@@ -616,7 +485,6 @@ app.post('/api/solo/match', async (req, res) => {
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
 
-    // ユーザーの既存ソロマッチング状態をチェック
     const userSoloMatchesQuery = matchesRef.where('type', '==', 'solo');
     const userSoloHostQuery = userSoloMatchesQuery
       .where('userId', '==', userId)
@@ -633,23 +501,19 @@ app.post('/api/solo/match', async (req, res) => {
       const matchDoc = userSoloHostSnapshot.docs[0];
       const matchData = matchDoc.data();
       if (matchData.status === 'matched') {
-        console.log('既存のソロマッチング済みルームにリダイレクト（ホスト）:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
       } else if (matchData.status === 'waiting') {
-        console.log('既存のソロ待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: '/api/solo/check' });
       }
     }
     if (!userSoloGuestSnapshot.empty) {
       const matchDoc = userSoloGuestSnapshot.docs[0];
-      console.log('既存のソロマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId: matchDoc.id });
       if (userSoloGuestSnapshot.size > 1) {
         console.warn('複数のソロゲストルーム検出:', { userId, count: userSoloGuestSnapshot.size });
       }
       return res.json({ redirect: `/api/solo/setup/${matchDoc.id}` });
     }
 
-    // ユーザーのチームマッチング状態をチェック（ホストまたはゲスト）
     const userTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
       .where('status', 'in', ['matched', 'waiting']);
@@ -663,7 +527,6 @@ app.post('/api/solo/match', async (req, res) => {
     if (!userTeamHostSnapshot.empty) {
       const matchId = userTeamHostSnapshot.docs[0].id;
       const status = userTeamHostSnapshot.docs[0].data().status;
-      console.error('ユーザーがチームマッチング中（ホスト）:', { userId, matchId, status });
       if (status === 'matched') {
         return res.status(403).json({ message: 'あなたはチーム版で対戦中です' });
       }
@@ -671,22 +534,18 @@ app.post('/api/solo/match', async (req, res) => {
     }
     if (!userTeamGuestSnapshot.empty) {
       const matchId = userTeamGuestSnapshot.docs[0].id;
-      console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId });
       return res.status(403).json({ message: 'あなたはチーム版で対戦中です' });
     }
 
-    // ユーザー情報の取得（タッグ状態チェック用）
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
-      console.error('ユーザーが見つかりません:', userId);
       return res.status(404).json({ message: 'ユーザーが見つかりません' });
     }
     const userData = userSnap.data();
     const isTagged = userData.isTagged || false;
     const tagPartnerId = userData.tagPartnerId || '';
 
-    // タッグ相手のチームマッチング状態をチェック（ホストまたはゲスト）
     if (isTagged && tagPartnerId) {
       const partnerTeamMatchesQuery = matchesRef
         .where('type', '==', 'team')
@@ -701,7 +560,6 @@ app.post('/api/solo/match', async (req, res) => {
       if (!partnerTeamHostSnapshot.empty) {
         const matchId = partnerTeamHostSnapshot.docs[0].id;
         const status = partnerTeamHostSnapshot.docs[0].data().status;
-        console.error('チーム相方がチーム版で対戦中です:', { userId, tagPartnerId, matchId, status });
         if (status === 'matched') {
           return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
         }
@@ -709,12 +567,10 @@ app.post('/api/solo/match', async (req, res) => {
       }
       if (!partnerTeamGuestSnapshot.empty) {
         const matchId = partnerTeamGuestSnapshot.docs[0].id;
-        console.error('チーム相方がチームマッチング中（ゲスト）:', { userId, tagPartnerId, matchId });
         return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
       }
     }
 
-    // 待機中の他のソロルームを検索
     const waitingQuery = matchesRef
       .where('type', '==', 'solo')
       .where('status', '==', 'waiting')
@@ -737,7 +593,6 @@ app.post('/api/solo/match', async (req, res) => {
           hostChoices: { wins: 0, losses: 0, matchResults: [null, null, null] },
           guestChoices: { wins: 0, losses: 0, matchResults: [null, null, null] }
         });
-        console.log(`マッチ成立: matchId=${docSnap.id}, hostId=${guestData.userId}, guestId=${userId}`);
         matched = true;
         return res.json({ redirect: `/api/solo/setup/${docSnap.id}` });
       }
@@ -753,39 +608,27 @@ app.post('/api/solo/match', async (req, res) => {
         hostChoices: { wins: 0, losses: 0, matchResults: [null, null, null] },
         guestChoices: { wins: 0, losses: 0, matchResults: [null, null, null] }
       });
-      console.log(`マッチ作成: matchId=${matchRef.id}, hostId=${userId}`);
       return res.json({ redirect: '/api/solo/check' });
     }
   } catch (error) {
-    console.error('マッチングエラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     return res.status(500).json({ message: `マッチングに失敗しました: ${error.message}` });
   }
 });
 
-// セットアップ画面
 app.get('/api/solo/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
 
-  // ユーザー認証チェック
   if (!userId) {
-    console.log('ユーザー未認証、リダイレクト:', matchId);
     return res.redirect('/api/solo');
   }
 
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const matchRef = db.collection('matches').doc(matchId);
     const matchSnap = await matchRef.get();
 
-    // マッチの存在確認と権限チェック
     if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
-      console.error(`マッチが見つかりません: matchId=${matchId}, userId=${userId}`);
       return res.send('マッチが見つかりません');
     }
 
@@ -794,7 +637,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     const hostId = matchData.userId;
     const guestId = matchData.guestId || '';
 
-    // ホストとゲストの情報を取得
     const hostRef = db.collection('users').doc(hostId);
     const guestRef = db.collection('users').doc(guestId);
     const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
@@ -805,11 +647,9 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     const hostProfileImage = hostSnap.data().profileImage || '/default.png';
     const guestProfileImage = guestSnap.data().profileImage || '/default.png';
 
-    // マッチデータから選択情報を取得
     const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
     const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
 
-    // キャラクターとステージの定義
     const allCharacters = Array.from({ length: 87 }, (_, i) => {
       const id = String(i + 1).padStart(2, '0');
       return { id, name: `キャラ${id}` };
@@ -833,7 +673,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     ];
     const bannedStages = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
 
-    // HTMLレスポンスを送信
     res.send(`
       <html>
         <head>
@@ -1103,7 +942,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               measurementId: "${process.env.FIREBASE_MEASUREMENT_ID}"
             };
             firebase.initializeApp(firebaseConfig);
-            console.log('Firebase初期化完了');
             var db = firebase.firestore();
 
             var selectedChar = '';
@@ -1946,11 +1784,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('セットアップ画面エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     res.status(500).send('エラーが発生しました');
   }
 });
@@ -1960,10 +1793,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
   const userId = req.user?.id;
   const { character1, character2, character3, miiMoves1, miiMoves2, miiMoves3, bannedStages, result, characterReady, selectedStage } = req.body;
 
-  console.log('POST /api/solo/setup/:matchId received:', { matchId, userId, body: req.body });
-
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const matchRef = db.collection('matches').doc(matchId);
     const matchSnap = await matchRef.get();
@@ -1983,7 +1813,7 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       const losersoloRating = loserSnap.data()?.soloRating || 1000;
       const soloRatingDiff = losersoloRating - winnersoloRating;
       const winPoints = soloRatingDiff >= 400 ? 0 : Math.floor(16 + soloRatingDiff * 0.04);
-      const losePoints = winPoints; // 絶対値一致
+      const losePoints = winPoints;
       await Promise.all([
         winnerRef.update({ soloRating: winnersoloRating + winPoints }),
         loserRef.update({ soloRating: losersoloRating - losePoints })
@@ -2060,40 +1890,29 @@ app.post('/api/solo/setup/:matchId', async (req, res) => {
       updateData[choicesKey] = { ...matchData[choicesKey] };
       if (characterReady) updateData[choicesKey].characterReady = true;
       if (character1 !== undefined) {
-        console.log(`Saving character1 for ${choicesKey}:`, character1);
         updateData[choicesKey].character1 = character1;
       }
       if (character2 !== undefined) {
-        console.log(`Saving character2 for ${choicesKey}:`, character2);
         updateData[choicesKey].character2 = character2;
       }
       if (character3 !== undefined) {
-        console.log(`Saving character3 for ${choicesKey}:`, character3);
         updateData[choicesKey].character3 = character3;
       }
       if (miiMoves1 !== undefined) updateData[choicesKey].miiMoves1 = miiMoves1;
       if (miiMoves2 !== undefined) updateData[choicesKey].miiMoves2 = miiMoves2;
       if (miiMoves3 !== undefined) updateData[choicesKey].miiMoves3 = miiMoves3;
       if (bannedStages) {
-        console.log(`Saving bannedStages for ${choicesKey}:`, bannedStages);
         updateData[choicesKey].bannedStages = bannedStages;
       }
       if (selectedStage) {
-        console.log(`Saving selectedStage for ${choicesKey}:`, selectedStage);
         updateData[choicesKey].selectedStage = selectedStage;
         updateData.selectedStage = selectedStage;
       }
     }
 
     await matchRef.update(updateData);
-    console.log('マッチデータ更新成功:', { matchId, updateData });
     res.send('OK');
   } catch (error) {
-    console.error('マッチデータ更新エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
@@ -2119,13 +1938,11 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
     const userLimitRef = matchRef.collection('userLimits').doc(userId);
     const messagesRef = matchRef.collection('messages');
 
-    // マッチの存在確認
     const matchSnap = await matchRef.get();
     if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
       return res.status(403).send('このマッチにアクセスする権限がありません');
     }
 
-    // ルーム全体の制限チェック
     const matchData = matchSnap.data();
     const totalMessages = matchData.totalMessages || 0;
     const totalChars = matchData.totalChars || 0;
@@ -2136,7 +1953,6 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
       return res.status(400).send('このルームの文字数上限（10,000文字）に達しました');
     }
 
-    // ユーザーごとの制限チェック
     const userLimitSnap = await userLimitRef.get();
     let userLimitData = userLimitSnap.exists ? userLimitSnap.data() : { messageCount: 0, lastReset: null, totalChars: 0 };
     const now = new Date();
@@ -2149,10 +1965,8 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
       return res.status(400).send('1分間の送信回数上限（10回）に達しました。しばらくお待ちください');
     }
 
-    // JSTで送信時間（hh:mm）を生成
     const jstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
 
-    // メッセージ保存
     const userSnap = await db.collection('users').doc(userId).get();
     const handleName = userSnap.data()?.handleName || '不明';
     await messagesRef.add({
@@ -2163,7 +1977,6 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
       time: jstTime
     });
 
-    // 制限データの更新
     await userLimitRef.set({
       messageCount: userLimitData.messageCount + 1,
       lastReset: userLimitData.lastReset,
@@ -2177,11 +1990,6 @@ app.post('/api/solo/setup/:matchId/message', async (req, res) => {
 
     res.send('OK');
   } catch (error) {
-    console.error('メッセージ送信エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
@@ -2211,12 +2019,10 @@ app.post('/api/solo/setup/:matchId/cancel', async (req, res) => {
       return res.status(403).send('このマッチにアクセスする権限がありません');
     }
 
-    // 既にキャンセル済みの場合は何もしない
     if (matchData.isCancelled) {
       return res.send('OK');
     }
 
-    // キャンセルリクエストを更新
     const updateData = {};
     if (isHost) {
       updateData['hostChoices.cancelRequested'] = true;
@@ -2224,26 +2030,19 @@ app.post('/api/solo/setup/:matchId/cancel', async (req, res) => {
       updateData['guestChoices.cancelRequested'] = true;
     }
 
-    // 両者がキャンセルリクエストした場合、キャンセル状態にし、statusをfinishedに
     const otherCancelRequested = isHost ? matchData.guestChoices?.cancelRequested : matchData.hostChoices?.cancelRequested;
     if (otherCancelRequested) {
       updateData.isCancelled = true;
-      updateData.status = 'finished'; // 追加: マッチング対象外にする
+      updateData.status = 'finished';
     }
 
     await matchRef.update(updateData);
     res.send('OK');
   } catch (error) {
-    console.error('キャンセルエラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
 
-// ID更新処理
 app.post('/api/solo/update', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/api/solo');
@@ -2252,7 +2051,6 @@ app.post('/api/solo/update', async (req, res) => {
   const roomId = req.body.roomId || '';
 
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
     const waitingQuery = matchesRef
@@ -2263,15 +2061,9 @@ app.post('/api/solo/update', async (req, res) => {
     if (!waitingSnapshot.empty) {
       const docSnap = waitingSnapshot.docs[0];
       await docSnap.ref.update({ roomId: roomId });
-      console.log('部屋ID更新成功:', { userId, roomId });
     }
     res.redirect('/api/solo/check');
   } catch (error) {
-    console.error('ID更新エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     res.send(`
       <html>
         <body>
@@ -2284,7 +2076,6 @@ app.post('/api/solo/update', async (req, res) => {
   }
 });
 
-// ユーザーページ
 app.get('/api/user/:userId', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -2303,7 +2094,6 @@ app.get('/api/user/:userId', async (req, res) => {
     }
 
     const userData = userSnap.data();
-    // 既存ユーザー向けデフォルト値
     userData.handleName = userData.handleName || '';
     userData.bio = userData.bio || '';
     userData.profileImage = userData.profileImage || '/default.png';
@@ -2315,7 +2105,6 @@ app.get('/api/user/:userId', async (req, res) => {
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
 
-    // 参加中のルームをチェック（自身のプロフィールの場合のみ）
     let activeRoomLink = '';
     if (isOwnProfile) {
       const matchesRef = db.collection('matches');
@@ -2347,63 +2136,31 @@ app.get('/api/user/:userId', async (req, res) => {
         userTeamGuestQuery.get()
       ]);
 
-      // ソロホスト
       if (!userSoloHostSnapshot.empty) {
         const matchDoc = userSoloHostSnapshot.docs[0];
         const matchData = matchDoc.data();
-        console.log('参加中のルームを検出:', {
-          userId,
-          matchId: matchDoc.id,
-          type: 'solo',
-          status: matchData.status,
-          role: 'host'
-        });
         if (userSoloHostSnapshot.size > 1) {
           console.warn('複数のソロホストルーム検出:', { userId, type: 'solo', count: userSoloHostSnapshot.size });
         }
         activeRoomLink = `<p><a href="/api/solo/${matchData.status === 'matched' ? 'setup/' + matchDoc.id : 'check'}">参加中のルームがあります</a></p>`;
       }
-      // ソロゲスト
       else if (!userSoloGuestSnapshot.empty) {
         const matchDoc = userSoloGuestSnapshot.docs[0];
-        console.log('参加中のルームを検出:', {
-          userId,
-          matchId: matchDoc.id,
-          type: 'solo',
-          status: 'matched',
-          role: 'guest'
-        });
         if (userSoloGuestSnapshot.size > 1) {
           console.warn('複数のソロゲストルーム検出:', { userId, type: 'solo', count: userSoloGuestSnapshot.size });
         }
         activeRoomLink = `<p><a href="/api/solo/setup/${matchDoc.id}">参加中のルームがあります</a></p>`;
       }
-      // チームホスト
       else if (!userTeamHostSnapshot.empty) {
         const matchDoc = userTeamHostSnapshot.docs[0];
         const matchData = matchDoc.data();
-        console.log('参加中のルームを検出:', {
-          userId,
-          matchId: matchDoc.id,
-          type: 'team',
-          status: matchData.status,
-          role: 'host'
-        });
         if (userTeamHostSnapshot.size > 1) {
           console.warn('複数のチームホストルーム検出:', { userId, type: 'team', count: userTeamHostSnapshot.size });
         }
         activeRoomLink = `<p><a href="/api/team/${matchData.status === 'matched' ? 'setup/' + matchDoc.id : 'check'}">参加中のルームがあります</a></p>`;
       }
-      // チームゲスト
       else if (!userTeamGuestSnapshot.empty) {
         const matchDoc = userTeamGuestSnapshot.docs[0];
-        console.log('参加中のルームを検出:', {
-          userId,
-          matchId: matchDoc.id,
-          type: 'team',
-          status: 'matched',
-          role: 'guest'
-        });
         if (userTeamGuestSnapshot.size > 1) {
           console.warn('複数のチームゲストルーム検出:', { userId, type: 'team', count: userTeamGuestSnapshot.size });
         }
@@ -2411,35 +2168,28 @@ app.get('/api/user/:userId', async (req, res) => {
       }
     }
 
-    // タッグ状態のチェック（自身のプロフィールの場合のみ）
     let tagStatusHtml = '';
     if (isOwnProfile) {
       const isTagged = userData.isTagged;
       const tagPartnerId = userData.tagPartnerId;
       if (!isTagged || !tagPartnerId) {
-        console.log('タッグ状態を確認:', { userId, tagPartnerId: null, status: 'no_tag' });
         tagStatusHtml = `<p>チーム相方: 組んでいない</p>`;
       } else {
         const tagPartnerRef = db.collection('users').doc(tagPartnerId);
         const tagPartnerSnap = await tagPartnerRef.get();
         if (!tagPartnerSnap.exists) {
-          console.warn('タッグ相手が見つかりません:', { userId, tagPartnerId });
-          console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'pending' });
           tagStatusHtml = `<p>チーム相方: 申請中</p>`;
         } else {
           const tagPartnerData = tagPartnerSnap.data();
           if (!tagPartnerData.isTagged || tagPartnerData.tagPartnerId !== userId) {
-            console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'pending' });
             tagStatusHtml = `<p>チーム相方: 申請中</p>`;
           } else {
-            console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'mutual' });
             tagStatusHtml = `<p>チーム相方: <a href="/api/user/${tagPartnerId}">${tagPartnerData.handleName || '未設定'}</a></p>`;
           }
         }
       }
     }
 
-    // タッグボタンのチェック
     let tagButtonHtml = '';
     let currentUserTagPartnerId = '';
     let currentUserIsTagged = false;
@@ -2466,7 +2216,6 @@ app.get('/api/user/:userId', async (req, res) => {
     }
 
     if (isNewUser || !userData.handleName) {
-      // 新規ユーザー向けプロフィール設定ページ（変更なし）
       return res.send(`
         <!DOCTYPE html>
         <html lang="ja">
@@ -2567,7 +2316,6 @@ app.get('/api/user/:userId', async (req, res) => {
       `);
     }
 
-    // マッチング履歴の取得
     const matchesRef = db.collection('matches');
     const userMatchesQuery = matchesRef
       .where('status', '==', 'finished')
@@ -2678,7 +2426,6 @@ app.get('/api/user/:userId', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('ユーザーページエラー:', error);
     res.status(500).send(`
       <html><body>
         <h1>エラーが発生しました</h1>
@@ -2689,7 +2436,6 @@ app.get('/api/user/:userId', async (req, res) => {
   }
 });
 
-// プロフィール編集ページ
 app.get('/api/user/:userId/edit', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -2808,44 +2554,23 @@ app.get('/api/user/:userId/edit', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('プロフィール編集ページエラー:', error);
     res.status(500).send('エラーが発生しました');
   }
 });
 
-// プロフィール更新
 app.post('/api/user/:userId/update', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
 
-  // 認証状態のログ
-  console.log('プロフィール更新リクエスト:', {
-    userId,
-    currentUser: currentUser ? { id: currentUser.id, handleName: currentUser.handleName } : null,
-    sessionID: req.sessionID,
-    session: req.session,
-    body: {
-      handleName: req.body.handleName,
-      bio: req.body.bio,
-      hasProfileImage: !!req.files?.profileImage
-    }
-  });
-
   if (!currentUser) {
-    console.error('認証エラー: ユーザーが認証されていません');
     return res.status(401).send('認証が必要です。ログインしてください。');
   }
 
   if (currentUser.id !== userId) {
-    console.error('権限エラー: ユーザーIDが一致しません', {
-      requestedUserId: userId,
-      authenticatedUserId: currentUser.id
-    });
     return res.status(403).send('自分のプロフィールのみ編集可能です');
   }
 
   try {
-    // firebase-admin の Firestore を使用
     const db = admin.firestore();
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
@@ -2858,12 +2583,10 @@ app.post('/api/user/:userId/update', async (req, res) => {
     const bio = (req.body.bio || '').trim();
     const profileImage = req.files?.profileImage;
 
-    // バリデーション
     if (!handleName) {
       return res.status(400).send('ハンドルネームは必須です');
     }
 
-    // 画像フォーマットおよびサイズ制限
     if (profileImage) {
       if (!['image/png', 'image/jpeg'].includes(profileImage.mimetype)) {
         return res.status(400).send('PNGまたはJPEG形式の画像をアップロードしてください');
@@ -2873,7 +2596,6 @@ app.post('/api/user/:userId/update', async (req, res) => {
       }
     }
 
-    // アップロード制限チェック
     const now = new Date();
     const lastReset = new Date(userData.lastUploadReset || now);
     if (lastReset.toDateString() !== now.toDateString()) {
@@ -2894,7 +2616,6 @@ app.post('/api/user/:userId/update', async (req, res) => {
       const fileName = `profile_images/${userId}_${Date.now()}.png`;
       const file = bucket.file(fileName);
 
-      // 画像リサイズ
       const buffer = await sharp(profileImage.data)
         .resize(64, 64, { fit: 'cover' })
         .png()
@@ -2917,36 +2638,22 @@ app.post('/api/user/:userId/update', async (req, res) => {
         updateData.profileImage = url;
         updateData.uploadCount = (userData.uploadCount || 0) + 1;
       } catch (storageError) {
-        console.error('Firebase Storageエラー:', {
-          message: storageError.message,
-          code: storageError.code,
-          stack: storageError.stack
-        });
         return res.status(500).send('画像アップロードに失敗しました');
       }
     }
 
-    console.log('プロフィール更新データ:', updateData);
     await userRef.update(updateData);
-    console.log('プロフィール更新成功:', { userId, updateData });
     res.send('OK');
   } catch (error) {
-    console.error('プロフィール更新エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
 
-// タッグ処理エンドポイント
 app.post('/api/user/:userId/tag', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
 
   if (!currentUser) {
-    console.error('認証エラー: ユーザーが認証されていません');
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
 
@@ -2959,24 +2666,18 @@ app.post('/api/user/:userId/tag', async (req, res) => {
 
     const currentUserSnap = await currentUserRef.get();
     if (!currentUserSnap.exists) {
-      console.error('エラー: 現在のユーザーが見つかりません', { userId: currentUser.id });
       return res.status(404).json({ message: 'ユーザーが見つかりません' });
     }
     const currentUserData = currentUserSnap.data();
 
-    // 自身のタッグ解除チェック
     if (currentUser.id === userId) {
-      console.log('自身でのタッグ解除試行:', { userId, isTagged: currentUserData.isTagged });
       if (!currentUserData.isTagged) {
-        console.error('エラー: 自分自身にタッグは組めません', { userId });
         return res.status(400).json({ message: '自分自身にタッグを組むことはできません' });
       }
       if (action !== 'untag') {
-        console.error('エラー: 自身の場合はタッグ解除のみ可能です', { userId, action });
         return res.status(400).json({ message: '自身の場合はタッグ解除のみ可能です' });
       }
 
-      // チームマッチング状態をチェック（自分）
       const matchesRef = db.collection('matches');
       const userTeamHostQuery = matchesRef
         .where('type', '==', 'team')
@@ -2994,13 +2695,6 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       if (!userTeamHostSnapshot.empty) {
         const matchDoc = userTeamHostSnapshot.docs[0];
         const matchData = matchDoc.data();
-        console.error('タッグ解除不可:', {
-          userId: currentUser.id,
-          tagPartnerId: currentUserData.tagPartnerId,
-          matchId: matchDoc.id,
-          status: matchData.status,
-          role: 'host'
-        });
         if (userTeamHostSnapshot.size > 1) {
           console.warn('複数のチームホストルーム検出:', { userId: currentUser.id, type: 'team', count: userTeamHostSnapshot.size });
         }
@@ -3012,20 +2706,12 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       }
       if (!userTeamGuestSnapshot.empty) {
         const matchDoc = userTeamGuestSnapshot.docs[0];
-        console.error('タッグ解除不可:', {
-          userId: currentUser.id,
-          tagPartnerId: currentUserData.tagPartnerId,
-          matchId: matchDoc.id,
-          status: 'matched',
-          role: 'guest'
-        });
         if (userTeamGuestSnapshot.size > 1) {
           console.warn('複数のチームゲストルーム検出:', { userId: currentUser.id, type: 'team', count: userTeamGuestSnapshot.size });
         }
         return res.status(403).json({ message: 'チーム用で対戦中なので解除できません' });
       }
 
-      // チームマッチング状態をチェック（タッグ相手）
       const tagPartnerId = currentUserData.tagPartnerId;
       if (tagPartnerId) {
         const partnerTeamHostQuery = matchesRef
@@ -3044,13 +2730,6 @@ app.post('/api/user/:userId/tag', async (req, res) => {
         if (!partnerTeamHostSnapshot.empty) {
           const matchDoc = partnerTeamHostSnapshot.docs[0];
           const matchData = matchDoc.data();
-          console.error('タッグ解除不可:', {
-            userId: currentUser.id,
-            tagPartnerId,
-            matchId: matchDoc.id,
-            status: matchData.status,
-            role: 'host'
-          });
           if (partnerTeamHostSnapshot.size > 1) {
             console.warn('複数のチームホストルーム検出:', { userId: tagPartnerId, type: 'team', count: partnerTeamHostSnapshot.size });
           }
@@ -3062,13 +2741,6 @@ app.post('/api/user/:userId/tag', async (req, res) => {
         }
         if (!partnerTeamGuestSnapshot.empty) {
           const matchDoc = partnerTeamGuestSnapshot.docs[0];
-          console.error('タッグ解除不可:', {
-            userId: currentUser.id,
-            tagPartnerId,
-            matchId: matchDoc.id,
-            status: 'matched',
-            role: 'guest'
-          });
           if (partnerTeamGuestSnapshot.size > 1) {
             console.warn('複数のチームゲストルーム検出:', { userId: tagPartnerId, type: 'team', count: partnerTeamGuestSnapshot.size });
           }
@@ -3076,35 +2748,26 @@ app.post('/api/user/:userId/tag', async (req, res) => {
         }
       }
 
-      // タッグ解除処理
       await currentUserRef.update({
         tagPartnerId: '',
         isTagged: false
       });
-      console.log('タッグ解除成功:', { userId: currentUser.id });
       return res.send('OK');
     }
 
-    // 他人のユーザーに対するタッグ処理
     const targetUserSnap = await targetUserRef.get();
     if (!targetUserSnap.exists) {
-      console.error('エラー: 対象ユーザーが見つかりません', { userId });
       return res.status(404).json({ message: '対象ユーザーが見つかりません' });
     }
 
     if (action === 'tag') {
       if (currentUserData.isTagged) {
-        console.error('エラー: 既に他のユーザーとタッグを組んでいます', {
-          userId: currentUser.id,
-          currentTagPartnerId: currentUserData.tagPartnerId
-        });
         return res.status(400).json({ message: '既に他のユーザーとタッグを組んでいます' });
       }
       await currentUserRef.update({
         tagPartnerId: userId,
         isTagged: true
       });
-      console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
       res.send('OK');
     } else if (action === 'untag') {
       if (!currentUserData.isTagged) {
@@ -3115,23 +2778,15 @@ app.post('/api/user/:userId/tag', async (req, res) => {
         tagPartnerId: '',
         isTagged: false
       });
-      console.log('タッグ解除成功:', { userId: currentUser.id });
       res.send('OK');
     } else {
-      console.error('エラー: 無効なアクション', { action });
       return res.status(400).json({ message: '無効なアクションです' });
     }
   } catch (error) {
-    console.error('タッグ処理エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     return res.status(500).json({ message: `エラー: ${error.message}` });
   }
 });
 
-// チーム用ページ（仮）
 app.get('/api/team', async (req, res) => {
   const matchesRef = collection(db, 'matches');
   const waitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
@@ -3159,7 +2814,6 @@ app.get('/api/team', async (req, res) => {
     const userTeamRating = userData.teamRating || 1500;
     let teamRating = userTeamRating;
 
-    // タッグパートナーのレートを取得
     if (userData.isTagged && userData.tagPartnerId) {
       const tagPartnerRef = db.collection('users').doc(userData.tagPartnerId);
       const tagPartnerSnap = await tagPartnerRef.get();
@@ -3204,7 +2858,6 @@ app.get('/api/team', async (req, res) => {
 
 app.post('/api/team/match', async (req, res) => {
   if (!req.user || !req.user.id) {
-    console.error('ユーザー情報が不正:', req.user);
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
@@ -3213,7 +2866,6 @@ app.post('/api/team/match', async (req, res) => {
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
 
-    // ユーザーの既存チームマッチング状態をチェック（ホストまたはゲスト）
     const userTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
       .where('status', 'in', ['matched', 'waiting']);
@@ -3228,23 +2880,19 @@ app.post('/api/team/match', async (req, res) => {
       const matchDoc = userTeamHostSnapshot.docs[0];
       const matchData = matchDoc.data();
       if (matchData.status === 'matched') {
-        console.log('既存のチームマッチング済みルームにリダイレクト（ホスト）:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: `/api/team/setup/${matchDoc.id}` });
       } else if (matchData.status === 'waiting') {
-        console.log('既存のチーム待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: '/api/team/check' });
       }
     }
     if (!userTeamGuestSnapshot.empty) {
       const matchDoc = userTeamGuestSnapshot.docs[0];
-      console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId: matchDoc.id });
       if (userTeamGuestSnapshot.size > 1) {
         console.warn('複数のチームゲストルーム検出:', { userId, count: userTeamGuestSnapshot.size });
       }
       return res.json({ redirect: `/api/team/setup/${matchDoc.id}` });
     }
 
-    // ユーザーのソロマッチング状態をチェック（ホストまたはゲスト）
     const userSoloMatchesQuery = matchesRef
       .where('type', '==', 'solo')
       .where('status', 'in', ['matched', 'waiting']);
@@ -3258,7 +2906,6 @@ app.post('/api/team/match', async (req, res) => {
     if (!userSoloHostSnapshot.empty) {
       const matchDoc = userSoloHostSnapshot.docs[0];
       const matchData = matchDoc.data();
-      console.error('ユーザーがタイマン版でマッチング中（ホスト）:', { userId, matchId: matchDoc.id, status: matchData.status });
       if (matchData.status === 'matched') {
         return res.status(403).json({ message: 'あなたはタイマン版で対戦中です' });
       } else if (matchData.status === 'waiting') {
@@ -3267,44 +2914,35 @@ app.post('/api/team/match', async (req, res) => {
     }
     if (!userSoloGuestSnapshot.empty) {
       const matchDoc = userSoloGuestSnapshot.docs[0];
-      console.error('ユーザーがタイマン版で対戦中（ゲスト）:', { userId, matchId: matchDoc.id });
       if (userSoloGuestSnapshot.size > 1) {
         console.warn('複数のソロゲストルーム検出:', { userId, count: userSoloGuestSnapshot.size });
       }
       return res.status(403).json({ message: 'あなたはタイマン版で対戦中です' });
     }
 
-    // ユーザー情報の取得
     const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
-      console.error('ユーザーが見つかりません:', userId);
       return res.status(404).json({ message: 'ユーザーが見つかりません' });
     }
     const userData = userSnap.data();
     const isTagged = userData.isTagged || false;
     const tagPartnerId = userData.tagPartnerId || '';
 
-    // タッグ状態のチェック
     if (!isTagged || !tagPartnerId) {
-      console.error('タッグしていないユーザーのマッチング試行:', userId);
       return res.status(403).json({ message: 'チームマッチングにはタッグを組む必要があります。タッグを組んでから再度お試しください。' });
     }
 
-    // 相互タッグの検証
     const tagPartnerRef = db.collection('users').doc(tagPartnerId);
     const tagPartnerSnap = await tagPartnerRef.get();
     if (!tagPartnerSnap.exists) {
-      console.error('タッグ相手が見つかりません:', tagPartnerId);
       return res.status(404).json({ message: 'タッグ相手が見つかりません' });
     }
     const tagPartnerData = tagPartnerSnap.data();
     if (!tagPartnerData.isTagged || tagPartnerData.tagPartnerId !== userId) {
-      console.error('相互タッグが未成立:', { userId, tagPartnerId });
       return res.status(403).json({ message: 'タッグ相手と相互にタッグを組む必要があります' });
     }
 
-    // タッグ相手のチームマッチング状態をチェック（ホストまたはゲスト）
     const partnerTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
       .where('status', 'in', ['matched', 'waiting']);
@@ -3318,7 +2956,6 @@ app.post('/api/team/match', async (req, res) => {
     if (!partnerTeamHostSnapshot.empty) {
       const matchDoc = partnerTeamHostSnapshot.docs[0];
       const matchData = matchDoc.data();
-      console.error('チーム相方がチーム版でマッチング中（ホスト）:', { userId, tagPartnerId, matchId: matchDoc.id, status: matchData.status });
       if (matchData.status === 'matched') {
         return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
       } else if (matchData.status === 'waiting') {
@@ -3327,14 +2964,12 @@ app.post('/api/team/match', async (req, res) => {
     }
     if (!partnerTeamGuestSnapshot.empty) {
       const matchDoc = partnerTeamGuestSnapshot.docs[0];
-      console.error('チーム相方がチーム版で対戦中（ゲスト）:', { userId, tagPartnerId, matchId: matchDoc.id });
       if (partnerTeamGuestSnapshot.size > 1) {
         console.warn('タッグ相手の複数のチームゲストルーム検出:', { userId, tagPartnerId, count: partnerTeamGuestSnapshot.size });
       }
       return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
     }
 
-    // タッグ相手のソロマッチング状態をチェック（ホストまたはゲスト）
     const partnerSoloMatchesQuery = matchesRef
       .where('type', '==', 'solo')
       .where('status', 'in', ['matched', 'waiting']);
@@ -3348,7 +2983,6 @@ app.post('/api/team/match', async (req, res) => {
     if (!partnerSoloHostSnapshot.empty) {
       const matchDoc = partnerSoloHostSnapshot.docs[0];
       const matchData = matchDoc.data();
-      console.error('チーム相方がタイマン版でマッチング中（ホスト）:', { userId, tagPartnerId, matchId: matchDoc.id, status: matchData.status });
       if (matchData.status === 'matched') {
         return res.status(403).json({ message: 'チーム相方がタイマン版で対戦中です' });
       } else if (matchData.status === 'waiting') {
@@ -3357,19 +2991,16 @@ app.post('/api/team/match', async (req, res) => {
     }
     if (!partnerSoloGuestSnapshot.empty) {
       const matchDoc = partnerSoloGuestSnapshot.docs[0];
-      console.error('チーム相方がタイマン版で対戦中（ゲスト）:', { userId, tagPartnerId, matchId: matchDoc.id });
       if (partnerSoloGuestSnapshot.size > 1) {
         console.warn('タッグ相手の複数のソロゲストルーム検出:', { userId, tagPartnerId, count: partnerSoloGuestSnapshot.size });
       }
       return res.status(403).json({ message: 'チーム相方がタイマン版で対戦中です' });
     }
 
-    // ユーザーとタッグパートナーの高い方のレートを取得
     let userTeamRating = userData.teamRating || 1500;
     const tagPartnerRating = tagPartnerData.teamRating || 1500;
     userTeamRating = Math.max(userTeamRating, tagPartnerRating);
 
-    // 待機中の他のルームを検索
     const waitingQuery = matchesRef
       .where('type', '==', 'team')
       .where('status', '==', 'waiting')
@@ -3399,7 +3030,6 @@ app.post('/api/team/match', async (req, res) => {
           status: 'matched',
           timestamp: new Date().toISOString()
         });
-        console.log(`チームマッチ成立: matchId=${docSnap.id}, hostId=${guestData.userId}, guestId=${userId}`);
         matched = true;
         return res.json({ redirect: `/api/team/setup/${docSnap.id}` });
       }
@@ -3413,20 +3043,13 @@ app.post('/api/team/match', async (req, res) => {
         roomId: '',
         timestamp: new Date().toISOString()
       });
-      console.log(`チームマッチ作成: matchId=${matchRef.id}, hostId=${userId}`);
       return res.json({ redirect: '/api/team/check' });
     }
   } catch (error) {
-    console.error('チームマッチングエラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     return res.status(500).json({ message: `マッチングに失敗しました: ${error.message}` });
   }
 });
 
-// マッチング状態チェック
 app.get('/api/team/check', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.redirect('/api/team');
@@ -3502,7 +3125,6 @@ app.get('/api/team/check', async (req, res) => {
 
 app.post('/api/team/check/cancel', async (req, res) => {
   if (!req.user || !req.user.id) {
-    console.error('ユーザー情報が不正:', req.user);
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
@@ -3517,26 +3139,18 @@ app.post('/api/team/check/cancel', async (req, res) => {
     const waitingSnapshot = await waitingQuery.get();
 
     if (waitingSnapshot.empty) {
-      console.log('待機中のルームが見つかりません:', { userId });
-      return res.send('OK'); // ルームがない場合もリダイレクトを許可
+      return res.send('OK');
     }
 
     const matchDoc = waitingSnapshot.docs[0];
     await matchDoc.ref.delete();
-    console.log('マッチングキャンセル成功:', { userId, matchId: matchDoc.id });
 
     res.send('OK');
   } catch (error) {
-    console.error('マッチングキャンセルエラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     return res.status(500).json({ message: `キャンセルに失敗しました: ${error.message}` });
   }
 });
 
-// ポーリング用エンドポイント
 app.get('/api/team/check/status', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ matched: false });
@@ -3551,35 +3165,6 @@ app.get('/api/team/check/status', async (req, res) => {
     res.json({ matched: true, matchId });
   } else {
     res.json({ matched: false });
-  }
-});
-
-// 待機キャンセル（不要になったので後で消す）
-app.get('/api/team/cancel', async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.redirect('/api/team');
-  }
-  const userId = req.user.id;
-  const matchesRef = collection(db, 'matches');
-  const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'), where('type', '==', 'team'));
-  const waitingSnapshot = await getDocs(waitingQuery);
-
-  try {
-    waitingSnapshot.forEach(async (docSnap) => {
-      await deleteDoc(docSnap.ref);
-    });
-    res.redirect('/api/team');
-  } catch (error) {
-    console.error('チームキャンセルエラー:', error.message, error.stack);
-    res.send(`
-      <html>
-        <body>
-          <h1>キャンセルに失敗しました</h1>
-          <p>エラー: ${error.message}</p>
-          <p><a href="/api/team">戻る</a></p>
-        </body>
-      </html>
-    `);
   }
 });
 
@@ -3602,15 +3187,9 @@ app.post('/api/team/update', async (req, res) => {
     if (!waitingSnapshot.empty) {
       const docSnap = waitingSnapshot.docs[0];
       await docSnap.ref.update({ roomId: roomId });
-      console.log('チーム部屋ID更新成功:', { userId, roomId });
     }
     res.redirect('/api/team/check');
   } catch (error) {
-    console.error('チームID更新エラー:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     res.send(`
       <html>
         <body>
@@ -3628,7 +3207,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
   const userId = req.user?.id;
 
   if (!userId) {
-    console.log('ユーザー未認証、リダイレクト:', matchId);
     return res.redirect('/api/team');
   }
 
@@ -3638,7 +3216,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     const matchSnap = await matchRef.get();
 
     if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
-      console.error(`チームマッチが見つかりません: matchId=${matchId}, userId=${userId}`);
       return res.send('マッチが見つかりません');
     }
 
@@ -3657,7 +3234,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     const hostProfileImage = hostData.profileImage || '/default.png';
     const guestProfileImage = guestData.profileImage || '/default.png';
 
-    // ホストチームの高い方のレート
     let hostTeamRating = hostData.teamRating || 1500;
     if (hostData.isTagged && hostData.tagPartnerId) {
       const hostTagPartnerRef = db.collection('users').doc(hostData.tagPartnerId);
@@ -3665,7 +3241,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
       const hostTagPartnerRating = hostTagPartnerSnap.exists ? (hostTagPartnerSnap.data().teamRating || 1500) : 1500;
       hostTeamRating = Math.max(hostTeamRating, hostTagPartnerRating);
     }
-    // ゲストチームの高い方のレート
     let guestTeamRating = guestData.teamRating || 1500;
     if (guestData.isTagged && guestData.tagPartnerId) {
       const guestTagPartnerRef = db.collection('users').doc(guestData.tagPartnerId);
@@ -3674,7 +3249,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
       guestTeamRating = Math.max(guestTeamRating, guestTagPartnerRating);
     }
 
-    // タッグパートナーのデータ取得
     let hostTagPartnerName = '不明';
     let hostTagPartnerImage = '/default.png';
     if (hostData.tagPartnerId && hostData.isTagged) {
@@ -3816,7 +3390,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               const guestResultElement = document.getElementById('guestResult');
               const buttons = document.querySelectorAll('.result-btn');
 
-              // 結果表示の更新（日本語変換）
               const resultMap = {
                 'win': '勝ち',
                 'lose': '負け',
@@ -3826,7 +3399,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               hostResultElement.innerText = '状態: ' + resultMap[hostResult];
               guestResultElement.innerText = '状態: ' + resultMap[guestResult];
 
-              // ボタン制御
               const isValidResult = 
                 (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
                 (hostChoices.result === 'lose' && guestChoices.result === 'win') ||
@@ -3843,7 +3415,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 }
               });
 
-              // レート更新（マッチ終了時）
               if (data.status === 'finished' && data.teamRatingChanges) {
                 const hostRatingChange = data.teamRatingChanges['${hostId}'] || 0;
                 const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
@@ -3857,7 +3428,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               }
             });
 
-            // チャットログのリアルタイム更新
             db.collection('matches').doc('${matchId}').collection('messages')
               .orderBy('timestamp', 'asc')
               .onSnapshot((snapshot) => {
@@ -3931,11 +3501,6 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('チームセットアップ画面エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     res.status(500).send(`エラーが発生しました: ${error.message}`);
   }
 });
@@ -3944,8 +3509,6 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
   const matchId = req.params.matchId;
   const userId = req.user?.id;
   const { result } = req.body;
-
-  console.log('POST /api/team/setup/:matchId received:', { matchId, userId, result });
 
   try {
     const db = admin.firestore();
@@ -3969,10 +3532,8 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       const winnerSnaps = await Promise.all(winnerRefs.map(ref => ref.get()));
       const loserSnaps = await Promise.all(loserRefs.map(ref => ref.get()));
 
-      // 勝者チームの高い方のレート
       const winnerRatings = winnerSnaps.map(snap => snap.exists ? (snap.data().teamRating || 1500) : 1500);
       const winnerTeamRating = Math.max(...winnerRatings);
-      // 敗者チームの高い方のレート
       const loserRatings = loserSnaps.map(snap => snap.exists ? (snap.data().teamRating || 1500) : 1500);
       const loserTeamRating = Math.max(...loserRatings);
 
@@ -3980,13 +3541,11 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       const winPoints = teamRatingDiff >= 400 ? 0 : Math.floor(16 + teamRatingDiff * 0.04);
       const losePoints = winPoints;
 
-      // 勝者チームのレート更新
       const winnerUpdates = winnerSnaps.map((snap, index) => {
         const userId = winnerIds[index];
         const currentRating = snap.exists ? (snap.data().teamRating || 1500) : 1500;
         return winnerRefs[index].update({ teamRating: currentRating + winPoints });
       });
-      // 敗者チームのレート更新
       const loserUpdates = loserSnaps.map((snap, index) => {
         const userId = loserIds[index];
         const currentRating = snap.exists ? (snap.data().teamRating || 1500) : 1500;
@@ -4005,11 +3564,9 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
       };
     }
 
-    // 選択を保存
     updateData[choicesKey] = { ...matchData[choicesKey], result: result || '' };
     updateData[opponentChoicesKey] = matchData[opponentChoicesKey] || {};
 
-    // 両者の選択が揃った場合の処理
     const hostResult = updateData.hostChoices.result;
     const guestResult = updateData.guestChoices.result;
     if (hostResult && guestResult) {
@@ -4017,7 +3574,6 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
         (hostResult === 'win' && guestResult === 'lose') ||
         (hostResult === 'lose' && guestResult === 'win')
       ) {
-        // 勝ち負けの場合
         updateData.status = 'finished';
         const hostRef = db.collection('users').doc(matchData.userId);
         const guestRef = db.collection('users').doc(matchData.guestId);
@@ -4025,7 +3581,6 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
         const hostData = hostSnap.data();
         const guestData = guestSnap.data();
 
-        // ホストとゲストのタッグパートナーIDを取得
         const hostTagPartnerId = hostData.tagPartnerId || '';
         const guestTagPartnerId = guestData.tagPartnerId || '';
         const winnerIds = hostResult === 'win'
@@ -4038,7 +3593,6 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
         const { winPoints, losePoints, ratingChanges } = await updateTeamRatings(winnerIds, loserIds);
         updateData.teamRatingChanges = ratingChanges;
       } else if (hostResult === 'cancel' && guestResult === 'cancel') {
-        // 両者対戦中止の場合
         updateData.status = 'finished';
         updateData.teamRatingChanges = {
           [matchData.userId]: 0,
@@ -4047,18 +3601,11 @@ app.post('/api/team/setup/:matchId', async (req, res) => {
           ...(matchData.guestTagPartnerId ? { [matchData.guestTagPartnerId]: 0 } : {})
         };
       }
-      // 矛盾する選択（例：両者勝ち、両者負け）の場合は何もしない
     }
 
     await matchRef.update(updateData);
-    console.log('チームマッチデータ更新成功:', { matchId, updateData });
     res.send('OK');
   } catch (error) {
-    console.error('チームマッチデータ更新エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
@@ -4084,13 +3631,11 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
     const userLimitRef = matchRef.collection('userLimits').doc(userId);
     const messagesRef = matchRef.collection('messages');
 
-    // マッチの存在確認
     const matchSnap = await matchRef.get();
     if (!matchSnap.exists || (matchSnap.data().userId !== userId && matchSnap.data().guestId !== userId)) {
       return res.status(403).send('このマッチにアクセスする権限がありません');
     }
 
-    // ルーム全体の制限チェック
     const matchData = matchSnap.data();
     const totalMessages = matchData.totalMessages || 0;
     const totalChars = matchData.totalChars || 0;
@@ -4101,7 +3646,6 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       return res.status(400).send('このルームの文字数上限（10,000文字）に達しました');
     }
 
-    // ユーザーごとの制限チェック
     const userLimitSnap = await userLimitRef.get();
     let userLimitData = userLimitSnap.exists ? userLimitSnap.data() : { messageCount: 0, lastReset: null, totalChars: 0 };
     const now = new Date();
@@ -4114,10 +3658,8 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       return res.status(400).send('1分間の送信回数上限（10回）に達しました。しばらくお待ちください');
     }
 
-    // JSTで送信時間（hh:mm）を生成
     const jstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
 
-    // メッセージ保存
     const userSnap = await db.collection('users').doc(userId).get();
     const handleName = userSnap.data()?.handleName || '不明';
     await messagesRef.add({
@@ -4128,7 +3670,6 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
       time: jstTime
     });
 
-    // 制限データの更新
     await userLimitRef.set({
       messageCount: userLimitData.messageCount + 1,
       lastReset: userLimitData.lastReset,
@@ -4142,14 +3683,8 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
 
     res.send('OK');
   } catch (error) {
-    console.error('メッセージ送信エラー:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code || 'N/A'
-    });
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
-
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
