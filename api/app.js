@@ -273,7 +273,7 @@ app.get('/api/', async (req, res) => {
             <p><a href="/api/team">チーム用</a></p>
             <p><a href="/api/logout">ログアウト</a></p>
           </div>
-          <script src="/js/auth.js">
+          <script src="/js/auth.js"></script>
         </body>
       </html>
     `);
@@ -294,7 +294,7 @@ app.get('/api/', async (req, res) => {
             <p><a href="/api/team">チーム用</a></p>
             <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
           </div>
-          <script src="/js/auth.js">
+          <script src="/js/auth.js"></script>
         </body>
       </html>
     `);
