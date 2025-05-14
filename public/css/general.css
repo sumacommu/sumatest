@@ -79,7 +79,6 @@ button.disabled {
 .header-nav {
     display: flex;
     gap: 20px;
-    transition: transform 0.3s ease-in-out;
 }
 
 .nav-link {
@@ -122,22 +121,25 @@ button.disabled {
     .header-nav {
         position: fixed;
         top: 0;
-        right: -250px;
-        width: 250px;
+        right: -100%;
+        width: 80%;
+        max-width: 250px;
         height: 100%;
         background-color: #333;
         flex-direction: column;
         padding: 20px;
+        transition: right 0.3s ease-in-out;
+        z-index: 1000;
     }
 
     .header-nav.active {
         right: 0;
-        transform: translateX(0);
     }
 
     .nav-link {
         padding: 10px 0;
         font-size: 18px;
+        display: block;
     }
 
     .site-logo {
