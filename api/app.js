@@ -11,6 +11,7 @@ const EventEmitter = require('events');
 require('dotenv').config();
 
 const app = express();
+app.use(express.static('public'));
 
 admin.initializeApp({
   credential: admin.credential.cert({
@@ -238,10 +239,7 @@ app.get('/api/', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            img { max-width: 64px; max-height: 64px; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <div class="container">
@@ -260,9 +258,7 @@ app.get('/api/', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <div class="container">
@@ -310,10 +306,7 @@ app.get('/api/solo', async (req, res) => {
   let html = `
     <html>
       <head>
-        <style>
-          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-          button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-        </style>
+        <link rel="stylesheet" href="/css/general.css">
       </head>
       <body>
         <div class="container">
@@ -376,10 +369,7 @@ app.get('/api/solo/check', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <div class="container">
@@ -677,259 +667,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .overlay {
-              display: none;
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100%;
-              background: rgba(0, 0, 0, 0.5);
-              z-index: 1;
-            }
-            .popup {
-              display: none;
-              position: fixed;
-              top: 20%;
-              left: 20%;
-              width: 60%;
-              height: 60%;
-              background: white;
-              border: none;
-              overflow: auto;
-              z-index: 2;
-            }
-            .popup img {
-              width: 64px;
-              height: 64px;
-              margin: 5px;
-            }
-            .section {
-              margin: 20px 0;
-            }
-            #miiInput {
-              display: none;
-            }
-            .char-btn {
-              border: none;
-              background: none;
-              padding: 0;
-              transition: opacity 0.3s, filter 0.3s;
-            }
-            .char-btn.char-normal {
-              opacity: 1;
-            }
-            .char-btn.char-dim {
-              opacity: 0.3;
-            }
-            .char-btn.char-dim-gray {
-              opacity: 0.3;
-              filter: grayscale(100%);
-            }
-            .char-btn.disabled {
-              opacity: 0.5;
-              pointer-events: none;
-              cursor: not-allowed;
-            }
-            .select-char-btn.disabled {
-              opacity: 0.5;
-              pointer-events: none;
-              cursor: not-allowed;
-            }
-            .stage-btn {
-              opacity: 1.0;
-              transition: opacity 0.3s, filter 0.3s, border 0.3s, background-color 0.3s;
-              border: none;
-              background: none;
-              padding: 0;
-              flex: 0 0 calc((100% - 10px) / 2);
-              box-sizing: border-box;
-            }
-            .stage-btn.temporary {
-              opacity: 0.3;
-            }
-            .stage-btn.counter {
-              filter: grayscale(100%);
-              opacity: 1.0;
-            }
-            .stage-btn.banned {
-              filter: grayscale(100%);
-              opacity: 0.3;
-            }
-            .stage-btn.confirmed {
-              border: 2px solid red;
-              background-color: rgba(255, 0, 0, 0.2);
-              opacity: 1.0 !important;
-              filter: none !important;
-            }
-            .send-btn {
-              padding: 10px 20px;
-              margin: 5px;
-              cursor: pointer;
-            }
-            .send-btn.disabled {
-              opacity: 0.5;
-              pointer-events: none;
-              cursor: not-allowed;
-            }
-            .result-btn {
-              padding: 10px 20px;
-              margin: 5px;
-              cursor: pointer;
-            }
-            .result-btn.disabled {
-              opacity: 0.5;
-              pointer-events: none;
-              cursor: not-allowed;
-            }
-            .cancel-btn {
-              padding: 10px 20px;
-              margin: 5px;
-              cursor: pointer;
-            }
-            .cancel-btn.disabled {
-              opacity: 0.5;
-              pointer-events: none;
-              cursor: not-allowed;
-            }
-            .match-container {
-              max-width: 1000px;
-              margin: 0 auto;
-              padding: 20px;
-              font-family: Arial, sans-serif;
-            }
-            .room-id {
-              text-align: center;
-              font-size: 1.5em;
-              margin-bottom: 20px;
-            }
-            .player-table {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 20px;
-              width: 100%;
-            }
-            .player-info {
-              width: 45%;
-              padding: 10px;
-              border: 1px solid #ccc;
-              border-radius: 5px;
-              text-align: center;
-            }
-            .player-info img {
-              width: 64px;
-              height: 64px;
-              margin: 5px;
-            }
-            .player-info h2 img {
-              width: 32px;
-              height: 32px;
-              vertical-align: middle;
-              margin-right: 8px;
-            }
-            .history-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            .history-table th, .history-table td {
-              border: 1px solid #ccc;
-              padding: 10px;
-              text-align: center;
-            }
-            .history-table th {
-              background-color: #f0f0f0;
-            }
-            .loser-char {
-              opacity: 0.3;
-              filter: grayscale(100%);
-            }
-            .stage-selection {
-              margin-bottom: 20px;
-            }
-            .stage-container {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 10px;
-              width: 100%;
-              justify-content: space-between;
-              box-sizing: border-box;
-            }
-            .stage-container img {
-              width: 100%;
-              height: auto;
-            }
-            .button-group {
-              text-align: center;
-            }
-            .chat-container {
-              margin: 20px 0;
-              border: 1px solid #ccc;
-              border-radius: 5px;
-              padding: 10px;
-            }
-            .chat-log {
-              max-height: 200px;
-              overflow-y: auto;
-              border-bottom: 1px solid #ccc;
-              margin-bottom: 10px;
-              padding: 10px;
-            }
-            .chat-message {
-              margin: 5px 0;
-            }
-            .chat-message .sender {
-              font-weight: bold;
-              margin-right: 5px;
-            }
-            .chat-message .message-time {
-              color: #888;
-              font-size: 0.9em;
-              margin-left: 5px;
-            }
-            .chat-input {
-              width: 100%;
-              margin-bottom: 10px;
-            }
-            .chat-input textarea {
-              width: 100%;
-              height: 50px;
-              resize: none;
-            }
-            .chat-controls {
-              display: flex;
-              align-items: center;
-              justify-content: flex-end;
-            }
-            .chat-controls button {
-              width: 100px;
-              margin-left: 10px;
-            }
-            .char-count {
-              font-size: 0.9em;
-              margin-left: 10px;
-            }
-            @media (max-width: 768px) {
-              .player-table {
-                flex-direction: column;
-                align-items: center;
-              }
-              .player-info {
-                width: 100%;
-                margin-bottom: 10px;
-              }
-              .match-container {
-                padding: 10px;
-              }
-              .stage-btn {
-                flex: 0 0 calc((100% - 10px) / 2);
-              }
-              .chat-controls button {
-                width: 80px;
-              }                
-            }
-          </style>
+          <link rel="stylesheet" href="/css/setup.css">
+          <link rel="stylesheet" href="/css/solo.css">
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
           <script>
@@ -2224,14 +1963,7 @@ app.get('/api/user/:userId', async (req, res) => {
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>プロフィール設定</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .error { color: red; }
-            img { max-width: 64px; max-height: 64px; }
-            label { display: block; margin: 10px 0; }
-            input, textarea { width: 100%; max-width: 300px; }
-            button { margin-top: 10px; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <h1>プロフィール設定</h1>
@@ -2342,14 +2074,7 @@ app.get('/api/user/:userId', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            img { max-width: 64px; max-height: 64px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            button.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <div class="container">
@@ -2462,14 +2187,7 @@ app.get('/api/user/:userId/edit', async (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>プロフィール編集</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .error { color: red; }
-          img { max-width: 64px; max-height: 64px; }
-          label { display: block; margin: 10px 0; }
-          input, textarea { width: 100%; max-width: 300px; }
-          button { margin-top: 10px; }
-        </style>
+        <link rel="stylesheet" href="/css/general.css">
       </head>
       <body>
         <h1>プロフィール編集</h1>
@@ -2797,9 +2515,7 @@ app.get('/api/team', async (req, res) => {
   let html = `
     <html>
       <head>
-        <style>
-          .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-        </style>
+        <link rel="stylesheet" href="/css/general.css">
       </head>
       <body>
         <div class="container">
@@ -3070,10 +2786,7 @@ app.get('/api/team/check', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-          </style>
+          <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
           <div class="container">
@@ -3276,39 +2989,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
     res.send(`
       <html>
         <head>
-          <style>
-            .match-container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
-            .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
-            .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
-            .player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
-            .player-group { display: inline-flex; flex-direction: column; margin: 0 auto; }
-            .player-row { display: flex; align-items: center; justify-content: flex-start; margin: 10px 0; }
-            .icon-container { width: 40px; flex-shrink: 0; }
-            .player-info img { width: 32px; height: 32px; vertical-align: middle; }
-            .name { font-size: 1.2em; margin-left: 8px; }
-            .button-group { text-align: center; margin-top: 20px; }
-            .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            .send-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .result-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            .result-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .cancel-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            .cancel-btn.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-            .chat-container { margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; padding: 10px; }
-            .chat-log { max-height: 200px; overflow-y: auto; border-bottom: 1px solid #ccc; margin-bottom: 10px; padding: 10px; }
-            .chat-message { margin: 5px 0; }
-            .chat-message .sender { font-weight: bold; margin-right: 5px; }
-            .chat-message .message-time { color: #888; font-size: 0.9em; margin-left: 5px; }
-            .chat-input { width: 100%; margin-bottom: 10px; }
-            .chat-input textarea { width: 100%; height: 50px; resize: none; }
-            .chat-controls { display: flex; align-items: center; justify-content: flex-end; }
-            .chat-controls button { width: 100px; margin-left: 10px; }
-            .char-count { font-size: 0.9em; margin-left: 10px; }
-            @media (max-width: 768px) {
-              .player-table { flex-direction: column; align-items: center; }
-              .player-info { width: 100%; margin-bottom: 10px; }
-              .chat-controls button { width: 80px; }
-            }
-          </style>
+          <link rel="stylesheet" href="/css/setup.css">
+          <link rel="stylesheet" href="/css/team.css">
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
           <script>

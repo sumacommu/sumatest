@@ -1,0 +1,24 @@
+/* /api/team/setup/:matchId 専用のスタイル */
+.player-group {
+    display: inline-flex;
+    flex-direction: column;
+    margin: 0 auto;
+}
+
+.player-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 10px 0;
+}
+
+.icon-container {
+    width: 40px;
+    flex-shrink: 0;
+}
+
+.player-info img {
+    width: 32px;
+    height: 32px;
+    vertical-align: middle;
+}
