@@ -2994,6 +2994,108 @@ app.post('/api/user/:userId/tag', async (req, res) => {
         console.log('タッグ解除済み、変更なし:', { userId: currentUser.id });
         return res.send('OK');
       }
+
+      // チームマッチング状態をチェック（自分）
+      const matchesRef = db.collection('matches');
+      const userTeamHostQuery = matchesRef
+        .where('type', '==', 'team')
+        .where('userId', '==', currentUser.id)
+        .where('status', 'in', ['matched', 'waiting']);
+      const userTeamGuestQuery = matchesRef
+        .where('type', '==', 'team')
+        .where('guestId', '==', currentUser.id)
+        .where('status', '==', 'matched');
+      const [userTeamHostSnapshot, userTeamGuestSnapshot] = await Promise.all([
+        userTeamHostQuery.get(),
+        userTeamGuestQuery.get()
+      ]);
+
+      if (!userTeamHostSnapshot.empty) {
+        const matchDoc = userTeamHostSnapshot.docs[0];
+        const matchData = matchDoc.data();
+        console.error('タッグ解除不可:', {
+          userId: currentUser.id,
+          tagPartnerId: currentUserData.tagPartnerId,
+          matchId: matchDoc.id,
+          status: matchData.status,
+          role: 'host'
+        });
+        if (userTeamHostSnapshot.size > 1) {
+          console.warn('複数のチームホストルーム検出:', { userId: currentUser.id, type: 'team', count: userTeamHostSnapshot.size });
+        }
+        return res.status(403).json({
+          message: matchData.status === 'matched'
+            ? 'チーム用で対戦中なので解除できません'
+            : 'チーム用で待機中なので解除できません'
+        });
+      }
+      if (!userTeamGuestSnapshot.empty) {
+        const matchDoc = userTeamGuestSnapshot.docs[0];
+        console.error('タッグ解除不可:', {
+          userId: currentUser.id,
+          tagPartnerId: currentUserData.tagPartnerId,
+          matchId: matchDoc.id,
+          status: 'matched',
+          role: 'guest'
+        });
+        if (userTeamGuestSnapshot.size > 1) {
+          console.warn('複数のチームゲストルーム検出:', { userId: currentUser.id, type: 'team', count: userTeamGuestSnapshot.size });
+        }
+        return res.status(403).json({ message: 'チーム用で対戦中なので解除できません' });
+      }
+
+      // チームマッチング状態をチェック（タッグ相手）
+      const tagPartnerId = currentUserData.tagPartnerId;
+      if (tagPartnerId) {
+        const partnerTeamHostQuery = matchesRef
+          .where('type', '==', 'team')
+          .where('userId', '==', tagPartnerId)
+          .where('status', 'in', ['matched', 'waiting']);
+        const partnerTeamGuestQuery = matchesRef
+          .where('type', '==', 'team')
+          .where('guestId', '==', tagPartnerId)
+          .where('status', '==', 'matched');
+        const [partnerTeamHostSnapshot, partnerTeamGuestSnapshot] = await Promise.all([
+          partnerTeamHostQuery.get(),
+          partnerTeamGuestQuery.get()
+        ]);
+
+        if (!partnerTeamHostSnapshot.empty) {
+          const matchDoc = partnerTeamHostSnapshot.docs[0];
+          const matchData = matchDoc.data();
+          console.error('タッグ解除不可:', {
+            userId: currentUser.id,
+            tagPartnerId,
+            matchId: matchDoc.id,
+            status: matchData.status,
+            role: 'host'
+          });
+          if (partnerTeamHostSnapshot.size > 1) {
+            console.warn('複数のチームホストルーム検出:', { userId: tagPartnerId, type: 'team', count: partnerTeamHostSnapshot.size });
+          }
+          return res.status(403).json({
+            message: matchData.status === 'matched'
+              ? 'チーム用でチーム相方が対戦中なので解除できません'
+              : 'チーム用でチーム相方が待機中なので解除できません'
+          });
+        }
+        if (!partnerTeamGuestSnapshot.empty) {
+          const matchDoc = partnerTeamGuestSnapshot.docs[0];
+          console.error('タッグ解除不可:', {
+            userId: currentUser.id,
+            tagPartnerId,
+            matchId: matchDoc.id,
+            status: 'matched',
+            role: 'guest'
+          });
+          if (partnerTeamGuestSnapshot.size > 1) {
+            console.warn('複数のチームゲストルーム検出:', { userId: tagPartnerId, type: 'team', count: partnerTeamGuestSnapshot.size });
+          }
+          return res.status(403).json({ message: 'チーム用でチーム相方が対戦中なので解除できません' });
+        }
+      }
+
+      // タッグ解除処理
       await currentUserRef.update({
         tagPartnerId: '',
         isTagged: false
