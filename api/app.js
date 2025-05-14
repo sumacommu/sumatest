@@ -2411,7 +2411,35 @@ app.get('/api/user/:userId', async (req, res) => {
       }
     }
 
-    // タッグ状態のチェック
+    // タッグ状態のチェック（自身のプロフィールの場合のみ）
+    let tagStatusHtml = '';
+    if (isOwnProfile) {
+      const isTagged = userData.isTagged;
+      const tagPartnerId = userData.tagPartnerId;
+      if (!isTagged || !tagPartnerId) {
+        console.log('タッグ状態を確認:', { userId, tagPartnerId: null, status: 'no_tag' });
+        tagStatusHtml = `<p>チーム相方: 組んでいない</p>`;
+      } else {
+        const tagPartnerRef = db.collection('users').doc(tagPartnerId);
+        const tagPartnerSnap = await tagPartnerRef.get();
+        if (!tagPartnerSnap.exists) {
+          console.warn('タッグ相手が見つかりません:', { userId, tagPartnerId });
+          console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'pending' });
+          tagStatusHtml = `<p>チーム相方: 申請中</p>`;
+        } else {
+          const tagPartnerData = tagPartnerSnap.data();
+          if (!tagPartnerData.isTagged || tagPartnerData.tagPartnerId !== userId) {
+            console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'pending' });
+            tagStatusHtml = `<p>チーム相方: 申請中</p>`;
+          } else {
+            console.log('タッグ状態を確認:', { userId, tagPartnerId, status: 'mutual' });
+            tagStatusHtml = `<p>チーム相方: <a href="/api/user/${tagPartnerId}">${tagPartnerData.handleName || '未設定'}</a></p>`;
+          }
+        }
+      }
+    }
+
+    // タッグボタンのチェック
     let tagButtonHtml = '';
     let currentUserTagPartnerId = '';
     let currentUserIsTagged = false;
@@ -2571,52 +2599,8 @@ app.get('/api/user/:userId', async (req, res) => {
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
             button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            button.disabled { opacity: 0.5; pointer-events: none; cursor BODY {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-}
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-}
-img {
-    max-width: 64px;
-    max-height: 64px;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-}
-th, td {
-    border: 1px solid #ccc;
-    padding: 10px;
-    text-align: left;
-}
-button {
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-}
-button.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-}
-.error {
-    color: red;
-}
-label {
-    display: block;
-    margin: 10px 0;
-}
-input, textarea {
-    width: 100%;
-    max-width: 300px;
-}
-        </style>
+            button.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+          </style>
         </head>
         <body>
           <div class="container">
@@ -2624,6 +2608,7 @@ input, textarea {
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p>自己紹介: ${userData.bio || '未設定'}</p>
             <p>レート: ${userData.soloRating}</p>
+            ${tagStatusHtml}
             ${isOwnProfile ? `
               <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
               <p><a href="/api/logout">ログアウト</a></p>
