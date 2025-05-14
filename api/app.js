@@ -472,32 +472,39 @@ app.get('/api/solo/check', async (req, res) => {
                   .where('type', '==', 'solo');
 
                 userMatchQuery.onSnapshot((snapshot) => {
-                  if (!snapshot.empty) {
-                    const matchId = snapshot.docs[0].id;
-                    window.location.href = '/api/solo/setup/' + matchId;
-                  }
-                }, (error) => {
-                  console.error('リアルタイムリスナーエラー:', error);
-                });
-
-                document.addEventListener('DOMContentLoaded', () => {
-                  const cancelButton = document.getElementById('cancelButton');
-                  cancelButton.addEventListener('click', async () => {
-                    try {
-                      const response = await fetch('/api/solo/check/cancel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                      });
-                      if (response.ok) {
-                        window.location.href = '/api/';
-                      } else {
-                        const data = await response.json();
-                        alert(data.message);
-                      }
-                    } catch (error) {
-                      alert('エラーが発生しました: ' + error.message);
+                  snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added' || change.type === 'modified') {
+                      const matchId = change.doc.id;
+                      window.location.href = '/api/solo/setup/' + matchId;
                     }
                   });
+                }, (error) => {
+                  console.error('リアルタイムリスナーエラー:', error);
+                  fetch('/api/solo/check/signout')
+                    .then(response => response.json())
+                    .then(data => {
+                      if (data.redirect) {
+                        window.location.href = data.redirect;
+                      }
+                    });
+                });
+
+                const cancelButton = document.getElementById('cancelButton');
+                cancelButton.addEventListener('click', async () => {
+                  try {
+                    const response = await fetch('/api/solo/check/cancel', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                      window.location.href = '/api/';
+                    } else {
+                      alert(data.message || 'キャンセルに失敗しました');
+                    }
+                  } catch (error) {
+                    alert('ネットワークエラー: ' + error.message);
+                  }
                 });
               </script>
             </div>
