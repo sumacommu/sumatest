@@ -2950,11 +2950,6 @@ app.post('/api/user/:userId/tag', async (req, res) => {
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
 
-  if (currentUser.id === userId) {
-    console.error('エラー: 自分自身にタッグは組めません', { userId });
-    return res.status(400).json({ message: '自分自身にタッグを組むことはできません' });
-  }
-
   const { action } = req.body;
 
   try {
@@ -2969,30 +2964,16 @@ app.post('/api/user/:userId/tag', async (req, res) => {
     }
     const currentUserData = currentUserSnap.data();
 
-    const targetUserSnap = await targetUserRef.get();
-    if (!targetUserSnap.exists) {
-      console.error('エラー: 対象ユーザーが見つかりません', { userId });
-      return res.status(404).json({ message: '対象ユーザーが見つかりません' });
-    }
-
-    if (action === 'tag') {
-      if (currentUserData.isTagged) {
-        console.error('エラー: 既に他のユーザーとタッグを組んでいます', {
-          userId: currentUser.id,
-          currentTagPartnerId: currentUserData.tagPartnerId
-        });
-        return res.status(400).json({ message: '既に他のユーザーとタッグを組んでいます' });
-      }
-      await currentUserRef.update({
-        tagPartnerId: userId,
-        isTagged: true
-      });
-      console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
-      res.send('OK');
-    } else if (action === 'untag') {
+    // 自身のタッグ解除チェック
+    if (currentUser.id === userId) {
+      console.log('自身でのタッグ解除試行:', { userId, isTagged: currentUserData.isTagged });
       if (!currentUserData.isTagged) {
-        console.log('タッグ解除済み、変更なし:', { userId: currentUser.id });
-        return res.send('OK');
+        console.error('エラー: 自分自身にタッグは組めません', { userId });
+        return res.status(400).json({ message: '自分自身にタッグを組むことはできません' });
+      }
+      if (action !== 'untag') {
+        console.error('エラー: 自身の場合はタッグ解除のみ可能です', { userId, action });
+        return res.status(400).json({ message: '自身の場合はタッグ解除のみ可能です' });
       }
 
       // チームマッチング状態をチェック（自分）
@@ -3096,6 +3077,40 @@ app.post('/api/user/:userId/tag', async (req, res) => {
       }
 
       // タッグ解除処理
+      await currentUserRef.update({
+        tagPartnerId: '',
+        isTagged: false
+      });
+      console.log('タッグ解除成功:', { userId: currentUser.id });
+      return res.send('OK');
+    }
+
+    // 他人のユーザーに対するタッグ処理
+    const targetUserSnap = await targetUserRef.get();
+    if (!targetUserSnap.exists) {
+      console.error('エラー: 対象ユーザーが見つかりません', { userId });
+      return res.status(404).json({ message: '対象ユーザーが見つかりません' });
+    }
+
+    if (action === 'tag') {
+      if (currentUserData.isTagged) {
+        console.error('エラー: 既に他のユーザーとタッグを組んでいます', {
+          userId: currentUser.id,
+          currentTagPartnerId: currentUserData.tagPartnerId
+        });
+        return res.status(400).json({ message: '既に他のユーザーとタッグを組んでいます' });
+      }
+      await currentUserRef.update({
+        tagPartnerId: userId,
+        isTagged: true
+      });
+      console.log('タッグ成功:', { userId: currentUser.id, partnerId: userId });
+      res.send('OK');
+    } else if (action === 'untag') {
+      if (!currentUserData.isTagged) {
+        console.log('タッグ解除済み、変更なし:', { userId: currentUser.id });
+        return res.send('OK');
+      }
       await currentUserRef.update({
         tagPartnerId: '',
         isTagged: false
