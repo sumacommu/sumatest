@@ -11,6 +11,23 @@ const EventEmitter = require('events');
 require('dotenv').config();
 
 const app = express();
+const generateHeader = (user) => {
+  return `
+    <header class="site-header">
+      <div class="header-container">
+        <img src="/default.png" alt="サイトロゴ" class="site-logo">
+        <button class="hamburger" id="hamburger">☰</button>
+        <nav class="header-nav" id="mobile-nav">
+          <a href="/api/about" class="nav-link">サイトについて</a>
+          <a href="/api/rules" class="nav-link">対戦ルール</a>
+          <a href="/api/terms" class="nav-link">利用規約</a>
+          ${user ? `<a href="/api/user/${user.id}" class="nav-link" id="mypage-link">マイページ</a>` : ''}
+          <a href="${user ? '/api/logout' : '/api/auth/google?redirect=/api/'}" class="nav-link" id="login-link">${user ? 'ログアウト' : 'ログイン'}</a>
+        </nav>
+      </div>
+    </header>
+  `;
+};
 app.use(express.static('public'));
 
 admin.initializeApp({
@@ -231,6 +248,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/', async (req, res) => {
+  const header = generateHeader(req.user);
   if (req.user) {
     const userData = req.user;
     if (!userData.handleName) {
@@ -239,9 +257,13 @@ app.get('/api/', async (req, res) => {
     res.send(`
       <html>
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>スマブラマッチング</title>
           <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
+          ${header}
           <div class="container">
             <h1>スマブラマッチング</h1>
             <p>こんにちは、${userData.handleName}さん！</p>
@@ -251,6 +273,7 @@ app.get('/api/', async (req, res) => {
             <p><a href="/api/team">チーム用</a></p>
             <p><a href="/api/logout">ログアウト</a></p>
           </div>
+          <script src="/js/auth.js">
         </body>
       </html>
     `);
@@ -258,15 +281,20 @@ app.get('/api/', async (req, res) => {
     res.send(`
       <html>
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>スマブラマッチング</title>
           <link rel="stylesheet" href="/css/general.css">
         </head>
         <body>
+          ${header}
           <div class="container">
             <h1>スマブラマッチング</h1>
             <p><a href="/api/solo">タイマン用</a></p>
             <p><a href="/api/team">チーム用</a></p>
             <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
           </div>
+          <script src="/js/auth.js">
         </body>
       </html>
     `);

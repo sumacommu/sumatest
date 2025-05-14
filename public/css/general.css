@@ -15,6 +15,7 @@ button {
     padding: 10px 20px;
     margin: 5px;
     cursor: pointer;
+    margin-top: 10px;
 }
 
 .error {
@@ -30,10 +31,6 @@ input,
 textarea {
     width: 100%;
     max-width: 300px;
-}
-
-button {
-    margin-top: 10px;
 }
 
 table {
@@ -53,4 +50,92 @@ button.disabled {
     opacity: 0.5;
     pointer-events: none;
     cursor: not-allowed;
+}
+
+/* ヘッダースタイル */
+.site-header {
+    background-color: #333;
+    color: white;
+    padding: 10px 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.site-logo {
+    max-width: 100px;
+    max-height: 100px;
+}
+
+.header-nav {
+    display: flex;
+    gap: 20px;
+    transition: transform 0.3s ease-in-out;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+}
+
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+/* スマホ用ハンバーガーメニュー */
+@media (max-width: 768px) {
+    .hamburger {
+        display: block;
+    }
+
+    .header-nav {
+        position: fixed;
+        top: 0;
+        right: -250px;
+        width: 250px;
+        height: 100%;
+        background-color: #333;
+        flex-direction: column;
+        padding: 20px;
+    }
+
+    .header-nav.active {
+        right: 0;
+        transform: translateX(0);
+    }
+
+    .nav-link {
+        padding: 10px 0;
+        font-size: 18px;
+    }
+
+    .site-logo {
+        max-width: 80px;
+        max-height: 80px;
+    }
+}
+
+@media (min-width: 769px) {
+    .header-nav {
+        transform: none;
+    }
 }
