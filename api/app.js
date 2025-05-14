@@ -2315,6 +2315,102 @@ app.get('/api/user/:userId', async (req, res) => {
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
 
+    // 参加中のルームをチェック（自身のプロフィールの場合のみ）
+    let activeRoomLink = '';
+    if (isOwnProfile) {
+      const matchesRef = db.collection('matches');
+      const userSoloHostQuery = matchesRef
+        .where('type', '==', 'solo')
+        .where('userId', '==', userId)
+        .where('status', 'in', ['matched', 'waiting']);
+      const userSoloGuestQuery = matchesRef
+        .where('type', '==', 'solo')
+        .where('guestId', '==', userId)
+        .where('status', '==', 'matched');
+      const userTeamHostQuery = matchesRef
+        .where('type', '==', 'team')
+        .where('userId', '==', userId)
+        .where('status', 'in', ['matched', 'waiting']);
+      const userTeamGuestQuery = matchesRef
+        .where('type', '==', 'team')
+        .where('guestId', '==', userId)
+        .where('status', '==', 'matched');
+      const [
+        userSoloHostSnapshot,
+        userSoloGuestSnapshot,
+        userTeamHostSnapshot,
+        userTeamGuestSnapshot
+      ] = await Promise.all([
+        userSoloHostQuery.get(),
+        userSoloGuestQuery.get(),
+        userTeamHostQuery.get(),
+        userTeamGuestQuery.get()
+      ]);
+
+      // ソロホスト
+      if (!userSoloHostSnapshot.empty) {
+        const matchDoc = userSoloHostSnapshot.docs[0];
+        const matchData = matchDoc.data();
+        console.log('参加中のルームを検出:', {
+          userId,
+          matchId: matchDoc.id,
+          type: 'solo',
+          status: matchData.status,
+          role: 'host'
+        });
+        if (userSoloHostSnapshot.size > 1) {
+          console.warn('複数のソロホストルーム検出:', { userId, type: 'solo', count: userSoloHostSnapshot.size });
+        }
+        activeRoomLink = `<p><a href="/api/solo/${matchData.status === 'matched' ? 'setup/' + matchDoc.id : 'check'}">参加中のルームがあります</a></p>`;
+      }
+      // ソロゲスト
+      else if (!userSoloGuestSnapshot.empty) {
+        const matchDoc = userSoloGuestSnapshot.docs[0];
+        console.log('参加中のルームを検出:', {
+          userId,
+          matchId: matchDoc.id,
+          type: 'solo',
+          status: 'matched',
+          role: 'guest'
+        });
+        if (userSoloGuestSnapshot.size > 1) {
+          console.warn('複数のソロゲストルーム検出:', { userId, type: 'solo', count: userSoloGuestSnapshot.size });
+        }
+        activeRoomLink = `<p><a href="/api/solo/setup/${matchDoc.id}">参加中のルームがあります</a></p>`;
+      }
+      // チームホスト
+      else if (!userTeamHostSnapshot.empty) {
+        const matchDoc = userTeamHostSnapshot.docs[0];
+        const matchData = matchDoc.data();
+        console.log('参加中のルームを検出:', {
+          userId,
+          matchId: matchDoc.id,
+          type: 'team',
+          status: matchData.status,
+          role: 'host'
+        });
+        if (userTeamHostSnapshot.size > 1) {
+          console.warn('複数のチームホストルーム検出:', { userId, type: 'team', count: userTeamHostSnapshot.size });
+        }
+        activeRoomLink = `<p><a href="/api/team/${matchData.status === 'matched' ? 'setup/' + matchDoc.id : 'check'}">参加中のルームがあります</a></p>`;
+      }
+      // チームゲスト
+      else if (!userTeamGuestSnapshot.empty) {
+        const matchDoc = userTeamGuestSnapshot.docs[0];
+        console.log('参加中のルームを検出:', {
+          userId,
+          matchId: matchDoc.id,
+          type: 'team',
+          status: 'matched',
+          role: 'guest'
+        });
+        if (userTeamGuestSnapshot.size > 1) {
+          console.warn('複数のチームゲストルーム検出:', { userId, type: 'team', count: userTeamGuestSnapshot.size });
+        }
+        activeRoomLink = `<p><a href="/api/team/setup/${matchDoc.id}">参加中のルームがあります</a></p>`;
+      }
+    }
+
     // タッグ状態のチェック
     let tagButtonHtml = '';
     let currentUserTagPartnerId = '';
@@ -2475,8 +2571,52 @@ app.get('/api/user/:userId', async (req, res) => {
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
             button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-            button.disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-          </style>
+            button.disabled { opacity: 0.5; pointer-events: none; cursor BODY {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+img {
+    max-width: 64px;
+    max-height: 64px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+button {
+    padding: 10px 20px;
+    margin: 5px;
+    cursor: pointer;
+}
+button.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+.error {
+    color: red;
+}
+label {
+    display: block;
+    margin: 10px 0;
+}
+input, textarea {
+    width: 100%;
+    max-width: 300px;
+}
+        </style>
         </head>
         <body>
           <div class="container">
@@ -2487,6 +2627,7 @@ app.get('/api/user/:userId', async (req, res) => {
             ${isOwnProfile ? `
               <p><a href="/api/user/${userId}/edit">プロフィールを編集</a></p>
               <p><a href="/api/logout">ログアウト</a></p>
+              ${activeRoomLink}
             ` : ''}
             ${tagButtonHtml}
             <h2>マッチング履歴</h2>
@@ -3907,6 +4048,5 @@ app.post('/api/team/setup/:matchId/message', async (req, res) => {
     res.status(500).send(`エラー: ${error.message}`);
   }
 });
-
 
 app.listen(3000, () => console.log('サーバー起動: http://localhost:3000'));
