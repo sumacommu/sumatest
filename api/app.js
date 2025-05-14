@@ -41,6 +41,7 @@ const redisClient = createClient({
     reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
   }
 });
+redisClient.connect().catch((err) => {});
 
 class CustomRedisStore extends EventEmitter {
   constructor(client) {
