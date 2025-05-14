@@ -416,7 +416,7 @@ app.get('/api/logout', (req, res) => {
 
 app.get('/api/solo/check', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/api/solo');
+    return res.redirect('/api/');
   }
   const userId = req.user.id;
   const matchesRef = collection(db, 'matches');
@@ -437,6 +437,8 @@ app.get('/api/solo/check', async (req, res) => {
       <html>
         <head>
           <link rel="stylesheet" href="/css/general.css">
+          <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+          <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
         </head>
         <body>
           <div class="container">
@@ -453,16 +455,30 @@ app.get('/api/solo/check', async (req, res) => {
                 </div>
               </form>
               <script>
-                setInterval(() => {
-                  fetch('/api/solo/check/status')
-                    .then(response => response.json())
-                    .then(data => {
-                      if (data.matched) {
-                        window.location.href = '/api/solo/setup/' + data.matchId;
-                      }
-                    })
-                    .catch(error => console.error('ポーリングエラー:', error));
-                }, 2000);
+                firebase.initializeApp({
+                  apiKey: "${process.env.FIREBASE_API_KEY}",
+                  authDomain: "${process.env.FIREBASE_AUTH_DOMAIN}",
+                  projectId: "${process.env.FIREBASE_PROJECT_ID}",
+                  storageBucket: "${process.env.FIREBASE_STORAGE_BUCKET}",
+                  messagingSenderId: "${process.env.FIREBASE_MESSAGING_SENDER_ID}",
+                  appId: "${process.env.FIREBASE_APP_ID}"
+                });
+                const db = firebase.firestore();
+                const userId = "${userId}";
+                const matchesRef = db.collection('matches');
+                const userMatchQuery = matchesRef
+                  .where('userId', '==', userId)
+                  .where('status', '==', 'matched')
+                  .where('type', '==', 'solo');
+
+                userMatchQuery.onSnapshot((snapshot) => {
+                  if (!snapshot.empty) {
+                    const matchId = snapshot.docs[0].id;
+                    window.location.href = '/api/solo/setup/' + matchId;
+                  }
+                }, (error) => {
+                  console.error('リアルタイムリスナーエラー:', error);
+                });
 
                 document.addEventListener('DOMContentLoaded', () => {
                   const cancelButton = document.getElementById('cancelButton');
@@ -473,7 +489,7 @@ app.get('/api/solo/check', async (req, res) => {
                         headers: { 'Content-Type': 'application/json' }
                       });
                       if (response.ok) {
-                        window.location.href = '/api/solo';
+                        window.location.href = '/api/';
                       } else {
                         const data = await response.json();
                         alert(data.message);
@@ -683,7 +699,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
   const userId = req.user?.id;
 
   if (!userId) {
-    return res.redirect('/api/solo');
+    return res.redirect('/api/');
   }
 
   try {
@@ -1856,7 +1872,7 @@ app.post('/api/solo/setup/:matchId/cancel', async (req, res) => {
 
 app.post('/api/solo/update', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/api/solo');
+    return res.redirect('/api/');
   }
   const userId = req.user.id;
   const roomId = req.body.roomId || '';
@@ -2766,7 +2782,7 @@ app.post('/api/team/match', async (req, res) => {
 
 app.get('/api/team/check', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/api/team');
+    return res.redirect('/api/');
   }
   const userId = req.user.id;
   const matchesRef = collection(db, 'matches');
@@ -2881,7 +2897,7 @@ app.get('/api/team/check/status', async (req, res) => {
 
 app.post('/api/team/update', async (req, res) => {
   if (!req.user || !req.user.id) {
-    return res.redirect('/api/team');
+    return res.redirect('/api/');
   }
   const userId = req.user.id;
   const roomId = req.body.roomId || '';
@@ -2910,7 +2926,7 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
   const userId = req.user?.id;
 
   if (!userId) {
-    return res.redirect('/api/team');
+    return res.redirect('/api/');
   }
 
   try {

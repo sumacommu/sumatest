@@ -1,4 +1,3 @@
-/* デフォルトのリセット */
 html, body {
     margin: 0;
     padding: 0;
@@ -6,7 +5,6 @@ html, body {
     height: 100%;
 }
 
-/* その他のスタイル */
 .container {
     max-width: 800px;
     margin: 0 auto;
@@ -60,7 +58,6 @@ button.disabled {
     cursor: not-allowed;
 }
 
-/* ヘッダースタイル */
 .site-header {
     background-color: #333;
     color: white;
@@ -112,7 +109,6 @@ button.disabled {
     cursor: pointer;
 }
 
-/* マッチングセクションのスタイル */
 .match-section {
     border: 1px solid #ccc;
     border-radius: 8px;
@@ -121,7 +117,6 @@ button.disabled {
     background-color: #f9f9f9;
 }
 
-/* セクションタイトルのスタイル */
 .match-section h2 {
     margin-top: 0;
     padding-bottom: 10px;
@@ -129,7 +124,13 @@ button.disabled {
     font-size: 24px;
 }
 
-/* ボタンとテキストの整列 */
+.match-section h1 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #333;
+    font-size: 28px;
+}
+
 .match-section p {
     margin: 10px 0;
 }
@@ -146,21 +147,6 @@ button.disabled {
     background-color: #0056b3;
 }
 
-/* ボタンを横並びにする */
-.button-group {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-top: 10px;
-}
-
-.match-section h1 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #333;
-    font-size: 28px;
-}
-
 .profile-display {
     display: flex;
     align-items: center;
@@ -168,17 +154,35 @@ button.disabled {
     margin: 10px 0;
 }
 
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
 .button-group button,
 .button-group input[type="submit"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     padding: 10px 20px;
     font-size: 16px;
     height: 40px;
     box-sizing: border-box;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
 }
 
+.button-group input[type="submit"]:hover,
+.button-group button:hover {
+    background-color: #0056b3;
+}
 
-
-/* スマホ用ハンバーガーメニュー */
 @media (max-width: 768px) {
     .site-header {
         width: 100%;
@@ -233,11 +237,6 @@ button.disabled {
         font-size: 20px;
     }
 
-    .button-group {
-        flex-direction: column;
-        gap: 5px;
-    }
-
     .match-section h1 {
         font-size: 24px;
     }
@@ -246,10 +245,17 @@ button.disabled {
         gap: 8px;
     }
 
+    .button-group {
+        flex-direction: column;
+        gap: 5px;
+    }
+
     .button-group button,
     .button-group input[type="submit"] {
         height: 36px;
         font-size: 14px;
+        max-width: 100%;
+        border-radius: 4px;
     }
 }
 
