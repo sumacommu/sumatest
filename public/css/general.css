@@ -64,7 +64,7 @@ button.disabled {
 .site-header {
     background-color: #333;
     color: white;
-    padding: 0; /* 上下左右の余白をゼロに */
+    padding: 0;
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -73,9 +73,9 @@ button.disabled {
 }
 
 .header-container {
-    max-width: 100%; /* 画面全体に */
+    max-width: 100%;
     margin: 0;
-    padding: 10px 0; /* 上下に10pxの余白（見た目の調整用） */
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -84,11 +84,13 @@ button.disabled {
 .site-logo {
     max-width: 100px;
     max-height: 100px;
+    margin-right: 20px;
 }
 
 .header-nav {
     display: flex;
     gap: 20px;
+    margin-left: 20px;
 }
 
 .nav-link {
@@ -120,12 +122,16 @@ button.disabled {
     .header-container {
         max-width: 100%;
         width: 100%;
-        padding: 10px 0; /* 上下に10pxの余白（見た目の調整用） */
+        padding: 10px 0;
         box-sizing: border-box;
     }
 
     .hamburger {
         display: block;
+    }
+
+    .site-logo {
+        display: none;
     }
 
     .header-nav {
@@ -150,11 +156,6 @@ button.disabled {
         padding: 10px 0;
         font-size: 18px;
         display: block;
-    }
-
-    .site-logo {
-        max-width: 80px;
-        max-height: 80px;
     }
 }
 
