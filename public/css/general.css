@@ -146,6 +146,21 @@ button.disabled {
     background-color: #0056b3;
 }
 
+/* ボタンを横並びにする */
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+/* ボタンの幅を調整 */
+.button-group button,
+.button-group input[type="submit"] {
+    flex: 1;
+    max-width: 150px;
+}
+
 
 /* スマホ用ハンバーガーメニュー */
 @media (max-width: 768px) {
@@ -200,6 +215,16 @@ button.disabled {
 
     .match-section h2 {
         font-size: 20px;
+    }
+
+    .button-group {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .button-group button,
+    .button-group input[type="submit"] {
+        max-width: 100%;
     }
 }
 

@@ -250,7 +250,6 @@ app.get('/', (req, res) => {
 app.get('/api/', async (req, res) => {
   const header = generateHeader(req.user);
 
-  // 待機人数を取得（solo と team）
   const matchesRef = collection(db, 'matches');
   const soloWaitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
   const teamWaitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
@@ -267,7 +266,6 @@ app.get('/api/', async (req, res) => {
       return res.redirect(`/api/user/${userData.id}`);
     }
 
-    // チームレート計算
     const userId = userData.id;
     const userRef = admin.firestore().collection('users').doc(userId);
     const userSnap = await userRef.get();
@@ -298,7 +296,6 @@ app.get('/api/', async (req, res) => {
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p><a href="/api/user/${userData.id}">マイページ</a></p>
 
-            <!-- タイマン用セクション -->
             <div class="match-section">
               <h2>タイマン用</h2>
               <p>待機中: ${soloWaitingCount}人</p>
@@ -308,7 +305,6 @@ app.get('/api/', async (req, res) => {
               <p>現在のレート: ${userData.soloRating || 1500}</p>
             </div>
 
-            <!-- チーム用セクション -->
             <div class="match-section">
               <h2>チーム用</h2>
               <p>待機中のチーム: ${teamWaitingCount}</p>
@@ -321,7 +317,6 @@ app.get('/api/', async (req, res) => {
             <p><a href="/api/logout">ログアウト</a></p>
           </div>
           <script>
-            // タイマン用マッチングスクリプト
             document.getElementById('soloMatchButton').addEventListener('click', async () => {
               try {
                 const response = await fetch('/api/solo/match', {
@@ -339,7 +334,6 @@ app.get('/api/', async (req, res) => {
               }
             });
 
-            // チーム用マッチングスクリプト
             document.getElementById('teamMatchButton').addEventListener('click', async () => {
               try {
                 const response = await fetch('/api/team/match', {
@@ -375,14 +369,12 @@ app.get('/api/', async (req, res) => {
           <div class="container">
             <h1>スマブラマッチング</h1>
 
-            <!-- タイマン用セクション -->
             <div class="match-section">
               <h2>タイマン用</h2>
               <p>待機中: ${soloWaitingCount}人</p>
               <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
             </div>
 
-            <!-- チーム用セクション -->
             <div class="match-section">
               <h2>チーム用</h2>
               <p>待機中のチーム: ${teamWaitingCount}</p>
@@ -438,6 +430,9 @@ app.get('/api/solo/check', async (req, res) => {
     const waitingQuery = query(matchesRef, where('userId', '==', userId), where('status', '==', 'waiting'), where('type', '==', 'solo'));
     const waitingSnapshot = await getDocs(waitingQuery);
     const roomId = waitingSnapshot.empty ? '' : waitingSnapshot.docs[0].data().roomId;
+    const hostProfileImage = req.user.profileImage || '/default.png';
+    const hostName = req.user.handleName || 'ゲスト';
+
     res.send(`
       <html>
         <head>
@@ -445,46 +440,51 @@ app.get('/api/solo/check', async (req, res) => {
         </head>
         <body>
           <div class="container">
-            <h1>マッチング待機中</h1>
-            <p>相手を待っています... あなたのレート: ${req.user.soloRating || 1500}</p>
-            <p>Switchで部屋を作成し、以下に部屋IDを入力してください。</p>
-            <form action="/api/solo/update" method="POST">
-              <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
-              <button type="submit">IDを更新</button>
-            </form>
-            <button id="cancelButton">ルームを削除する</button>
-            <script>
-              setInterval(() => {
-                fetch('/api/solo/check/status')
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.matched) {
-                      window.location.href = '/api/solo/setup/' + data.matchId;
-                    }
-                  })
-                  .catch(error => console.error('ポーリングエラー:', error));
-              }, 2000);
+            <div class="match-section">
+              <h1>マッチング待機中</h1>
+              <p>(<img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName})</p>
+              <p>レート: ${req.user.soloRating || 1500}</p>
+              <p>部屋を作成し、以下に部屋IDを入力してください。</p>
+              <form action="/api/solo/update" method="POST">
+                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+                <div class="button-group">
+                  <input type="submit" value="IDを更新">
+                  <button type="button" id="cancelButton">ルームを削除する</button>
+                </div>
+              </form>
+              <script>
+                setInterval(() => {
+                  fetch('/api/solo/check/status')
+                    .then(response => response.json())
+                    .then(data => {
+                      if (data.matched) {
+                        window.location.href = '/api/solo/setup/' + data.matchId;
+                      }
+                    })
+                    .catch(error => console.error('ポーリングエラー:', error));
+                }, 2000);
 
-              document.addEventListener('DOMContentLoaded', () => {
-                const cancelButton = document.getElementById('cancelButton');
-                cancelButton.addEventListener('click', async () => {
-                  try {
-                    const response = await fetch('/api/solo/check/cancel', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' }
-                    });
-                    if (response.ok) {
-                      window.location.href = '/api/';
-                    } else {
-                      const data = await response.json();
-                      alert(data.message);
+                document.addEventListener('DOMContentLoaded', () => {
+                  const cancelButton = document.getElementById('cancelButton');
+                  cancelButton.addEventListener('click', async () => {
+                    try {
+                      const response = await fetch('/api/solo/check/cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                      if (response.ok) {
+                        window.location.href = '/api/solo';
+                      } else {
+                        const data = await response.json();
+                        alert(data.message);
+                      }
+                    } catch (error) {
+                      alert('エラーが発生しました: ' + error.message);
                     }
-                  } catch (error) {
-                    alert('エラーが発生しました: ' + error.message);
-                  }
+                  });
                 });
-              });
-            </script>
+              </script>
+            </div>
           </div>
         </body>
       </html>
