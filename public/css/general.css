@@ -161,26 +161,19 @@ button.disabled {
     margin-top: 10px;
 }
 
-.button-group button,
-.button-group input[type="submit"] {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.button-group button {
     padding: 10px 20px;
     font-size: 16px;
     height: 40px;
-    line-height: normal;
     box-sizing: border-box;
     background-color: #007bff;
+    color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s;
-    appearance: none;
-    -webkit-appearance: none;
 }
 
-.button-group input[type="submit"]:hover,
 .button-group button:hover {
     background-color: #0056b3;
 }
@@ -252,8 +245,7 @@ button.disabled {
         gap: 5px;
     }
 
-    .button-group button,
-    .button-group input[type="submit"] {
+    .button-group button {
         height: 36px;
         font-size: 14px;
         max-width: 100%;
