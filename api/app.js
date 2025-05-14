@@ -2968,25 +2968,67 @@ app.post('/api/team/match', async (req, res) => {
 
   try {
     const db = admin.firestore();
-
-    // ユーザーの既存マッチング状態をチェック
     const matchesRef = db.collection('matches');
-    const userMatchesQuery = matchesRef
-      .where('type', '==', 'team')
-      .where('userId', '==', userId)
-      .where('status', 'in', ['matched', 'waiting']);
-    const userMatchesSnapshot = await userMatchesQuery.get();
 
-    if (!userMatchesSnapshot.empty) {
-      const matchDoc = userMatchesSnapshot.docs[0];
+    // ユーザーの既存チームマッチング状態をチェック（ホストまたはゲスト）
+    const userTeamMatchesQuery = matchesRef
+      .where('type', '==', 'team')
+      .where('status', 'in', ['matched', 'waiting']);
+    const userTeamHostQuery = userTeamMatchesQuery.where('userId', '==', userId);
+    const userTeamGuestQuery = userTeamMatchesQuery.where('guestId', '==', userId);
+    const [userTeamHostSnapshot, userTeamGuestSnapshot] = await Promise.all([
+      userTeamHostQuery.get(),
+      userTeamGuestQuery.get()
+    ]);
+
+    if (!userTeamHostSnapshot.empty) {
+      const matchDoc = userTeamHostSnapshot.docs[0];
       const matchData = matchDoc.data();
       if (matchData.status === 'matched') {
-        console.log('既存のマッチング済みルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        console.log('既存のチームマッチング済みルームにリダイレクト（ホスト）:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: `/api/team/setup/${matchDoc.id}` });
       } else if (matchData.status === 'waiting') {
-        console.log('既存の待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
+        console.log('既存のチーム待機中ルームにリダイレクト:', { userId, matchId: matchDoc.id });
         return res.json({ redirect: '/api/team/check' });
       }
+    }
+    if (!userTeamGuestSnapshot.empty) {
+      const matchDoc = userTeamGuestSnapshot.docs[0];
+      console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId: matchDoc.id });
+      if (userTeamGuestSnapshot.size > 1) {
+        console.warn('複数のチームゲストルーム検出:', { userId, count: userTeamGuestSnapshot.size });
+      }
+      return res.json({ redirect: `/api/team/setup/${matchDoc.id}` });
+    }
+
+    // ユーザーのソロマッチング状態をチェック（ホストまたはゲスト）
+    const userSoloMatchesQuery = matchesRef
+      .where('type', '==', 'solo')
+      .where('status', 'in', ['matched', 'waiting']);
+    const userSoloHostQuery = userSoloMatchesQuery.where('userId', '==', userId);
+    const userSoloGuestQuery = userSoloMatchesQuery.where('guestId', '==', userId);
+    const [userSoloHostSnapshot, userSoloGuestSnapshot] = await Promise.all([
+      userSoloHostQuery.get(),
+      userSoloGuestQuery.get()
+    ]);
+
+    if (!userSoloHostSnapshot.empty) {
+      const matchDoc = userSoloHostSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      console.error('ユーザーがタイマン版でマッチング中（ホスト）:', { userId, matchId: matchDoc.id, status: matchData.status });
+      if (matchData.status === 'matched') {
+        return res.status(403).json({ message: 'あなたはタイマン版で対戦中です' });
+      } else if (matchData.status === 'waiting') {
+        return res.status(403).json({ message: 'あなたはタイマン版で待機中です' });
+      }
+    }
+    if (!userSoloGuestSnapshot.empty) {
+      const matchDoc = userSoloGuestSnapshot.docs[0];
+      console.error('ユーザーがタイマン版で対戦中（ゲスト）:', { userId, matchId: matchDoc.id });
+      if (userSoloGuestSnapshot.size > 1) {
+        console.warn('複数のソロゲストルーム検出:', { userId, count: userSoloGuestSnapshot.size });
+      }
+      return res.status(403).json({ message: 'あなたはタイマン版で対戦中です' });
     }
 
     // ユーザー情報の取得
@@ -3019,27 +3061,64 @@ app.post('/api/team/match', async (req, res) => {
       return res.status(403).json({ message: 'タッグ相手と相互にタッグを組む必要があります' });
     }
 
-    // タッグ相手のマッチング状態チェック（チーム）
-    const partnerTeamMatchesQuery = db.collection('matches')
+    // タッグ相手のチームマッチング状態をチェック（ホストまたはゲスト）
+    const partnerTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
-      .where('status', 'in', ['waiting', 'matched'])
-      .where('userId', '==', tagPartnerId);
-    const partnerTeamMatchesSnap = await partnerTeamMatchesQuery.get();
-    if (!partnerTeamMatchesSnap.empty) {
-      console.error('タッグ相手がマッチング中:', { userId, tagPartnerId });
-      return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+      .where('status', 'in', ['matched', 'waiting']);
+    const partnerTeamHostQuery = partnerTeamMatchesQuery.where('userId', '==', tagPartnerId);
+    const partnerTeamGuestQuery = partnerTeamMatchesQuery.where('guestId', '==', tagPartnerId);
+    const [partnerTeamHostSnapshot, partnerTeamGuestSnapshot] = await Promise.all([
+      partnerTeamHostQuery.get(),
+      partnerTeamGuestQuery.get()
+    ]);
+
+    if (!partnerTeamHostSnapshot.empty) {
+      const matchDoc = partnerTeamHostSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      console.error('チーム相方がチーム版でマッチング中（ホスト）:', { userId, tagPartnerId, matchId: matchDoc.id, status: matchData.status });
+      if (matchData.status === 'matched') {
+        return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
+      } else if (matchData.status === 'waiting') {
+        return res.status(403).json({ message: 'チーム相方がチーム版で待機中です' });
+      }
+    }
+    if (!partnerTeamGuestSnapshot.empty) {
+      const matchDoc = partnerTeamGuestSnapshot.docs[0];
+      console.error('チーム相方がチーム版で対戦中（ゲスト）:', { userId, tagPartnerId, matchId: matchDoc.id });
+      if (partnerTeamGuestSnapshot.size > 1) {
+        console.warn('タッグ相手の複数のチームゲストルーム検出:', { userId, tagPartnerId, count: partnerTeamGuestSnapshot.size });
+      }
+      return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
     }
 
-    // 自分とタッグ相手のタイマンマッチング状態チェック
-    const userIds = [userId, tagPartnerId];
-    const soloMatchesQuery = db.collection('matches')
+    // タッグ相手のソロマッチング状態をチェック（ホストまたはゲスト）
+    const partnerSoloMatchesQuery = matchesRef
       .where('type', '==', 'solo')
-      .where('status', 'in', ['waiting', 'matched'])
-      .where('userId', 'in', userIds);
-    const soloMatchesSnap = await soloMatchesQuery.get();
-    if (!soloMatchesSnap.empty) {
-      console.error('タイマンとチームの同時使用:', { userId, tagPartnerId });
-      return res.status(403).json({ message: 'あなたまたはタッグ相手がタイマンマッチング中です' });
+      .where('status', 'in', ['matched', 'waiting']);
+    const partnerSoloHostQuery = partnerSoloMatchesQuery.where('userId', '==', tagPartnerId);
+    const partnerSoloGuestQuery = partnerSoloMatchesQuery.where('guestId', '==', tagPartnerId);
+    const [partnerSoloHostSnapshot, partnerSoloGuestSnapshot] = await Promise.all([
+      partnerSoloHostQuery.get(),
+      partnerSoloGuestQuery.get()
+    ]);
+
+    if (!partnerSoloHostSnapshot.empty) {
+      const matchDoc = partnerSoloHostSnapshot.docs[0];
+      const matchData = matchDoc.data();
+      console.error('チーム相方がタイマン版でマッチング中（ホスト）:', { userId, tagPartnerId, matchId: matchDoc.id, status: matchData.status });
+      if (matchData.status === 'matched') {
+        return res.status(403).json({ message: 'チーム相方がタイマン版で対戦中です' });
+      } else if (matchData.status === 'waiting') {
+        return res.status(403).json({ message: 'チーム相方がタイマン版で待機中です' });
+      }
+    }
+    if (!partnerSoloGuestSnapshot.empty) {
+      const matchDoc = partnerSoloGuestSnapshot.docs[0];
+      console.error('チーム相方がタイマン版で対戦中（ゲスト）:', { userId, tagPartnerId, matchId: matchDoc.id });
+      if (partnerSoloGuestSnapshot.size > 1) {
+        console.warn('タッグ相手の複数のソロゲストルーム検出:', { userId, tagPartnerId, count: partnerSoloGuestSnapshot.size });
+      }
+      return res.status(403).json({ message: 'チーム相方がタイマン版で対戦中です' });
     }
 
     // ユーザーとタッグパートナーの高い方のレートを取得
