@@ -249,11 +249,39 @@ app.get('/', (req, res) => {
 
 app.get('/api/', async (req, res) => {
   const header = generateHeader(req.user);
+
+  // 待機人数を取得（solo と team）
+  const matchesRef = collection(db, 'matches');
+  const soloWaitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
+  const teamWaitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
+  const [soloWaitingSnapshot, teamWaitingSnapshot] = await Promise.all([
+    getDocs(soloWaitingQuery),
+    getDocs(teamWaitingQuery)
+  ]);
+  const soloWaitingCount = soloWaitingSnapshot.size;
+  const teamWaitingCount = teamWaitingSnapshot.size;
+
   if (req.user) {
     const userData = req.user;
     if (!userData.handleName) {
       return res.redirect(`/api/user/${userData.id}`);
     }
+
+    // チームレート計算（/api/team から移植）
+    const userId = userData.id;
+    const userRef = admin.firestore().collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const firestoreUserData = userSnap.data() || {};
+    const userTeamRating = firestoreUserData.teamRating || 1500;
+    let teamRating = userTeamRating;
+
+    if (firestoreUserData.isTagged && firestoreUserData.tagPartnerId) {
+      const tagPartnerRef = admin.firestore().collection('users').doc(firestoreUserData.tagPartnerId);
+      const tagPartnerSnap = await tagPartnerRef.get();
+      const tagPartnerRating = tagPartnerSnap.exists ? (tagPartnerSnap.data().teamRating || 1500) : 1500;
+      teamRating = Math.max(userTeamRating, tagPartnerRating);
+    }
+
     res.send(`
       <html>
         <head>
@@ -269,10 +297,62 @@ app.get('/api/', async (req, res) => {
             <p>こんにちは、${userData.handleName}さん！</p>
             <img src="${userData.profileImage}" alt="プロフィール画像">
             <p><a href="/api/user/${userData.id}">マイページ</a></p>
-            <p><a href="/api/solo">タイマン用</a></p>
-            <p><a href="/api/team">チーム用</a></p>
+
+            <!-- タイマン用セクション（/api/solo から移植） -->
+            <h2>タイマン用</h2>
+            <p>待機中: ${soloWaitingCount}人</p>
+            <form id="soloMatchForm">
+              <button type="button" id="soloMatchButton">マッチング開始</button>
+            </form>
+            <p>現在のレート: ${userData.soloRating || 1500}</p>
+
+            <!-- チーム用セクション（/api/team から移植） -->
+            <h2>チーム用</h2>
+            <p>待機中のチーム: ${teamWaitingCount}</p>
+            <form id="teamMatchForm">
+              <button type="button" id="teamMatchButton">マッチング開始</button>
+            </form>
+            <p>現在のチームレート: ${teamRating}</p>
+
             <p><a href="/api/logout">ログアウト</a></p>
           </div>
+          <script>
+            // タイマン用マッチングスクリプト（/api/solo から移植）
+            document.getElementById('soloMatchButton').addEventListener('click', async () => {
+              try {
+                const response = await fetch('/api/solo/match', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                  window.location.href = data.redirect;
+                } else {
+                  alert(data.message);
+                }
+              } catch (error) {
+                alert('ネットワークエラー: ' + error.message);
+              }
+            });
+
+            // チーム用マッチングスクリプト（/api/team から移植）
+            document.getElementById('teamMatchButton').addEventListener('click', async () => {
+              try {
+                const response = await fetch('/api/team/match', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (response.ok) {
+                  window.location.href = data.redirect;
+                } else {
+                  alert(data.message);
+                }
+              } catch (error) {
+                alert('ネットワークエラー: ' + error.message);
+              }
+            });
+          </script>
           <script src="/js/auth.js"></script>
         </body>
       </html>
@@ -290,8 +370,17 @@ app.get('/api/', async (req, res) => {
           ${header}
           <div class="container">
             <h1>スマブラマッチング</h1>
-            <p><a href="/api/solo">タイマン用</a></p>
-            <p><a href="/api/team">チーム用</a></p>
+
+            <!-- タイマン用セクション（未ログイン） -->
+            <h2>タイマン用</h2>
+            <p>待機中: ${soloWaitingCount}人</p>
+            <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+
+            <!-- チーム用セクション（未ログイン） -->
+            <h2>チーム用</h2>
+            <p>待機中のチーム: ${teamWaitingCount}</p>
+            <p>マッチングするには<a href="/api/auth/google?redirect=/api/">ログイン</a>してください</p>
+
             <p><a href="/api/auth/google?redirect=/api/">Googleでログイン</a></p>
           </div>
           <script src="/js/auth.js"></script>
@@ -323,59 +412,6 @@ app.get('/api/logout', (req, res) => {
   } else {
     res.redirect('/api/');
   }
-});
-
-app.get('/api/solo', async (req, res) => {
-  const matchesRef = collection(db, 'matches');
-  const waitingQuery = query(matchesRef, where('type', '==', 'solo'), where('status', '==', 'waiting'));
-  const waitingSnapshot = await getDocs(waitingQuery);
-  const waitingCount = waitingSnapshot.size;
-
-  let html = `
-    <html>
-      <head>
-        <link rel="stylesheet" href="/css/general.css">
-      </head>
-      <body>
-        <div class="container">
-          <h1>タイマン用ページ</h1>
-          <p>待機中: ${waitingCount}人</p>
-  `;
-  if (req.user) {
-    const soloRating = req.user.soloRating || 1500;
-    html += `
-      <form id="matchForm">
-        <button type="button" id="matchButton">マッチング開始</button>
-      </form>
-      <p>現在のレート: ${soloRating}</p>
-      <script>
-        document.getElementById('matchButton').addEventListener('click', async () => {
-          try {
-            const response = await fetch('/api/solo/match', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (response.ok) {
-              window.location.href = data.redirect;
-            } else {
-              alert(data.message);
-            }
-          } catch (error) {
-            alert('ネットワークエラー: ' + error.message);
-          }
-        });
-      </script>
-    `;
-  } else {
-    html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/solo">ログイン</a>してください</p>`;
-  }
-  html += `
-          <p><a href="/api/">戻る</a></p>
-        </div>
-      </body>
-    </html>`;
-  res.send(html);
 });
 
 app.get('/api/solo/check', async (req, res) => {
@@ -2531,73 +2567,6 @@ app.post('/api/user/:userId/tag', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: `エラー: ${error.message}` });
   }
-});
-
-app.get('/api/team', async (req, res) => {
-  const matchesRef = collection(db, 'matches');
-  const waitingQuery = query(matchesRef, where('type', '==', 'team'), where('status', '==', 'waiting'));
-  const waitingSnapshot = await getDocs(waitingQuery);
-  const waitingCount = waitingSnapshot.size;
-
-  let html = `
-    <html>
-      <head>
-        <link rel="stylesheet" href="/css/general.css">
-      </head>
-      <body>
-        <div class="container">
-          <h1>チーム用ページ</h1>
-          <p>待機中のチーム: ${waitingCount}</p>
-  `;
-  if (req.user) {
-    const userId = req.user.id;
-    const db = admin.firestore();
-    const userRef = db.collection('users').doc(userId);
-    const userSnap = await userRef.get();
-    const userData = userSnap.data() || {};
-    const userTeamRating = userData.teamRating || 1500;
-    let teamRating = userTeamRating;
-
-    if (userData.isTagged && userData.tagPartnerId) {
-      const tagPartnerRef = db.collection('users').doc(userData.tagPartnerId);
-      const tagPartnerSnap = await tagPartnerRef.get();
-      const tagPartnerRating = tagPartnerSnap.exists ? (tagPartnerSnap.data().teamRating || 1500) : 1500;
-      teamRating = Math.max(userTeamRating, tagPartnerRating);
-    }
-
-    html += `
-      <form id="matchForm">
-        <button type="button" id="matchButton">マッチング開始</button>
-      </form>
-      <p>現在のチームレート: ${teamRating}</p>
-      <script>
-        document.getElementById('matchButton').addEventListener('click', async () => {
-          try {
-            const response = await fetch('/api/team/match', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (response.ok) {
-              window.location.href = data.redirect;
-            } else {
-              alert(data.message);
-            }
-          } catch (error) {
-            alert('ネットワークエラー: ' + error.message);
-          }
-        });
-      </script>
-    `;
-  } else {
-    html += `<p>マッチングするには<a href="/api/auth/google?redirect=/api/team">ログイン</a>してください</p>`;
-  }
-  html += `
-          <p><a href="/api/">ホームに戻る</a></p>
-        </div>
-      </body>
-    </html>`;
-  res.send(html);
 });
 
 app.post('/api/team/match', async (req, res) => {
