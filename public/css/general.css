@@ -103,6 +103,18 @@ button.disabled {
 
 /* スマホ用ハンバーガーメニュー */
 @media (max-width: 768px) {
+    .site-header {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .header-container {
+        max-width: 100%;
+        width: 100%;
+        padding: 0 10px;
+        box-sizing: border-box;
+    }
+
     .hamburger {
         display: block;
     }
