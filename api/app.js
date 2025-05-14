@@ -651,14 +651,14 @@ app.post('/api/solo/match', async (req, res) => {
       const status = userTeamHostSnapshot.docs[0].data().status;
       console.error('ユーザーがチームマッチング中（ホスト）:', { userId, matchId, status });
       if (status === 'matched') {
-        return res.json({ redirect: `/api/team/setup/${matchId}` });
+        return res.status(403).json({ message: 'あなたはチーム版で対戦中です' });
       }
-      return res.status(403).json({ message: 'あなたはチームマッチング中です' });
+      return res.status(403).json({ message: 'あなたはチーム版で待機中です' });
     }
     if (!userTeamGuestSnapshot.empty) {
       const matchId = userTeamGuestSnapshot.docs[0].id;
       console.log('既存のチームマッチング済みルームにリダイレクト（ゲスト）:', { userId, matchId });
-      return res.json({ redirect: `/api/team/setup/${matchId}` });
+      return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
     }
 
     // ユーザー情報の取得（タッグ状態チェック用）
@@ -687,13 +687,16 @@ app.post('/api/solo/match', async (req, res) => {
       if (!partnerTeamHostSnapshot.empty) {
         const matchId = partnerTeamHostSnapshot.docs[0].id;
         const status = partnerTeamHostSnapshot.docs[0].data().status;
-        console.error('タッグ相手がチームマッチング中（ホスト）:', { userId, tagPartnerId, matchId, status });
-        return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+        console.error('チーム相方がチーム版で対戦中です:', { userId, tagPartnerId, matchId, status });
+        if (status === 'matched') {
+          return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
+        }
+        return res.status(403).json({ message: 'チーム相方がチーム版で待機中です' });
       }
       if (!partnerTeamGuestSnapshot.empty) {
         const matchId = partnerTeamGuestSnapshot.docs[0].id;
-        console.error('タッグ相手がチームマッチング中（ゲスト）:', { userId, tagPartnerId, matchId });
-        return res.status(403).json({ message: 'タッグ相手が既にマッチング中です' });
+        console.error('チーム相方がチームマッチング中（ゲスト）:', { userId, tagPartnerId, matchId });
+        return res.status(403).json({ message: 'チーム相方がチーム版で対戦中です' });
       }
     }
 
