@@ -457,6 +457,11 @@ app.get('/api/solo/check', async (req, res) => {
     const hostProfileImage = req.user.profileImage || '/default.png';
     const hostName = req.user.handleName || 'ゲスト';
 
+    const userRef = admin.firestore().collection('users').doc(userId);
+    const userSnap = await userRef.get();
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const soloRatingRange = userData.soloRatingRange ?? 200;
+
     res.send(`
       <html>
         <head>
@@ -470,6 +475,7 @@ app.get('/api/solo/check', async (req, res) => {
               <h1>マッチング待機中</h1>
               <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
               <p>レート: ${req.user.soloRating || 1500}</p>
+              <p>レート制限: ${soloRatingRange === null ? '制限なし' : `レート差${soloRatingRange}以内`}</p>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/solo/update" method="POST">
                 <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
@@ -2834,6 +2840,7 @@ app.get('/api/team/check', async (req, res) => {
     const userSnap = await userRef.get();
     const userData = userSnap.exists ? userSnap.data() : {};
     let teamRating = userData.teamRating || 1500;
+    const teamRatingRange = userData.teamRatingRange ?? 200;
 
     let tagPartnerProfileImage = '/default.png';
     let tagPartnerName = 'ゲスト';
@@ -2863,6 +2870,7 @@ app.get('/api/team/check', async (req, res) => {
               <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
               <p class="profile-display"><img src="${tagPartnerProfileImage}" alt="${tagPartnerName}のプロフィール画像"> ${tagPartnerName}</p>
               <p>レート: ${teamRating}</p>
+              <p>レート制限: ${teamRatingRange === null ? '制限なし' : `レート差${teamRatingRange}以内`}</p>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/team/update" method="POST">
                 <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
