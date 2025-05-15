@@ -251,13 +251,15 @@ table td {
 /* チーム用 */
 .opponent-column-team {
     padding: 8px;
-    display: flex;
-    gap: 8px;
 }
 
 .opponent-row {
     display: flex;
     align-items: center;
+}
+
+.opponent-row:first-child {
+    margin-bottom: 8px;
 }
 
 .opponent-icon {
