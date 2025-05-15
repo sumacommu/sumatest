@@ -186,7 +186,9 @@ passport.use(new GoogleStrategy({
         validReportCount: 0,
         penalty: false,
         soloRating: 1500,
+        soloRatingRange: 200,
         teamRating: 1500,
+        teamRatingRange: 200,
         uploadCount: 0,
         lastUploadReset: new Date().toISOString(),
         tagPartnerId: '',
@@ -272,6 +274,8 @@ app.get('/api/', async (req, res) => {
     const firestoreUserData = userSnap.data() || {};
     const userTeamRating = firestoreUserData.teamRating || 1500;
     let teamRating = userTeamRating;
+    const soloRatingRange = firestoreUserData.soloRatingRange ?? 200;
+    const teamRatingRange = firestoreUserData.teamRatingRange ?? 200;
 
     if (firestoreUserData.isTagged && firestoreUserData.tagPartnerId) {
       const tagPartnerRef = admin.firestore().collection('users').doc(firestoreUserData.tagPartnerId);
@@ -300,6 +304,14 @@ app.get('/api/', async (req, res) => {
               <h2>タイマン用</h2>
               <p>待機中: ${soloWaitingCount}人</p>
               <form id="soloMatchForm">
+                <select name="soloRatingRange" id="soloRatingRange">
+                  <option value="null" ${soloRatingRange === null ? 'selected' : ''}>レート制限なし</option>
+                  <option value="50" ${soloRatingRange === 50 ? 'selected' : ''}>レート差50以内</option>
+                  <option value="100" ${soloRatingRange === 100 ? 'selected' : ''}>レート差100以内</option>
+                  <option value="200" ${soloRatingRange === 200 ? 'selected' : ''}>レート差200以内</option>
+                  <option value="300" ${soloRatingRange === 300 ? 'selected' : ''}>レート差300以内</option>
+                  <option value="400" ${soloRatingRange === 400 ? 'selected' : ''}>レート差400以内</option>
+                </select>
                 <button type="button" id="soloMatchButton">マッチング開始</button>
               </form>
               <p>現在のレート: ${userData.soloRating || 1500}</p>
@@ -309,6 +321,14 @@ app.get('/api/', async (req, res) => {
               <h2>チーム用</h2>
               <p>待機中のチーム: ${teamWaitingCount}</p>
               <form id="teamMatchForm">
+                <select name="teamRatingRange" id="teamRatingRange">
+                  <option value="null" ${teamRatingRange === null ? 'selected' : ''}>レート制限なし</option>
+                  <option value="50" ${teamRatingRange === 50 ? 'selected' : ''}>レート差50以内</option>
+                  <option value="100" ${teamRatingRange === 100 ? 'selected' : ''}>レート差100以内</option>
+                  <option value="200" ${teamRatingRange === 200 ? 'selected' : ''}>レート差200以内</option>
+                  <option value="300" ${teamRatingRange === 300 ? 'selected' : ''}>レート差300以内</option>
+                  <option value="400" ${teamRatingRange === 400 ? 'selected' : ''}>レート差400以内</option>
+                </select>
                 <button type="button" id="teamMatchButton">マッチング開始</button>
               </form>
               <p>現在のチームレート: ${teamRating}</p>
@@ -319,9 +339,11 @@ app.get('/api/', async (req, res) => {
           <script>
             document.getElementById('soloMatchButton').addEventListener('click', async () => {
               try {
+                const soloRatingRange = document.getElementById('soloRatingRange').value;
                 const response = await fetch('/api/solo/match', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' }
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ratingRange: soloRatingRange === 'null' ? null : parseInt(soloRatingRange) })
                 });
                 const data = await response.json();
                 if (response.ok) {
@@ -336,9 +358,11 @@ app.get('/api/', async (req, res) => {
 
             document.getElementById('teamMatchButton').addEventListener('click', async () => {
               try {
+                const teamRatingRange = document.getElementById('teamRatingRange').value;
                 const response = await fetch('/api/team/match', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' }
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ratingRange: teamRatingRange === 'null' ? null : parseInt(teamRatingRange) })
                 });
                 const data = await response.json();
                 if (response.ok) {
@@ -561,10 +585,14 @@ app.post('/api/solo/match', async (req, res) => {
   }
   const userId = req.user.id;
   const userSoloRating = req.user.soloRating || 1500;
+  const ratingRange = req.body.ratingRange;
 
   try {
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
+    const userRef = db.collection('users').doc(userId);
+
+    await userRef.update({ soloRatingRange: ratingRange });
 
     const userSoloMatchesQuery = matchesRef.where('type', '==', 'solo');
     const userSoloHostQuery = userSoloMatchesQuery
@@ -618,7 +646,6 @@ app.post('/api/solo/match', async (req, res) => {
       return res.status(403).json({ message: 'あなたはチーム版で対戦中です' });
     }
 
-    const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
       return res.status(404).json({ message: 'ユーザーが見つかりません' });
@@ -665,7 +692,7 @@ app.post('/api/solo/match', async (req, res) => {
       const guestRef = db.collection('users').doc(guestData.userId);
       const guestSnap = await guestRef.get();
       const guestSoloRating = guestSnap.exists ? (guestSnap.data().soloRating || 1500) : 1500;
-      if (Math.abs(userSoloRating - guestSoloRating) <= 200) {
+      if (ratingRange === null || Math.abs(userSoloRating - guestSoloRating) <= ratingRange) {
         await docSnap.ref.update({
           guestId: userId,
           status: 'matched',
@@ -1897,7 +1924,7 @@ app.post('/api/solo/update', async (req, res) => {
   }
 });
 
-//
+// catch (error) {}でHTMLを返しているのをそのうち復元すること
 app.get('/api/user/:userId', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -2593,10 +2620,14 @@ app.post('/api/team/match', async (req, res) => {
     return res.status(401).json({ message: '認証が必要です。ログインしてください。' });
   }
   const userId = req.user.id;
+  const ratingRange = req.body.ratingRange;
 
   try {
     const db = admin.firestore();
     const matchesRef = db.collection('matches');
+    const userRef = db.collection('users').doc(userId);
+
+    await userRef.update({ teamRatingRange: ratingRange });
 
     const userTeamMatchesQuery = matchesRef
       .where('type', '==', 'team')
@@ -2652,7 +2683,6 @@ app.post('/api/team/match', async (req, res) => {
       return res.status(403).json({ message: 'あなたはタイマン版で対戦中です' });
     }
 
-    const userRef = db.collection('users').doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
       return res.status(404).json({ message: 'ユーザーが見つかりません' });
@@ -2748,7 +2778,6 @@ app.post('/api/team/match', async (req, res) => {
       const guestDataFull = guestSnap.exists ? guestSnap.data() : {};
       let guestTeamRating = guestDataFull.teamRating || 1500;
 
-      // ゲストのタッグパートナーのレートを取得
       if (guestDataFull.tagPartnerId) {
         const guestTagPartnerRef = db.collection('users').doc(guestDataFull.tagPartnerId);
         const guestTagPartnerSnap = await guestTagPartnerRef.get();
@@ -2756,7 +2785,7 @@ app.post('/api/team/match', async (req, res) => {
         guestTeamRating = Math.max(guestTeamRating, guestTagPartnerRating);
       }
 
-      if (Math.abs(userTeamRating - guestTeamRating) <= 200) {
+      if (ratingRange === null || Math.abs(userTeamRating - guestTeamRating) <= ratingRange) {
         await docSnap.ref.update({
           guestId: userId,
           status: 'matched',
