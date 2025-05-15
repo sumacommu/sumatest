@@ -2218,7 +2218,7 @@ app.get('/api/user/:userId', async (req, res) => {
         resultText = `＋${ratingChange}`;
         resultClass = 'result-increase';
       } else if (ratingChange < 0) {
-        resultText = `－${ratingChange}`;
+        resultText = `－${Math.abs(ratingChange)}`;
         resultClass = 'result-decrease';
       } else {
         resultText = '中止';
@@ -2273,10 +2273,21 @@ app.get('/api/user/:userId', async (req, res) => {
       const match = doc.data();
       const isHost = match.userId === userId;
       const opponentId = isHost ? match.guestId : match.userId;
+      const opponentTagPartnerId = isHost ? match.guestTagPartnerId : match.hostTagPartnerId;
+
       const opponentRef = db.collection('users').doc(opponentId);
       const opponentSnap = await opponentRef.get();
       const opponentHandleName = opponentSnap.exists ? (opponentSnap.data().handleName || '不明') : '不明';
       const opponentProfileImage = opponentSnap.exists ? (opponentSnap.data().profileImage || '/default.png') : '/default.png';
+
+      let opponentTagPartnerHandleName = '不明';
+      let opponentTagPartnerProfileImage = '/default.png';
+      if (opponentTagPartnerId) {
+        const opponentTagPartnerRef = db.collection('users').doc(opponentTagPartnerId);
+        const opponentTagPartnerSnap = await opponentTagPartnerRef.get();
+        opponentTagPartnerHandleName = opponentTagPartnerSnap.exists ? (opponentTagPartnerSnap.data().handleName || '不明') : '不明';
+        opponentTagPartnerProfileImage = opponentTagPartnerSnap.exists ? (opponentTagPartnerSnap.data().profileImage || '/default.png') : '/default.png';
+      }
 
       const ratingChange = match.teamRatingChanges?.[userId] || 0;
       let resultText, resultClass;
@@ -2287,7 +2298,7 @@ app.get('/api/user/:userId', async (req, res) => {
         resultText = `＋${ratingChange}`;
         resultClass = 'result-increase';
       } else if (ratingChange < 0) {
-        resultText = `－${ratingChange}`;
+        resultText = `－${Math.abs(ratingChange)}`;
         resultClass = 'result-decrease';
       } else {
         resultText = '中止';
@@ -2303,6 +2314,11 @@ app.get('/api/user/:userId', async (req, res) => {
           <td class="opponent-column">
             <img src="${opponentProfileImage}" class="opponent-icon">
             <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+            ${opponentTagPartnerId ? `
+              &amp;
+              <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
+              <a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>
+            ` : ''}
           </td>
           <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
@@ -2931,6 +2947,7 @@ app.post('/api/team/match', async (req, res) => {
       if (ratingRange === null || Math.abs(userTeamRating - guestTeamRating) <= ratingRange) {
         await docSnap.ref.update({
           guestId: userId,
+          guestTagPartnerId: tagPartnerId, // ゲストのタッグ相手を記録
           status: 'matched',
           timestamp: new Date().toISOString()
         });
@@ -2942,6 +2959,7 @@ app.post('/api/team/match', async (req, res) => {
     if (!matched) {
       const matchRef = await matchesRef.add({
         userId: userId,
+        hostTagPartnerId: tagPartnerId, // ホストのタッグ相手を記録
         type: 'team',
         status: 'waiting',
         roomId: '',

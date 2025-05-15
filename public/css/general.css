@@ -241,6 +241,24 @@ table td {
 
 .opponent-column {
     width: auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.opponent-icon {
+    width: 32px;
+    height: 32px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.opponent-column a {
+    margin-right: 8px;
+}
+
+.opponent-column .team-partner {
+    margin-left: 8px;
 }
 
 .match-details-column {
