@@ -2207,6 +2207,7 @@ app.get('/api/user/:userId', async (req, res) => {
       const opponentRef = db.collection('users').doc(opponentId);
       const opponentSnap = await opponentRef.get();
       const opponentHandleName = opponentSnap.exists ? (opponentSnap.data().handleName || '不明') : '不明';
+      const opponentProfileImage = opponentSnap.exists ? (opponentSnap.data().profileImage || '/default.png') : '/default.png';
 
       const ratingChange = match.soloRatingChanges?.[userId] || 0;
       let resultText, resultClass;
@@ -2252,8 +2253,11 @@ app.get('/api/user/:userId', async (req, res) => {
       soloMatchHistory += `
         <tr>
           <td class="date-column">${formattedDate}</td>
-          <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
-          <td>${matchDetails || '-'}</td>
+          <td class="opponent-column">
+            <img src="${opponentProfileImage}" class="opponent-icon">
+            <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+          </td>
+          <td class="match-details-column">${matchDetails || '-'}</td>
           <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
       `;
@@ -2272,6 +2276,7 @@ app.get('/api/user/:userId', async (req, res) => {
       const opponentRef = db.collection('users').doc(opponentId);
       const opponentSnap = await opponentRef.get();
       const opponentHandleName = opponentSnap.exists ? (opponentSnap.data().handleName || '不明') : '不明';
+      const opponentProfileImage = opponentSnap.exists ? (opponentSnap.data().profileImage || '/default.png') : '/default.png';
 
       const ratingChange = match.teamRatingChanges?.[userId] || 0;
       let resultText, resultClass;

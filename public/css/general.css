@@ -229,8 +229,14 @@ table td {
 .result-column {
     width: 100px;
     min-width: 100px;
-    text-align: center;
     padding-right: 10px;
+}
+
+.opponent-icon {
+    width: 32px;
+    height: 32px;
+    vertical-align: middle;
+    margin-right: 8px;
 }
 
 .opponent-column {
