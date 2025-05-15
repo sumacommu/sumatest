@@ -251,7 +251,6 @@ table td {
 /* チーム用 */
 .opponent-column-team {
     padding: 8px;
-    border: 1px solid #ddd; /* 薄い外枠 */
     display: flex;
     flex-direction: column;
     gap: 8px; /* 行間の調整 */
