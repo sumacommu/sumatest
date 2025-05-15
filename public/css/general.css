@@ -220,6 +220,33 @@ table td {
     word-break: break-word;
 }
 
+/* 追加部分 */
+.date-column {
+    width: 150px;
+    min-width: 150px;
+}
+
+.result-column {
+    width: 100px;
+    min-width: 100px;
+    text-align: right;
+    padding-right: 10px;
+}
+
+.opponent-column {
+    width: auto;
+}
+
+.match-details-column {
+    width: 250px;
+    min-width: 200px;
+}
+
+.loser-char {
+    opacity: 0.5;
+    filter: grayscale(100%);
+}
+
 @media (max-width: 768px) {
     .site-header {
         width: 100%;

@@ -2214,10 +2214,10 @@ app.get('/api/user/:userId', async (req, res) => {
         resultText = '中止';
         resultClass = 'result-cancel';
       } else if (ratingChange > 0) {
-        resultText = `+${ratingChange}`;
+        resultText = `＋${ratingChange}`;
         resultClass = 'result-increase';
       } else if (ratingChange < 0) {
-        resultText = `${ratingChange}`;
+        resultText = `－${ratingChange}`;
         resultClass = 'result-decrease';
       } else {
         resultText = '中止';
@@ -2234,25 +2234,31 @@ app.get('/api/user/:userId', async (req, res) => {
           const oppChar = isHost
             ? match.guestChoices[`character${i + 1}`] || '00'
             : match.hostChoices[`character${i + 1}`] || '00';
-          const result = matchResults[i] === 'hostWin'
-            ? (isHost ? '勝ち' : '負け')
-            : (isHost ? '負け' : '勝ち');
+          const ownClass = matchResults[i] === 'hostWin'
+            ? (isHost ? '' : 'loser-char')
+            : (isHost ? 'loser-char' : '');
+          const oppClass = matchResults[i] === 'hostWin'
+            ? (isHost ? 'loser-char' : '')
+            : (isHost ? '' : 'loser-char');
           matchDetails += `
-            <div>${i + 1}戦目: <img src="/characters/${ownChar}.png" class="char-icon"> (${result}) vs <img src="/characters/${oppChar}.png" class="char-icon"></div>
+            <div>${i + 1}戦目: <img src="/characters/${ownChar}.png" class="char-icon ${ownClass}"> vs <img src="/characters/${oppChar}.png" class="char-icon ${oppClass}"></div>
           `;
         }
       }
 
+      const date = new Date(match.timestamp);
+      const formattedDate = `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours()}時${date.getMinutes()}分`;
+    
       soloMatchHistory += `
         <tr>
+          <td class="date-column">${formattedDate}</td>
           <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
-          <td class="${resultClass}">${resultText}</td>
-          <td>${new Date(match.timestamp).toLocaleString('ja-JP')}</td>
           <td>${matchDetails || '-'}</td>
+          <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
       `;
     }
-    
+
     let teamMatchHistory = '';
     const teamMatches = [
       ...teamMatchesSnapshot.docs,
@@ -2273,21 +2279,24 @@ app.get('/api/user/:userId', async (req, res) => {
         resultText = '中止';
         resultClass = 'result-cancel';
       } else if (ratingChange > 0) {
-        resultText = `+${ratingChange}`;
+        resultText = `＋${ratingChange}`;
         resultClass = 'result-increase';
       } else if (ratingChange < 0) {
-        resultText = `${ratingChange}`;
+        resultText = `－${ratingChange}`;
         resultClass = 'result-decrease';
       } else {
         resultText = '中止';
         resultClass = 'result-cancel';
       }
 
+      const date = new Date(match.timestamp);
+      const formattedDate = `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours()}時${date.getMinutes()}分`;
+
       teamMatchHistory += `
         <tr>
+          <td class="date-column">${formattedDate}</td>
           <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
-          <td class="${resultClass}">${resultText}</td>
-          <td>${new Date(match.timestamp).toLocaleString('ja-JP')}</td>
+          <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
       `;
     }
@@ -2314,10 +2323,10 @@ app.get('/api/user/:userId', async (req, res) => {
             <table>
               <thead>
                 <tr>
+                  <th class="date-column">日時</th>
                   <th>対戦相手</th>
-                  <th>レーティング変化</th>
-                  <th>日時</th>
                   <th>試合詳細</th>
+                  <th class="result-column">結果</th>
                 </tr>
               </thead>
               <tbody>
@@ -2328,9 +2337,9 @@ app.get('/api/user/:userId', async (req, res) => {
             <table>
               <thead>
                 <tr>
+                  <th class="date-column">日時</th>
                   <th>対戦相手</th>
-                  <th>レーティング変化</th>
-                  <th>日時</th>
+                  <th class="result-column">結果</th>
                 </tr>
               </thead>
               <tbody>
