@@ -229,7 +229,7 @@ table td {
 .result-column {
     width: 100px;
     min-width: 100px;
-    text-align: right;
+    text-align: center;
     padding-right: 10px;
 }
 
