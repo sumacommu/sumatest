@@ -192,7 +192,8 @@ passport.use(new GoogleStrategy({
         uploadCount: 0,
         lastUploadReset: new Date().toISOString(),
         tagPartnerId: '',
-        isTagged: false
+        isTagged: false,
+        favoriteCharacters: []
       };
       await userRef.set(userData);
     }
@@ -1930,7 +1931,7 @@ app.post('/api/solo/update', async (req, res) => {
   }
 });
 
-// catch (error) {}でHTMLを返しているのをそのうち復元すること
+// catch (error) {}でHTMLを返しているのをそのうち復元すること。最初と最後の２箇所ある
 app.get('/api/user/:userId', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -1956,6 +1957,23 @@ app.get('/api/user/:userId', async (req, res) => {
     userData.lastUploadReset = userData.lastUploadReset || new Date().toISOString();
     userData.tagPartnerId = userData.tagPartnerId || '';
     userData.isTagged = userData.isTagged || false;
+    userData.favoriteCharacters = userData.favoriteCharacters || [];
+
+    const allCharacters = Array.from({ length: 87 }, (_, i) => {
+      const id = String(i + 1).padStart(2, '0');
+      return { id, name: `キャラ${id}` };
+    });
+    const popularCharacters = [
+      { id: '01', name: 'マリオ' },
+      { id: '03', name: 'リンク' },
+      { id: '54', name: '格闘Mii' },
+      { id: '55', name: '剣術Mii' },
+      { id: '56', name: '射撃Mii' }
+    ];
+    const characterMap = new Map([
+      ...popularCharacters.map(c => [c.id, c.name]),
+      ...allCharacters.map(c => [c.id, c.name])
+    ]);
 
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
@@ -2335,6 +2353,13 @@ app.get('/api/user/:userId', async (req, res) => {
           <div class="container">
             <h1>${userData.handleName || '未設定'}のプロフィール</h1>
             <img src="${userData.profileImage}" alt="プロフィール画像">
+            <p>よく使うキャラ:
+              ${userData.favoriteCharacters.length > 0
+                ? userData.favoriteCharacters.map(charId => `
+                    <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
+                  `).join('')
+                : '未設定'}
+            </p>
             <p>自己紹介: ${userData.bio || '未設定'}</p>
             <p>レート: ${userData.soloRating}</p>
             ${tagStatusHtml}
