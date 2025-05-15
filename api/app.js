@@ -2316,12 +2316,10 @@ app.get('/api/user/:userId', async (req, res) => {
               <img src="${opponentProfileImage}" class="opponent-icon">
               <a href="/api/user/${opponentId}">${opponentHandleName}</a>
             </div>
-            ${opponentTagPartnerId ? `
-              <div class="opponent-row">
-                <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
-                <a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>
-              </div>
-            ` : ''}
+            <div class="opponent-row">
+              <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
+              ${opponentTagPartnerId ? `<a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>` : opponentTagPartnerHandleName}
+            </div>
           </td>
           <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
