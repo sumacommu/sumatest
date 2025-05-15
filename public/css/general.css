@@ -241,9 +241,25 @@ table td {
 
 .opponent-column {
     width: auto;
+}
+
+/* タイマン用 */
+.opponent-column-solo {
+    padding: 8px;
+}
+
+/* チーム用 */
+.opponent-column-team {
+    padding: 8px;
+    border: 1px solid #ddd; /* 薄い外枠 */
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* 行間の調整 */
+}
+
+.opponent-row {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
 }
 
 .opponent-icon {

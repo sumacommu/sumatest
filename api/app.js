@@ -2253,7 +2253,7 @@ app.get('/api/user/:userId', async (req, res) => {
       soloMatchHistory += `
         <tr>
           <td class="date-column">${formattedDate}</td>
-          <td class="opponent-column">
+          <td class="opponent-column opponent-column-solo">
             <img src="${opponentProfileImage}" class="opponent-icon">
             <a href="/api/user/${opponentId}">${opponentHandleName}</a>
           </td>
@@ -2311,13 +2311,16 @@ app.get('/api/user/:userId', async (req, res) => {
       teamMatchHistory += `
         <tr>
           <td class="date-column">${formattedDate}</td>
-          <td class="opponent-column">
-            <img src="${opponentProfileImage}" class="opponent-icon">
-            <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+          <td class="opponent-column opponent-column-team">
+            <div class="opponent-row">
+              <img src="${opponentProfileImage}" class="opponent-icon">
+              <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+            </div>
             ${opponentTagPartnerId ? `
-              &amp;
-              <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
-              <a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>
+              <div class="opponent-row">
+                <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
+                <a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>
+              </div>
             ` : ''}
           </td>
           <td class="result-column ${resultClass}">${resultText}</td>
@@ -2348,8 +2351,8 @@ app.get('/api/user/:userId', async (req, res) => {
               <thead>
                 <tr>
                   <th class="date-column">日時</th>
-                  <th>対戦相手</th>
-                  <th>試合詳細</th>
+                  <th class="opponent-column">対戦相手</th>
+                  <th class="match-details-column">試合詳細</th>
                   <th class="result-column">結果</th>
                 </tr>
               </thead>
@@ -2362,7 +2365,7 @@ app.get('/api/user/:userId', async (req, res) => {
               <thead>
                 <tr>
                   <th class="date-column">日時</th>
-                  <th>対戦相手</th>
+                  <th class="opponent-column">対戦相手</th>
                   <th class="result-column">結果</th>
                 </tr>
               </thead>
