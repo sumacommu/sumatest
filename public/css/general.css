@@ -254,11 +254,13 @@ table td {
     display: flex;
     flex-direction: column;
     gap: 8px; /* 行間の調整 */
+    border: none;
 }
 
 .opponent-row {
     display: flex;
     align-items: center;
+    border: none;
 }
 
 .opponent-icon {
