@@ -196,6 +196,30 @@ button.disabled {
     border-color: #007bff;
 }
 
+/* 追加部分 */
+.result-increase {
+    color: #e74c3c; /* 赤 */
+}
+
+.result-decrease {
+    color: #3498db; /* 青 */
+}
+
+.result-cancel {
+    color: #7f8c8d; /* グレー */
+}
+
+.char-icon {
+    max-width: 32px;
+    max-height: 32px;
+    vertical-align: middle;
+}
+
+/* テーブル内のテキスト折り返し */
+table td {
+    word-break: break-word;
+}
+
 @media (max-width: 768px) {
     .site-header {
         width: 100%;

@@ -2165,26 +2165,132 @@ app.get('/api/user/:userId', async (req, res) => {
     }
 
     const matchesRef = db.collection('matches');
-    const userMatchesQuery = matchesRef
+    const soloMatchesQuery = matchesRef
       .where('status', '==', 'finished')
-      .where('userId', 'in', [userId, userId]);
-    const matchesSnapshot = await userMatchesQuery.get();
-    let matchHistory = '';
-    matchesSnapshot.forEach(doc => {
+      .where('type', '==', 'solo')
+      .where('userId', '==', userId);
+    const soloGuestMatchesQuery = matchesRef
+      .where('status', '==', 'finished')
+      .where('type', '==', 'solo')
+      .where('guestId', '==', userId);
+    const teamMatchesQuery = matchesRef
+      .where('status', '==', 'finished')
+      .where('type', '==', 'team')
+      .where('userId', '==', userId);
+    const teamGuestMatchesQuery = matchesRef
+      .where('status', '==', 'finished')
+      .where('type', '==', 'team')
+      .where('guestId', '==', userId);
+
+    const [
+      soloMatchesSnapshot,
+      soloGuestMatchesSnapshot,
+      teamMatchesSnapshot,
+      teamGuestMatchesSnapshot
+    ] = await Promise.all([
+      soloMatchesQuery.get(),
+      soloGuestMatchesQuery.get(),
+      teamMatchesQuery.get(),
+      teamGuestMatchesQuery.get()
+    ]);
+
+    let soloMatchHistory = '';
+    const soloMatches = [
+      ...soloMatchesSnapshot.docs,
+      ...soloGuestMatchesSnapshot.docs
+    ].sort((a, b) => new Date(b.data().timestamp) - new Date(a.data().timestamp));
+
+    for (const doc of soloMatches) {
       const match = doc.data();
       const isHost = match.userId === userId;
       const opponentId = isHost ? match.guestId : match.userId;
-      const result = isHost
-        ? match.hostChoices.wins >= 2 ? '勝利' : '敗北'
-        : match.guestChoices.wins >= 2 ? '勝利' : '敗北';
-      matchHistory += `
+      const opponentRef = db.collection('users').doc(opponentId);
+      const opponentSnap = await opponentRef.get();
+      const opponentHandleName = opponentSnap.exists ? (opponentSnap.data().handleName || '不明') : '不明';
+
+      const ratingChange = match.soloRatingChanges?.[userId] || 0;
+      let resultText, resultClass;
+      if (match.isCancelled) {
+        resultText = '中止';
+        resultClass = 'result-cancel';
+      } else if (ratingChange > 0) {
+        resultText = `+${ratingChange}`;
+        resultClass = 'result-increase';
+      } else if (ratingChange < 0) {
+        resultText = `${ratingChange}`;
+        resultClass = 'result-decrease';
+      } else {
+        resultText = '中止';
+        resultClass = 'result-cancel';
+      }
+
+      const matchResults = match.hostChoices?.matchResults || [null, null, null];
+      let matchDetails = '';
+      for (let i = 0; i < 3; i++) {
+        if (matchResults[i]) {
+          const ownChar = isHost
+            ? match.hostChoices[`character${i + 1}`] || '00'
+            : match.guestChoices[`character${i + 1}`] || '00';
+          const oppChar = isHost
+            ? match.guestChoices[`character${i + 1}`] || '00'
+            : match.hostChoices[`character${i + 1}`] || '00';
+          const result = matchResults[i] === 'hostWin'
+            ? (isHost ? '勝ち' : '負け')
+            : (isHost ? '負け' : '勝ち');
+          matchDetails += `
+            <div>${i + 1}戦目: <img src="/characters/${ownChar}.png" class="char-icon"> (${result}) vs <img src="/characters/${oppChar}.png" class="char-icon"></div>
+          `;
+        }
+      }
+
+      soloMatchHistory += `
         <tr>
-          <td>${opponentId}</td>
-          <td>${result}</td>
-          <td>${new Date(match.timestamp).toLocaleString()}</td>
+          <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
+          <td class="${resultClass}">${resultText}</td>
+          <td>${new Date(match.timestamp).toLocaleString('ja-JP')}</td>
+          <td>${matchDetails || '-'}</td>
         </tr>
       `;
-    });
+    }
+    
+    let teamMatchHistory = '';
+    const teamMatches = [
+      ...teamMatchesSnapshot.docs,
+      ...teamGuestMatchesSnapshot.docs
+    ].sort((a, b) => new Date(b.data().timestamp) - new Date(a.data().timestamp));
+
+    for (const doc of teamMatches) {
+      const match = doc.data();
+      const isHost = match.userId === userId;
+      const opponentId = isHost ? match.guestId : match.userId;
+      const opponentRef = db.collection('users').doc(opponentId);
+      const opponentSnap = await opponentRef.get();
+      const opponentHandleName = opponentSnap.exists ? (opponentSnap.data().handleName || '不明') : '不明';
+
+      const ratingChange = match.teamRatingChanges?.[userId] || 0;
+      let resultText, resultClass;
+      if (match.isCancelled) {
+        resultText = '中止';
+        resultClass = 'result-cancel';
+      } else if (ratingChange > 0) {
+        resultText = `+${ratingChange}`;
+        resultClass = 'result-increase';
+      } else if (ratingChange < 0) {
+        resultText = `${ratingChange}`;
+        resultClass = 'result-decrease';
+      } else {
+        resultText = '中止';
+        resultClass = 'result-cancel';
+      }
+
+      teamMatchHistory += `
+        <tr>
+          <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
+          <td class="${resultClass}">${resultText}</td>
+          <td>${new Date(match.timestamp).toLocaleString('ja-JP')}</td>
+        </tr>
+      `;
+    }
 
     res.send(`
       <html>
@@ -2204,17 +2310,31 @@ app.get('/api/user/:userId', async (req, res) => {
               ${activeRoomLink}
             ` : ''}
             ${tagButtonHtml}
-            <h2>マッチング履歴</h2>
+            <h2>タイマン マッチング履歴</h2>
             <table>
               <thead>
                 <tr>
                   <th>対戦相手</th>
-                  <th>結果</th>
+                  <th>レーティング変化</th>
+                  <th>日時</th>
+                  <th>試合詳細</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${soloMatchHistory || '<tr><td colspan="4">履歴がありません</td></tr>'}
+              </tbody>
+            </table>
+            <h2>チーム マッチング履歴</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>対戦相手</th>
+                  <th>レーティング変化</th>
                   <th>日時</th>
                 </tr>
               </thead>
               <tbody>
-                ${matchHistory || '<tr><td colspan="3">履歴がありません</td></tr>'}
+                ${teamMatchHistory || '<tr><td colspan="3">履歴がありません</td></tr>'}
               </tbody>
             </table>
             <p><a href="/api/">ホームに戻る</a></p>
