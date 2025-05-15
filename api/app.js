@@ -2300,7 +2300,10 @@ app.get('/api/user/:userId', async (req, res) => {
       teamMatchHistory += `
         <tr>
           <td class="date-column">${formattedDate}</td>
-          <td><a href="/api/user/${opponentId}">${opponentHandleName}</a></td>
+          <td class="opponent-column">
+            <img src="${opponentProfileImage}" class="opponent-icon">
+            <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+          </td>
           <td class="result-column ${resultClass}">${resultText}</td>
         </tr>
       `;
