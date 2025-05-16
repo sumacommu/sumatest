@@ -1951,7 +1951,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     <div class="player-info-item">キャラ</div>
                   </div>
                   <div class="player-info-right">
-                    <div class="player-info-item"><img src="${guestName}</div>
+                    <div class="player-info-item">${guestName}</div>
                     <div class="player-info-item">${guestsoloRating}</div>
                     <div class="player-info-item">
                       ${guestdisplayCharacters.length > 0
