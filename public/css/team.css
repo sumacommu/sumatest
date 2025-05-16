@@ -1,11 +1,61 @@
 .match-container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; }
 .room-id { text-align: center; font-size: 1.5em; margin-bottom: 20px; }
 .player-table { display: flex; justify-content: space-between; margin-bottom: 20px; }
-.player-info { width: 45%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; text-align: center; }
 .player-group { display: inline-flex; flex-direction: column; margin: 0 auto; }
+
+.player-info {
+  width: 45%;
+  padding: 10px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  text-align: center;
+}
+.player-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.player-info-left {
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 1.2em;
+}
+.player-info-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 1.5em;
+}
+.player-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.player-info-left img {
+width: 64px;
+height: 64px;
+}
+.player-info-right img {
+width: 44px;
+height: 44px;
+margin: 0 2.5px;
+}
+.player-info-right .user-link {
+color: #000;
+text-decoration: none;
+}
+.player-info-right .user-link:hover {
+color: #000;
+text-decoration: none;
+}
+
 .player-row { display: flex; align-items: center; justify-content: flex-start; margin: 10px 0; }
 .icon-container { width: 40px; flex-shrink: 0; }
-.player-info img { width: 32px; height: 32px; vertical-align: middle; }
 .name { font-size: 1.2em; margin-left: 8px; }
 .button-group { text-align: center; margin-top: 20px; }
 .send-btn { padding: 10px 20px; margin: 5px; cursor: pointer; }

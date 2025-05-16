@@ -3714,8 +3714,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 'cancel': '対戦中止',
                 '対戦中': '対戦中'
               };
-              hostResultElement.innerText = '状態: ' + resultMap[hostResult];
-              guestResultElement.innerText = '状態: ' + resultMap[guestResult];
+              hostResultElement.innerText = resultMap[hostResult];
+              guestResultElement.innerText = resultMap[guestResult];
 
               const isValidResult = 
                 (hostChoices.result === 'win' && guestChoices.result === 'lose') ||
@@ -3770,32 +3770,36 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
             <div class="player-table">
               <div class="player-info">
-                <div class="player-group">
-                  <div class="player-row">
-                    <span class="icon-container"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></span>
-                    <span class="name">${hostName}</span>
+                <div class="player-info-grid">
+                  <div class="player-info-left">
+                    <div class="player-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
+                    <div class="player-info-item"><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"></div>
+                    <div class="player-info-item">レート</div>
+                    <div class="player-info-item">状態</div>
                   </div>
-                  <div class="player-row">
-                    <span class="icon-container"><img src="${hostTagPartnerImage}" alt="${hostTagPartnerName}のプロフィール画像"></span>
-                    <span class="name">${hostTagPartnerName}</span>
+                  <div class="player-info-right">
+                    <div class="player-info-item"><a href="/api/user/${hostId}" class="user-link">${hostName}</a></div>
+                    <div class="player-info-item"><a href="/api/user/${hostData.tagPartnerId || 'unknown'}" class="user-link">${hostTagPartnerName}</a></div>
+                    <div class="player-info-item"><span id="hostRating">${hostTeamRating}</div>
+                    <div class="player-info-item"><span id="hostResult">対戦中</span></div>
                   </div>
                 </div>
-                <p id="hostRating">レート: ${hostTeamRating}</p>
-                <p id="hostResult">状態: 対戦中</p>
               </div>
               <div class="player-info">
-                <div class="player-group">
-                  <div class="player-row">
-                    <span class="icon-container"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"></span>
-                    <span class="name">${guestName}</span>
+                <div class="player-info-grid">
+                  <div class="player-info-left">
+                    <div class="player-info-item"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"></div>
+                    <div class="player-info-item"><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"></div>
+                    <div class="player-info-item">レート</div>
+                    <div class="player-info-item">状態</div>
                   </div>
-                  <div class="player-row">
-                    <span class="icon-container"><img src="${guestTagPartnerImage}" alt="${guestTagPartnerName}のプロフィール画像"></span>
-                    <span class="name">${guestTagPartnerName}</span>
+                  <div class="player-info-right">
+                    <div class="player-info-item"><a href="/api/user/${guestId}" class="user-link">${guestName}</a></div>
+                    <div class="player-info-item"><a href="/api/user/${guestData.tagPartnerId || 'unknown'}" class="user-link">${guestTagPartnerName}</a></div>
+                    <div class="player-info-item"><span id="guestRating">${guestTeamRating}</span></div>
+                    <div class="player-info-item"><span id="guestResult">対戦中</span></div>
                   </div>
                 </div>
-                <p id="guestRating">レート: ${guestTeamRating}</p>
-                <p id="guestResult">状態: 対戦中</p>
               </div>
             </div>
             <div class="button-group">
