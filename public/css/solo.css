@@ -118,8 +118,8 @@
     margin: 5px;
   }
   .player-info h2 img {
-    width: 32px;
-    height: 32px;
+    width: 64px;
+    height: 64px;
     vertical-align: middle;
     margin-right: 8px;
   }
@@ -209,7 +209,8 @@
     margin-left: 10px;
   }
 
-.history-table img {
+.history-table img,
+.player-info p img {
       width: 32px;
       height: 32px;
 }

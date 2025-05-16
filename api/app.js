@@ -1964,13 +1964,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                         const char = allCharacters.find(c => c.id === charId);
                         return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
                       }).join('')
-                    : '未設定')
+                    : '（よく使うキャラ未設定）')
                 : (guestFavoriteCharacters.length > 0
                     ? guestFavoriteCharacters.map(charId => {
                         const char = allCharacters.find(c => c.id === charId);
                         return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
                       }).join('')
-                    : '未設定')}
+                    : '（よく使うキャラ未設定）')}
               <button class="select-char-btn">全キャラから選ぶ</button>
               <div class="popup" id="charPopup">
                 <div class="popup-content">
