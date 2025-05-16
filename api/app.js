@@ -3806,14 +3806,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="submitResult('win')">勝ち</button>
               <button class="result-btn" onclick="submitResult('lose')">負け</button>
               <button class="result-btn" onclick="submitResult('cancel')">対戦中止</button>
-              <p><a href="/api/">戻る</a></p>
             </div>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">
                 <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
-              </div>
-              <div class="chat-controls">
                 <span id="charCount">0/500</span>
                 <button onclick="sendMessage()">送信</button>
               </div>
