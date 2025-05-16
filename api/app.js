@@ -1924,26 +1924,44 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <div class="room-id">対戦部屋のID: ${matchData.roomId || '未設定'}</div>
             <div class="player-table">
               <div class="player-info">
-                <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
-                <p>レート: ${hostsoloRating}</p>
-                <p>使用キャラ:
-                  ${hostdisplayCharacters.length > 0
-                    ? hostdisplayCharacters.map(charId => `
-                        <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
-                      `).join('')
-                    : '対戦履歴無し'}
-                </p>
+                <div class="player-info-grid">
+                  <div class="player-info-left">
+                    <div class="player-info-item">ProfileImage</div>
+                    <div class="player-info-item">レート：</div>
+                    <div class="player-info-item">使用キャラ：</div>
+                  </div>
+                  <div class="player-info-right">
+                    <div class="player-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</div>
+                    <div class="player-info-item">${hostsoloRating}</div>
+                    <div class="player-info-item">
+                      ${hostdisplayCharacters.length > 0
+                        ? hostdisplayCharacters.map(charId => `
+                            <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
+                          `).join('')
+                        : '対戦履歴無し'}
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="player-info">
-                <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
-                <p>レート: ${guestsoloRating}</p>
-                <p>使用キャラ:
-                  ${guestdisplayCharacters.length > 0
-                    ? guestdisplayCharacters.map(charId => `
-                        <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
-                      `).join('')
-                    : '対戦履歴無し'}
-                </p>
+                <div class="player-info-grid">
+                  <div class="player-info-left">
+                    <div class="player-info-item">ProfileImage</div>
+                    <div class="player-info-item">レート：</div>
+                    <div class="player-info-item">使用キャラ：</div>
+                  </div>
+                  <div class="player-info-right">
+                    <div class="player-info-item"><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</div>
+                    <div class="player-info-item">${guestsoloRating}</div>
+                    <div class="player-info-item">
+                      ${guestdisplayCharacters.length > 0
+                        ? guestdisplayCharacters.map(charId => `
+                            <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
+                          `).join('')
+                        : '対戦履歴無し'}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <table class="history-table">
