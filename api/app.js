@@ -1990,7 +1990,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <div class="overlay" id="overlay"></div>
             </div>
             <div class="section" id="miiInput">
-              <h2>Miiファイター設定</h2>
               <label>技番号（例: 1233）: <input type="text" id="miiMoves" maxlength="4"></label>
             </div>
             <div class="section stage-selection">
