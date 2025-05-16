@@ -2051,6 +2051,43 @@ app.get('/api/user/:userId', async (req, res) => {
     ];
     const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
 
+    const matchesRef10 = db.collection('matches');
+    const soloMatchesQuery10 = matchesRef10
+      .where('type', '==', 'solo')
+      .where('status', '==', 'completed')
+      .where('players', 'array-contains', userId)
+      .orderBy('createdAt', 'desc')
+      .limit(10);
+    const soloMatchesSnap10 = await soloMatchesQuery10.get();    
+
+    const charUsage = new Map();
+    soloMatchesSnap10.forEach(doc => {
+      const match = doc.data();
+      const isPlayer1 = match.player1.id === userId;
+      const characters = isPlayer1 ? match.player1.characters : match.player2.characters;
+      if (Array.isArray(characters)) {
+        characters.forEach(charId => {
+          if (charId) {
+            charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+          }
+        });
+      }
+    });
+
+    const topCharacters = Array.from(charUsage.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([charId]) => charId);
+
+    const displayCharacters = [...topCharacters];
+    const remainingSlots = 5 - displayCharacters.length;
+    if (remainingSlots > 0) {
+      const uniqueFavorites = userData.favoriteCharacters.filter(
+        charId => !topCharacters.includes(charId)
+      );
+      displayCharacters.push(...uniqueFavorites.slice(0, remainingSlots));
+    }
+
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
 
@@ -2429,9 +2466,9 @@ app.get('/api/user/:userId', async (req, res) => {
           <div class="container">
             <h1>${userData.handleName || '未設定'}のプロフィール</h1>
             <img src="${userData.profileImage}" alt="プロフィール画像">
-            <p>よく使うキャラ:
-              ${userData.favoriteCharacters.length > 0
-                ? userData.favoriteCharacters.map(charId => `
+            <p>使用キャラ:
+              ${displayCharacters.length > 0
+                ? displayCharacters.map(charId => `
                     <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
                   `).join('')
                 : '未設定'}
