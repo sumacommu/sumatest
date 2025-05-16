@@ -2027,6 +2027,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">
                 <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
+                <span id="charCount">0/500</span>
                 <button onclick="sendMessage()">送信</button>
               </div>
             </div>

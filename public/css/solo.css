@@ -105,8 +105,8 @@
   }
   .chat-container {
     margin: 20px 0;
-    border: 2px solid #888;
-    border-radius: 5px;
+    border: 2px solid #ccc;
+    border-radius: 0px;
     padding: 10px;
   }
   .chat-log {
@@ -302,6 +302,12 @@
   height: 50px;
   resize: none;
 }
+.chat-input span#charCount {
+  width: 60px;
+  font-size: 0.9em;
+  text-align: center;
+  color: #666;
+}
 .chat-input button {
   width: 80px;
   padding: 10px;
@@ -340,16 +346,21 @@
       width: 80px;
     }
 
-  .chat-input {
+    .chat-input {
       flex-direction: row;
       gap: 5px;
-  }
-  .chat-input textarea {
+    }
+    .chat-input textarea {
       height: 40px;
-  }
-  .chat-input button {
+    }
+    .chat-input span#charCount {
+    width: 50px;
+    font-size: 0.8em;
+    }
+
+    .chat-input button {
       width: 60px;
       padding: 8px;
       font-size: 0.9em;
-  }
+    }
   }
