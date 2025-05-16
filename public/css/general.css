@@ -12,11 +12,6 @@ html, body {
     font-family: Arial, sans-serif;
 }
 
-img {
-    max-width: 64px;
-    max-height: 64px;
-}
-
 button {
     padding: 10px 20px;
     margin: 5px;
