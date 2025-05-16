@@ -1959,21 +1959,97 @@ app.get('/api/user/:userId', async (req, res) => {
     userData.isTagged = userData.isTagged || false;
     userData.favoriteCharacters = userData.favoriteCharacters || [];
 
-    const allCharacters = Array.from({ length: 87 }, (_, i) => {
-      const id = String(i + 1).padStart(2, '0');
-      return { id, name: `キャラ${id}` };
-    });
-    const popularCharacters = [
+    const allCharacters = [
       { id: '01', name: 'マリオ' },
+      { id: '02', name: 'ドンキーコング' },
       { id: '03', name: 'リンク' },
+      { id: '04', name: 'サムス' },
+      { id: '05', name: 'ダークサムス' },
+      { id: '06', name: 'ヨッシー' },
+      { id: '07', name: 'カービィ' },
+      { id: '08', name: 'フォックス' },
+      { id: '09', name: 'ピカチュウ' },
+      { id: '10', name: 'ルイージ' },
+      { id: '11', name: 'ネス' },
+      { id: '12', name: 'キャプテン・ファルコン' },
+      { id: '13', name: 'プリン' },
+      { id: '14', name: 'ピーチ' },
+      { id: '15', name: 'デイジー' },
+      { id: '16', name: 'クッパ' },
+      { id: '17', name: 'アイスクライマー' },
+      { id: '18', name: 'シーク' },
+      { id: '19', name: 'ゼルダ' },
+      { id: '20', name: 'ドクターマリオ' },
+      { id: '21', name: 'ピチュー' },
+      { id: '22', name: 'ファルコ' },
+      { id: '23', name: 'マルス' },
+      { id: '24', name: 'ルキナ' },
+      { id: '25', name: 'こどもリンク' },
+      { id: '26', name: 'ガノンドロフ' },
+      { id: '27', name: 'ミュウツー' },
+      { id: '28', name: 'ロイ' },
+      { id: '29', name: 'クロム' },
+      { id: '30', name: 'Mr.ゲーム&ウォッチ' },
+      { id: '31', name: 'メタナイト' },
+      { id: '32', name: 'ピット' },
+      { id: '33', name: 'ブラックピット' },
+      { id: '34', name: 'ゼロスーツサムス' },
+      { id: '35', name: 'ワリオ' },
+      { id: '36', name: 'スネーク' },
+      { id: '37', name: 'アイク' },
+      { id: '38', name: 'ポケモントレーナー' },
+      { id: '39', name: 'ディディーコング' },
+      { id: '40', name: 'リュカ' },
+      { id: '41', name: 'ソニック' },
+      { id: '42', name: 'デデデ' },
+      { id: '43', name: 'オリマー' },
+      { id: '44', name: 'ルカリオ' },
+      { id: '45', name: 'ロボット' },
+      { id: '46', name: 'トゥーンリンク' },
+      { id: '47', name: 'ウルフ' },
+      { id: '48', name: 'むらびと' },
+      { id: '49', name: 'ロックマン' },
+      { id: '50', name: 'Wii Fit トレーナー' },
+      { id: '51', name: 'ロゼッタ&チコ' },
+      { id: '52', name: 'リトル・マック' },
+      { id: '53', name: 'ゲッコウガ' },
       { id: '54', name: '格闘Mii' },
       { id: '55', name: '剣術Mii' },
-      { id: '56', name: '射撃Mii' }
+      { id: '56', name: '射撃Mii' },
+      { id: '57', name: 'パルテナ' },
+      { id: '58', name: 'パックマン' },
+      { id: '59', name: 'ルフレ' },
+      { id: '60', name: 'シュルク' },
+      { id: '61', name: 'クッパJr.' },
+      { id: '62', name: 'ダックハント' },
+      { id: '63', name: 'リュウ' },
+      { id: '64', name: 'ケン' },
+      { id: '65', name: 'クラウド' },
+      { id: '66', name: 'カムイ' },
+      { id: '67', name: 'ベヨネッタ' },
+      { id: '68', name: 'インクリング' },
+      { id: '69', name: 'リドリー' },
+      { id: '70', name: 'シモン' },
+      { id: '71', name: 'リヒター' },
+      { id: '72', name: 'キングクルール' },
+      { id: '73', name: 'しずえ' },
+      { id: '74', name: 'ガオガエン' },
+      { id: '75', name: 'パックンフラワー' },
+      { id: '76', name: 'ジョーカー' },
+      { id: '77', name: '勇者' },
+      { id: '78', name: 'バンジョー&カズーイ' },
+      { id: '79', name: 'テリー' },
+      { id: '80', name: 'ベレト' },
+      { id: '81', name: 'ミェンミェン' },
+      { id: '82', name: 'スティーブ' },
+      { id: '83', name: 'セフィロス' },
+      { id: '84', name: 'ホムラ/ヒカリ' },
+      { id: '85', name: 'ヒカリ' },
+      { id: '86', name: 'カズヤ' },
+      { id: '87', name: 'ソラ' },
+      { id: '88', name: 'おまかせ' }
     ];
-    const characterMap = new Map([
-      ...popularCharacters.map(c => [c.id, c.name]),
-      ...allCharacters.map(c => [c.id, c.name])
-    ]);
+    const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
 
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
@@ -2456,6 +2532,7 @@ app.get('/api/user/:userId', async (req, res) => {
   }
 });
 
+// <div id="error" class="error"></div>消す
 app.get('/api/user/:userId/edit', async (req, res) => {
   const { userId } = req.params;
   const currentUser = req.user;
@@ -2473,6 +2550,99 @@ app.get('/api/user/:userId/edit', async (req, res) => {
     }
 
     const userData = userSnap.data();
+    const favoriteCharacters = userData.favoriteCharacters || [];
+
+    const allCharacters = [
+      { id: '01', name: 'マリオ' },
+      { id: '02', name: 'ドンキーコング' },
+      { id: '03', name: 'リンク' },
+      { id: '04', name: 'サムス' },
+      { id: '05', name: 'ダークサムス' },
+      { id: '06', name: 'ヨッシー' },
+      { id: '07', name: 'カービィ' },
+      { id: '08', name: 'フォックス' },
+      { id: '09', name: 'ピカチュウ' },
+      { id: '10', name: 'ルイージ' },
+      { id: '11', name: 'ネス' },
+      { id: '12', name: 'キャプテン・ファルコン' },
+      { id: '13', name: 'プリン' },
+      { id: '14', name: 'ピーチ' },
+      { id: '15', name: 'デイジー' },
+      { id: '16', name: 'クッパ' },
+      { id: '17', name: 'アイスクライマー' },
+      { id: '18', name: 'シーク' },
+      { id: '19', name: 'ゼルダ' },
+      { id: '20', name: 'ドクターマリオ' },
+      { id: '21', name: 'ピチュー' },
+      { id: '22', name: 'ファルコ' },
+      { id: '23', name: 'マルス' },
+      { id: '24', name: 'ルキナ' },
+      { id: '25', name: 'こどもリンク' },
+      { id: '26', name: 'ガノンドロフ' },
+      { id: '27', name: 'ミュウツー' },
+      { id: '28', name: 'ロイ' },
+      { id: '29', name: 'クロム' },
+      { id: '30', name: 'Mr.ゲーム&ウォッチ' },
+      { id: '31', name: 'メタナイト' },
+      { id: '32', name: 'ピット' },
+      { id: '33', name: 'ブラックピット' },
+      { id: '34', name: 'ゼロスーツサムス' },
+      { id: '35', name: 'ワリオ' },
+      { id: '36', name: 'スネーク' },
+      { id: '37', name: 'アイク' },
+      { id: '38', name: 'ポケモントレーナー' },
+      { id: '39', name: 'ディディーコング' },
+      { id: '40', name: 'リュカ' },
+      { id: '41', name: 'ソニック' },
+      { id: '42', name: 'デデデ' },
+      { id: '43', name: 'オリマー' },
+      { id: '44', name: 'ルカリオ' },
+      { id: '45', name: 'ロボット' },
+      { id: '46', name: 'トゥーンリンク' },
+      { id: '47', name: 'ウルフ' },
+      { id: '48', name: 'むらびと' },
+      { id: '49', name: 'ロックマン' },
+      { id: '50', name: 'Wii Fit トレーナー' },
+      { id: '51', name: 'ロゼッタ&チコ' },
+      { id: '52', name: 'リトル・マック' },
+      { id: '53', name: 'ゲッコウガ' },
+      { id: '54', name: '格闘Mii' },
+      { id: '55', name: '剣術Mii' },
+      { id: '56', name: '射撃Mii' },
+      { id: '57', name: 'パルテナ' },
+      { id: '58', name: 'パックマン' },
+      { id: '59', name: 'ルフレ' },
+      { id: '60', name: 'シュルク' },
+      { id: '61', name: 'クッパJr.' },
+      { id: '62', name: 'ダックハント' },
+      { id: '63', name: 'リュウ' },
+      { id: '64', name: 'ケン' },
+      { id: '65', name: 'クラウド' },
+      { id: '66', name: 'カムイ' },
+      { id: '67', name: 'ベヨネッタ' },
+      { id: '68', name: 'インクリング' },
+      { id: '69', name: 'リドリー' },
+      { id: '70', name: 'シモン' },
+      { id: '71', name: 'リヒター' },
+      { id: '72', name: 'キングクルール' },
+      { id: '73', name: 'しずえ' },
+      { id: '74', name: 'ガオガエン' },
+      { id: '75', name: 'パックンフラワー' },
+      { id: '76', name: 'ジョーカー' },
+      { id: '77', name: '勇者' },
+      { id: '78', name: 'バンジョー&カズーイ' },
+      { id: '79', name: 'テリー' },
+      { id: '80', name: 'ベレト' },
+      { id: '81', name: 'ミェンミェン' },
+      { id: '82', name: 'スティーブ' },
+      { id: '83', name: 'セフィロス' },
+      { id: '84', name: 'ホムラ/ヒカリ' },
+      { id: '85', name: 'ヒカリ' },
+      { id: '86', name: 'カズヤ' },
+      { id: '87', name: 'ソラ' },
+      { id: '88', name: 'おまかせ' }
+    ];
+
 
     res.send(`
       <!DOCTYPE html>
@@ -2499,16 +2669,47 @@ app.get('/api/user/:userId/edit', async (req, res) => {
             <input type="file" name="profileImage" accept="image/png,image/jpeg">
             <img src="${userData.profileImage || '/default.png'}" alt="プロフィール画像" id="profileImageDisplay">
           </label>
+          <label>
+            よく使うキャラ（1～5体）:
+            <button type="button" id="selectCharactersButton">キャラクターを選択する</button>
+            <div class="selected-characters" id="selectedCharacters">
+              ${favoriteCharacters.map(charId => {
+                const char = allCharacters.find(c => c.id === charId);
+                return char ? `<img src="/characters/${char.id}.png" alt="${char.name}" data-id="${char.id}">` : '';
+              }).join('')}
+            </div>
+            <input type="hidden" name="favoriteCharacters" id="favoriteCharactersInput" value="${favoriteCharacters.join(',')}">
+          </label>          
           <div id="error" class="error"></div>
           <button type="submit">保存</button>
         </form>
         <a href="/api/user/${userId}">戻る</a>
+
+        <div class="popup" id="characterPopup">
+          <div class="popup-content">
+            <button class="close-button" id="closePopup">閉じる</button>
+            <h2>キャラクターを選択（最大5体）</h2>
+            <div class="character-grid">
+              ${allCharacters.map(char => `
+                <div class="character-item ${favoriteCharacters.includes(char.id) ? 'selected' : ''}" data-id="${char.id}">
+                  <img src="/characters/${char.id}.png" alt="${char.name}">
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>        
 
         <script>
           const form = document.getElementById('profileForm');
           const profileImageInput = document.querySelector('input[name="profileImage"]');
           const profileImageDisplay = document.getElementById('profileImageDisplay');
           const errorDiv = document.getElementById('error');
+          const selectCharactersButton = document.getElementById('selectCharactersButton');
+          const characterPopup = document.getElementById('characterPopup');
+          const closePopup = document.getElementById('closePopup');
+          const selectedCharactersDiv = document.getElementById('selectedCharacters');
+          const favoriteCharactersInput = document.getElementById('favoriteCharactersInput');
+          let selectedCharacters = ${JSON.stringify(favoriteCharacters)};
 
           profileImageInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -2544,8 +2745,46 @@ app.get('/api/user/:userId/edit', async (req, res) => {
             }
           });
 
+          selectCharactersButton.addEventListener('click', () => {
+            characterPopup.style.display = 'flex';
+          });
+
+          closePopup.addEventListener('click', () => {
+            characterPopup.style.display = 'none';
+          });
+
+          document.querySelectorAll('.character-item').forEach(item => {
+            item.addEventListener('click', () => {
+              const charId = item.dataset.id;
+              if (selectedCharacters.includes(charId)) {
+                selectedCharacters = selectedCharacters.filter(id => id !== charId);
+                item.classList.remove('selected');
+              } else if (selectedCharacters.length < 5) {
+                selectedCharacters.push(charId);
+                item.classList.add('selected');
+              } else {
+                errorDiv.textContent = '最大5体まで選択できます';
+                return;
+              }
+              updateSelectedCharacters();
+            });
+          });
+
+          function updateSelectedCharacters() {
+            selectedCharactersDiv.innerHTML = selectedCharacters.map(charId => {
+              const char = ${JSON.stringify(allCharacters)}.find(c => c.id === charId);
+              return char ? \`<img src="/characters/\${char.id}.png" alt="\${char.name}" data-id="\${char.id}">\` : '';
+            }).join('');
+            favoriteCharactersInput.value = selectedCharacters.join(',');
+            errorDiv.textContent = '';
+          }
+
           form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (selectedCharacters.length === 0) {
+              errorDiv.textContent = '少なくとも1体のキャラクターを選択してください';
+              return;
+            }
             const formData = new FormData(form);
             try {
               const response = await fetch('/api/user/${userId}/update', {
@@ -2594,11 +2833,33 @@ app.post('/api/user/:userId/update', async (req, res) => {
     const userData = userSnap.data();
     const handleName = (req.body.handleName || '').trim();
     const bio = (req.body.bio || '').trim();
+    const favoriteCharacters = (req.body.favoriteCharacters || '').trim();
     const profileImage = req.files?.profileImage;
 
     if (!handleName) {
       return res.status(400).send('ハンドルネームは必須です');
     }
+    if (handleName.length > 10) {
+      return res.status(400).send('ハンドルネームは10文字以内にしてください');
+    }
+    if (bio.length > 1000) {
+      return res.status(400).send('自己紹介は1000文字以内にしてください');
+    }
+
+    let charArray = [];
+    if (favoriteCharacters) {
+      charArray = favoriteCharacters.split(',').filter(id => id);
+      if (charArray.length > 5) {
+        return res.status(400).send('キャラクターは最大5体まで選択できます');
+      }
+      if (charArray.length === 0) {
+        return res.status(400).send('少なくとも1体のキャラクターを選択してください');
+      }
+      const allCharacterIds = Array.from({ length: 88 }, (_, i) => String(i + 1).padStart(2, '0'));
+      if (!charArray.every(id => allCharacterIds.includes(id))) {
+        return res.status(400).send('無効なキャラクターが選択されています');
+      }
+    }    
 
     if (profileImage) {
       if (!['image/png', 'image/jpeg'].includes(profileImage.mimetype)) {
@@ -2621,7 +2882,8 @@ app.post('/api/user/:userId/update', async (req, res) => {
 
     const updateData = {
       handleName: handleName.slice(0, 10),
-      bio: bio.slice(0, 1000)
+      bio: bio.slice(0, 1000),
+      favoriteCharacters: charArray
     };
 
     if (profileImage) {
