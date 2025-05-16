@@ -1873,7 +1873,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.onclick = canSelectChar ? () => {
                     const charPopup = document.getElementById('charPopup');
                     const overlay = document.getElementById('overlay');
-                    if (charPopup) charPopup.style.display = 'block';
+                    if (charPopup) charPopup.style.display = 'flex';
                     if (overlay) overlay.style.display = 'block';
                   } : null;
                 });
