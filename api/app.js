@@ -2023,16 +2023,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
               <button class="cancel-btn" onclick="cancelMatch()">対戦中止</button>
             </div>
-            <p><a href="/api/">戻る</a></p>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">
                 <textarea id="messageInput" maxlength="500" oninput="updateCharCount()" placeholder="メッセージを入力..."></textarea>
-              </div>
-              <div class="chat-controls">
-                <span id="charCount">0/500</span>
                 <button onclick="sendMessage()">送信</button>
-             </div>
+              </div>
             </div>
             <script>
               document.getElementById('closePopup').addEventListener('click', () => {

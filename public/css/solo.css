@@ -58,36 +58,6 @@
     opacity: 1.0 !important;
     filter: none !important;
   }
-  .send-btn {
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-  }
-  .send-btn.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-  }
-  .result-btn {
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-  }
-  .result-btn.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-  }
-  .cancel-btn {
-    padding: 10px 20px;
-    margin: 5px;
-    cursor: pointer;
-  }
-  .cancel-btn.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    cursor: not-allowed;
-  }
   .match-container {
     max-width: 1000px;
     margin: 0 auto;
@@ -133,12 +103,6 @@
     width: 100%;
     height: auto;
   }
-.match-container .button-group {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    justify-content: center;
-}
   .chat-container {
     margin: 20px 0;
     border: 1px solid #ccc;
@@ -252,6 +216,90 @@
 }
 
 
+.match-container .button-group {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: center;
+}
+.send-btn {
+  background-color: #4caf50;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: filter 0.2s;
+}
+.send-btn:hover {
+  filter: brightness(85%);
+}
+.result-btn[onclick*="'win'"] {
+  background-color: #e57373;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: filter 0.2s;
+}
+.result-btn[onclick*="'win'"]:hover {
+  filter: brightness(85%);
+}
+.result-btn[onclick*="'lose'"] {
+  background-color: #64b5f6;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: filter 0.2s;
+}
+.result-btn[onclick*="'lose'"]:hover {
+  filter: brightness(85%);
+}
+.cancel-btn {
+  background-color: #ffca28;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: filter 0.2s;
+}
+.cancel-btn:hover {
+  filter: brightness(85%);
+}
+
+.send-btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.result-btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.cancel-btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+
   @media (max-width: 768px) {
     .player-table {
       flex-direction: column;
@@ -267,9 +315,13 @@
 
     .match-container .button-group {
       flex-direction: column;
-      gap: 5px;
+      gap: 10px;
       align-items: center;
       justify-content: center;
+    }
+    .send-btn, .result-btn, .cancel-btn {
+      width: 100%;
+      max-width: 200px;
     }
 
     .stage-container .stage-btn {
