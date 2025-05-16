@@ -3741,8 +3741,8 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 hostRatingElement.innerText = newHostRating;
                 guestRatingElement.innerText = newGuestRating;
               } else {
-                hostRatingElement.innerText = ${hostTeamRating};
-                guestRatingElement.innerText = ${guestTeamRating};
+                hostRatingElement.innerText = '${hostTeamRating}';
+                guestRatingElement.innerText = '${guestTeamRating}';
               }
             });
 
