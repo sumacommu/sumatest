@@ -3407,9 +3407,12 @@ app.get('/api/team/check', async (req, res) => {
                   <div class="waiting-info-itemm">レート：</div>
                   <div class="waiting-info-itemm">レート制限：</div>
                 </div>
+
+
+
                 <div class="waiting-info-right">
-                  <div class="waiting-info-itemm">${hostName}</div>
-                  <div class="waiting-info-itemm">${tagPartnerName}</div>
+                  <div class="waiting-info-itemm"><a href="/api/user/${userId}" class="user-link">${hostName}</a></div>
+                  <div class="waiting-info-itemm"><a href="/api/user/${tagPartnerId}" class="user-link">${tagPartnerName}</a></div>
                   <div class="waiting-info-itemm">${teamRating}</div>
                   <div class="waiting-info-itemm">${teamRatingRange === null ? '制限なし' : `${teamRatingRange}以内`}</div>
                 </div>
