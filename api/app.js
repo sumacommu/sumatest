@@ -1146,6 +1146,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     res.send(`
       <html>
         <head>
+          <link rel="stylesheet" href="/css/general.css">
           <link rel="stylesheet" href="/css/solo.css">
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
