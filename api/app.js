@@ -3738,11 +3738,11 @@ app.get('/api/team/setup/:matchId', async (req, res) => {
                 const guestRatingChange = data.teamRatingChanges['${guestId}'] || 0;
                 const newHostRating = ${hostTeamRating} + hostRatingChange;
                 const newGuestRating = ${guestTeamRating} + guestRatingChange;
-                hostRatingElement.innerText = 'レート: ' + newHostRating;
-                guestRatingElement.innerText = 'レート: ' + newGuestRating;
+                hostRatingElement.innerText = newHostRating;
+                guestRatingElement.innerText = newGuestRating;
               } else {
-                hostRatingElement.innerText = 'レート: ${hostTeamRating}';
-                guestRatingElement.innerText = 'レート: ${guestTeamRating}';
+                hostRatingElement.innerText = ${hostTeamRating}';
+                guestRatingElement.innerText = ${guestTeamRating}';
               }
             });
 
