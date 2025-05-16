@@ -4,6 +4,7 @@
   #miiInput {
     display: none;
   }
+
   .char-btn {
     border: none;
     background: none;
@@ -37,7 +38,7 @@
     background: none;
     padding: 0;
     margin: 0;
-    flex: 0 0 calc((100% - 10px) / 2);
+    flex: 0 0 calc((100% - 30px) / 4);
     box-sizing: border-box;
   }
   .stage-btn.temporary {
@@ -207,6 +208,17 @@
     font-size: 0.9em;
     margin-left: 10px;
   }
+
+.player-info p img,
+.section .popular.char-btn img {
+      width: 32px;
+      height: 32px;
+}
+.section#miiInput input#miiMoves {
+    width: 80px;
+    max-width: none;
+}
+
   @media (max-width: 768px) {
     .player-table {
       flex-direction: column;
@@ -228,8 +240,7 @@
     }
 
     .stage-container .stage-btn {
-      flex: 0 0 calc((100% - 10px) / 2);
-
+      flex: 0 0 calc((100% - 30px) / 4);
     }
     .chat-controls button {
       width: 80px;
