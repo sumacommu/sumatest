@@ -250,6 +250,14 @@ table td {
     padding: 8px;
 }
 
+.opponent-column .user-link {
+    color: #000;
+    text-decoration: none;
+}
+.opponent-column .user-link:hover {
+    color: #333;
+}
+
 .opponent-row {
     display: flex;
     align-items: center;

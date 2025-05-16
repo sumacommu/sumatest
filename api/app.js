@@ -2694,7 +2694,7 @@ app.get('/api/user/:userId', async (req, res) => {
           <td class="date-column">${formattedDate}</td>
           <td class="opponent-column opponent-column-solo">
             <img src="${opponentProfileImage}" class="opponent-icon">
-            <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+            <a href="/api/user/${opponentId}" class="user-link">${opponentHandleName}</a>
           </td>
           <td class="match-details-column">${matchDetails || '-'}</td>
           <td class="result-column ${resultClass}">${resultText}</td>
@@ -2753,11 +2753,11 @@ app.get('/api/user/:userId', async (req, res) => {
           <td class="opponent-column opponent-column-team">
             <div class="opponent-row">
               <img src="${opponentProfileImage}" class="opponent-icon">
-              <a href="/api/user/${opponentId}">${opponentHandleName}</a>
+              <a href="/api/user/${opponentId}" class="user-link">${opponentHandleName}</a>
             </div>
             <div class="opponent-row">
               <img src="${opponentTagPartnerProfileImage}" class="opponent-icon">
-              ${opponentTagPartnerId ? `<a href="/api/user/${opponentTagPartnerId}">${opponentTagPartnerHandleName}</a>` : opponentTagPartnerHandleName}
+              ${opponentTagPartnerId ? `<a href="/api/user/${opponentTagPartnerId}" class="user-link">${opponentTagPartnerHandleName}</a>` : opponentTagPartnerHandleName}
             </div>
           </td>
           <td class="result-column ${resultClass}">${resultText}</td>
