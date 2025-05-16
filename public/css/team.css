@@ -50,7 +50,8 @@ color: #000;
 text-decoration: none;
 }
 .player-info-right .user-link:hover {
-color: #333;
+  color: #555;
+  text-decoration: underline;
 }
 
 .player-row { display: flex; align-items: center; justify-content: flex-start; margin: 10px 0; }

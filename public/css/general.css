@@ -255,8 +255,9 @@ table td {
     text-decoration: none;
 }
 .opponent-column .user-link:hover {
-    color: #333;
-}
+    color: #555;
+    text-decoration: underline;
+  }
 
 .opponent-row {
     display: flex;
@@ -430,9 +431,9 @@ table td {
     text-decoration: none;
 }
 .waiting-info-right .user-link:hover {
-    color: #000;
-    text-decoration: none;
-}
+    color: #555;
+    text-decoration: underline;
+  }
 
 @media (max-width: 768px) {
     .site-header {

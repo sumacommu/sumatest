@@ -200,7 +200,8 @@
   text-decoration: none;
 }
 .player-info-right .user-link:hover {
-  color: #333;
+  color: #555;
+  text-decoration: underline;
 }
 
 .history-table img {
