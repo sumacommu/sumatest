@@ -2007,8 +2007,8 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <button class="result-btn" onclick="saveSelections('${matchId}', 'win')">勝ち</button>
               <button class="result-btn" onclick="saveSelections('${matchId}', 'lose')">負け</button>
               <button class="cancel-btn" onclick="cancelMatch()">対戦中止</button>
-              <p><a href="/api/">戻る</a></p>
             </div>
+            <p><a href="/api/">戻る</a></p>
             <div class="chat-container">
               <div class="chat-log" id="chatLog"></div>
               <div class="chat-input">

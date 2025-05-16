@@ -154,9 +154,12 @@
     width: 100%;
     height: auto;
   }
-  .button-group {
-    text-align: center;
-  }
+.match-container .button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+}
   .chat-container {
     margin: 20px 0;
     border: 1px solid #ccc;
@@ -216,6 +219,14 @@
     .match-container {
       padding: 10px;
     }
+
+    .match-container .button-group {
+      flex-direction: column;
+      gap: 5px;
+      align-items: center;
+      justify-content: center;
+    }
+
     .stage-container .stage-btn {
       flex: 0 0 calc((100% - 10px) / 2);
 
