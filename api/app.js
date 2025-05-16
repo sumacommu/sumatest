@@ -1973,13 +1973,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                       }).join('')
                     : '未設定')}
               <button class="select-char-btn">全キャラから選ぶ</button>
-              <div id="charPopup" class="popup">
-                ${allCharacters.map(char => `
-                  <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
-                    <img src="/characters/${char.id}.png">
-                  </button>
-                `).join('')}
+              <div class="popup" id="charPopup">
+                <div class="popup-content">
+                  <button class="close-button" id="closePopup">閉じる</button>
+                  <h2>キャラクターを選択</h2>
+                  <div class="character-grid">
+                    ${allCharacters.map(char => `
+                      <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+                        <img src="/characters/${char.id}.png" alt="${char.name}">
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
               </div>
+              <div class="overlay" id="overlay"></div>
             </div>
             <div class="section" id="miiInput">
               <h2>Miiファイター設定</h2>
@@ -2011,6 +2018,12 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                 <button onclick="sendMessage()">送信</button>
              </div>
             </div>
+            <script>
+              document.getElementById('closePopup').addEventListener('click', () => {
+                document.getElementById('charPopup').style.display = 'none';
+                document.getElementById('overlay').style.display = 'none';
+              });
+            </script>
           </div>
         </body>
       </html>
