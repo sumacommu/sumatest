@@ -1959,7 +1959,6 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             </table>
             <p id="guide"></p>
             <div class="section">
-              <h2>キャラクター選択</h2>
               ${isHost
                 ? (hostFavoriteCharacters.length > 0
                     ? hostFavoriteCharacters.map(charId => {
