@@ -398,7 +398,10 @@ table td {
 .waiting-info-right .waiting-info-item:nth-child(n+2) {
     min-height: 44px;
 }
-
+.waiting-info-left .waiting-info-itemm:nth-child(n+3),
+.waiting-info-right .waiting-info-itemm:nth-child(n+3) {
+    min-height: 44px;
+}
 .waiting-info-left img {
   width: 64px;
   height: 64px;
