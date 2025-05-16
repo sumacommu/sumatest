@@ -2009,7 +2009,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     <div class="player-info-item">キャラ</div>
                   </div>
                   <div class="player-info-right">
-                    <div class="player-info-item"><a href="/api/user/${userId}" class="user-link">${hostName}</a></div>
+                    <div class="player-info-item"><a href="/api/user/${hostId}" class="user-link">${hostName}</a></div>
                     <div class="player-info-item">${hostsoloRating}</div>
                     <div class="player-info-item">
                       ${hostdisplayCharacters.length > 0
@@ -2029,7 +2029,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                     <div class="player-info-item">キャラ</div>
                   </div>
                   <div class="player-info-right">
-                    <div class="player-info-item"><a href="/api/user/${hostId}" class="user-link">${guestName}</a></div>
+                    <div class="player-info-item"><a href="/api/user/${guestId}" class="user-link">${guestName}</a></div>
                     <div class="player-info-item">${guestsoloRating}</div>
                     <div class="player-info-item">
                       ${guestdisplayCharacters.length > 0
