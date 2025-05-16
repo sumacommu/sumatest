@@ -1021,21 +1021,14 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     const guestsoloRating = guestSnap.data().soloRating || 1500;
     const hostProfileImage = hostSnap.data().profileImage || '/default.png';
     const guestProfileImage = guestSnap.data().profileImage || '/default.png';
+    const hostFavoriteCharacters = hostSnap.data().favoriteCharacters || [];
+    const guestFavoriteCharacters = guestSnap.data().favoriteCharacters || [];
 
     const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
     const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
 
-    const allCharacters = Array.from({ length: 87 }, (_, i) => {
-      const id = String(i + 1).padStart(2, '0');
-      return { id, name: `キャラ${id}` };
-    });
-    const popularCharacters = [
-      { id: '01', name: 'マリオ' },
-      { id: '03', name: 'リンク' },
-      { id: '54', name: '格闘Mii' },
-      { id: '55', name: '剣術Mii' },
-      { id: '56', name: '射撃Mii' }
-    ];
+    const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
+
     const stages = [
       { id: 'Random', name: 'ランダム' },
       { id: 'BattleField', name: '戦場' },
@@ -1047,6 +1040,108 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       { id: 'Smashville', name: 'すま村' }
     ];
     const bannedStages = [...(hostChoices.bannedStages || []), ...(guestChoices.bannedStages || [])];
+
+    let hostdisplayCharacters = [];
+    try {
+      const matchesRef10 = db.collection('matches');
+      const hostMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('userId', '==', hostId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const guestMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('guestId', '==', hostId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const [hostMatchesSnap10, guestMatchesSnap10] = await Promise.all([
+        hostMatchesQuery10.get(),
+        guestMatchesQuery10.get()
+      ]);
+
+      const charUsage = new Map();
+      const collectCharacters = (matchesSnap, isHost) => {
+        matchesSnap.forEach(doc => {
+          const match = doc.data();
+          const choices = isHost ? match.hostChoices : match.guestChoices;
+          if (choices) {
+            for (let i = 1; i <= 3; i++) {
+              const charId = choices[`character${i}`];
+              if (charId && charId !== '00') {
+                charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+              }
+            }
+          }
+        });
+      };
+      collectCharacters(hostMatchesSnap10, true);
+      collectCharacters(guestMatchesSnap10, false);
+
+      hostdisplayCharacters = Array.from(charUsage.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([charId]) => charId);
+    } catch (error) {
+      if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+        console.error('インデックスが必要:', error.message);
+        hostdisplayCharacters = [];
+      } else {
+        throw error;
+      }
+    }
+
+    let guestdisplayCharacters = [];
+    try {
+      const matchesRef10 = db.collection('matches');
+      const hostMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('userId', '==', guestId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const guestMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('guestId', '==', guestId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const [hostMatchesSnap10, guestMatchesSnap10] = await Promise.all([
+        hostMatchesQuery10.get(),
+        guestMatchesQuery10.get()
+      ]);
+
+      const charUsage = new Map();
+      const collectCharacters = (matchesSnap, isHost) => {
+        matchesSnap.forEach(doc => {
+          const match = doc.data();
+          const choices = isHost ? match.hostChoices : match.guestChoices;
+          if (choices) {
+            for (let i = 1; i <= 3; i++) {
+              const charId = choices[`character${i}`];
+              if (charId && charId !== '00') {
+                charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+              }
+            }
+          }
+        });
+      };
+      collectCharacters(hostMatchesSnap10, true);
+      collectCharacters(guestMatchesSnap10, false);
+
+      guestdisplayCharacters = Array.from(charUsage.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([charId]) => charId);
+    } catch (error) {
+      if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+        console.error('インデックスが必要:', error.message);
+        guestdisplayCharacters = [];
+      } else {
+        throw error;
+      }
+    }
 
     res.send(`
       <html>
@@ -1831,18 +1926,24 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <div class="player-info">
                 <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
                 <p>レート: ${hostsoloRating}</p>
-                <p>よく使うキャラ:</p>
-                ${popularCharacters.map(char => `
-                  <img src="/characters/${char.id}.png" alt="${char.name}">
-                `).join('')}
+                <p>使用キャラ:
+                  ${hostdisplayCharacters.length > 0
+                    ? hostdisplayCharacters.map(charId => `
+                        <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
+                      `).join('')
+                    : '対戦履歴無し'}
+                </p>
               </div>
               <div class="player-info">
                 <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
                 <p>レート: ${guestsoloRating}</p>
-                <p>よく使うキャラ:</p>
-                ${popularCharacters.map(char => `
-                  <img src="/characters/${char.id}.png" alt="${char.name}">
-                `).join('')}
+                <p>使用キャラ:
+                  ${guestdisplayCharacters.length > 0
+                    ? guestdisplayCharacters.map(charId => `
+                        <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}">
+                      `).join('')
+                    : '対戦履歴無し'}
+                </p>
               </div>
             </div>
             <table class="history-table">
@@ -1858,11 +1959,19 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p id="guide"></p>
             <div class="section">
               <h2>キャラクター選択</h2>
-              ${popularCharacters.map(char => `
-                <button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
-                  <img src="/characters/${char.id}.png">
-                </button>
-              `).join('')}
+              ${isHost
+                ? (hostFavoriteCharacters.length > 0
+                    ? hostFavoriteCharacters.map(charId => {
+                        const char = allCharacters.find(c => c.id === charId);
+                        return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
+                      }).join('')
+                    : '未設定')
+                : (guestFavoriteCharacters.length > 0
+                    ? guestFavoriteCharacters.map(charId => {
+                        const char = allCharacters.find(c => c.id === charId);
+                        return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
+                      }).join('')
+                    : '未設定')}
               <button class="select-char-btn">全キャラから選ぶ</button>
               <div id="charPopup" class="popup">
                 ${allCharacters.map(char => `
