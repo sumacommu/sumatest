@@ -179,7 +179,6 @@ passport.use(new GoogleStrategy({
         handleName: '',
         bio: '',
         profileImage: '/default.png',
-        email: profile.emails[0].value,
         createdAt: new Date().toISOString(),
         matchCount: 0,
         reportCount: 0,
