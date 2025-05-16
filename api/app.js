@@ -720,6 +720,14 @@ app.get('/api/solo/check', async (req, res) => {
     const db = admin.firestore();
     const userRef = admin.firestore().collection('users').doc(userId);
     const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return res.status(404).send(`
+        <html><body>
+          <h1>ユーザーが見つかりません</h1>
+          <p><a href="/api/">ホームに戻る</a></p>
+        </body></html>
+      `);
+    }
     const userData = userSnap.exists ? userSnap.data() : {};
     const soloRatingRange = userData.soloRatingRange ?? 200;
 
@@ -786,19 +794,29 @@ app.get('/api/solo/check', async (req, res) => {
           <div class="container">
             <div class="match-section">
               <h1>マッチング待機中</h1>
-              <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
-              <p>使用キャラ:
-                ${displayCharacters.length > 0
-                  ? displayCharacters.map(charId => `
-                      <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
-                    `).join('')
-                  : '対戦履歴無し'}
-              </p>
-              <p>レート: ${req.user.soloRating || 1500}</p>
-              <p>レート制限: ${soloRatingRange === null ? '制限なし' : `${soloRatingRange}以内`}</p>
+              <div class="player-info-grid">
+                <div class="player-info-left">
+                  <div class="player-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
+                  <div class="player-info-item">使用キャラ：</div>
+                  <div class="player-info-item">レート：</div>
+                  <div class="player-info-item">レート制限：</div>
+                </div>
+                <div class="player-info-right">
+                  <div class="player-info-item">${hostName}</div>
+                  <div class="player-info-item">
+                    ${displayCharacters.length > 0
+                      ? displayCharacters.map(charId => `
+                          <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
+                        `).join('')
+                      : '対戦履歴無し'}
+                  </div>
+                  <div class="player-info-item">${req.user.soloRating || 1500}</div>
+                  <div class="player-info-item">${soloRatingRange === null ? '制限なし' : `${soloRatingRange}以内`}</div>
+                </div>
+              </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/solo/update" method="POST">
-                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
                 <div class="button-group">
                   <button type="submit">IDを更新</button>
                   <button type="button" id="cancelButton">ルームを削除する</button>
