@@ -3402,16 +3402,16 @@ app.get('/api/team/check', async (req, res) => {
               <h1>チームマッチング待機中</h1>
               <div class="waiting-info-grid">
                 <div class="waiting-info-left">
-                  <div class="waiting-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
-                  <div class="waiting-info-item"><img src="${tagPartnerProfileImage}" alt="${tagPartnerProfileImage}のプロフィール画像"></div>
-                  <div class="waiting-info-item">レート：</div>
-                  <div class="waiting-info-item">レート制限：</div>
+                  <div class="waiting-info-itemm"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
+                  <div class="waiting-info-itemm"><img src="${tagPartnerProfileImage}" alt="${tagPartnerProfileImage}のプロフィール画像"></div>
+                  <div class="waiting-info-itemm">レート：</div>
+                  <div class="waiting-info-itemm">レート制限：</div>
                 </div>
                 <div class="waiting-info-right">
-                  <div class="waiting-info-item">${hostName}</div>
-                  <div class="waiting-info-item">${tagPartnerName}</div>
-                  <div class="waiting-info-item">${teamRating}</div>
-                  <div class="waiting-info-item">${teamRatingRange === null ? '制限なし' : `${teamRatingRange}以内`}</div>
+                  <div class="waiting-info-itemm">${hostName}</div>
+                  <div class="waiting-info-itemm">${tagPartnerName}</div>
+                  <div class="waiting-info-itemm">${teamRating}</div>
+                  <div class="waiting-info-itemm">${teamRatingRange === null ? '制限なし' : `${teamRatingRange}以内`}</div>
                 </div>
               </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
