@@ -30,12 +30,13 @@
     pointer-events: none;
     cursor: not-allowed;
   }
-  .stage-btn {
+  .stage-container .stage-btn {
     opacity: 1.0;
     transition: opacity 0.3s, filter 0.3s, border 0.3s, background-color 0.3s;
     border: none;
     background: none;
     padding: 0;
+    margin: 0;
     flex: 0 0 calc((100% - 10px) / 2);
     box-sizing: border-box;
   }
@@ -215,8 +216,9 @@
     .match-container {
       padding: 10px;
     }
-    .stage-btn {
+    .stage-container .stage-btn {
       flex: 0 0 calc((100% - 10px) / 2);
+
     }
     .chat-controls button {
       width: 80px;
