@@ -1095,13 +1095,13 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
       const matchesRef10 = db.collection('matches');
       const hostMatchesQuery10 = matchesRef10
         .where('type', '==', 'solo')
-        .where('userId', '==', hostId)
+        .where('userId', '==', guestId)
         .where('status', '==', 'finished')
         .orderBy('timestamp', 'desc')
         .limit(5);
       const guestMatchesQuery10 = matchesRef10
         .where('type', '==', 'solo')
-        .where('guestId', '==', hostId)
+        .where('guestId', '==', guestId)
         .where('status', '==', 'finished')
         .orderBy('timestamp', 'desc')
         .limit(5);
