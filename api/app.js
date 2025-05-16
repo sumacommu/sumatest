@@ -2051,55 +2051,7 @@ app.get('/api/user/:userId', async (req, res) => {
     ];
     const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
 
-    const matchesRef10 = db.collection('matches');
-    const hostMatchesQuery10 = matchesRef10
-      .where('type', '==', 'solo')
-      .where('userId', '==', userId)
-      .where('status', '==', 'finished')
-      .orderBy('timestamp', 'desc')
-      .limit(5);
-    const guestMatchesQuery10 = matchesRef10
-      .where('type', '==', 'solo')
-      .where('guestId', '==', userId)
-      .where('status', '==', 'finished')
-      .orderBy('timestamp', 'desc')
-      .limit(5);
-    const [hostMatchesSnap10, guestMatchesSnap10] = await Promise.all([
-      hostMatchesQuery10.get(),
-      guestMatchesQuery10.get()
-    ]);
 
-    const charUsage = new Map();
-    const collectCharacters = (matchesSnap, isHost) => {
-      matchesSnap.forEach(doc => {
-        const match = doc.data();
-        const choices = isHost ? match.hostChoices : match.guestChoices;
-        if (choices) {
-          for (let i = 1; i <= 3; i++) {
-            const charId = choices[`character${i}`];
-            if (charId && charId !== '00') {
-              charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
-            }
-          }
-        }
-      });
-    };
-    collectCharacters(hostMatchesSnap10, true);
-    collectCharacters(guestMatchesSnap10, false);
-
-    const topCharacters = Array.from(charUsage.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 2)
-      .map(([charId]) => charId);
-
-    const displayCharacters = [...topCharacters];
-    const remainingSlots = 5 - displayCharacters.length;
-    if (remainingSlots > 0) {
-      const uniqueFavorites = userData.favoriteCharacters.filter(
-        charId => !topCharacters.includes(charId)
-      );
-      displayCharacters.push(...uniqueFavorites.slice(0, remainingSlots));
-    }
 
     const isOwnProfile = currentUser && currentUser.id === userId;
     const isNewUser = isOwnProfile && !userData.handleName;
