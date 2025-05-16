@@ -366,45 +366,44 @@ table td {
     font-size: 14px;
 }
 
-.player-info-grid {
+.waiting-info-grid {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 10px;
     align-items: center;
 }
-.player-info-left {
+.waiting-info-left {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
-.player-info-right {
+.waiting-info-right {
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 250px;
-    font-size: 1.5em;
     justify-content: flex-start;
 }
-.player-info-item {
+.waiting-info-item {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 64px;
 }
-.player-info-right .player-info-item {
+.waiting-info-right .waiting-info-item {
   text-align: center;
   justify-content: center;
 }
-.player-info-left .player-info-item:nth-child(n+2),
-.player-info-right .player-info-item:nth-child(n+2) {
+.waiting-info-left .waiting-info-item:nth-child(n+2),
+.waiting-info-right .waiting-info-item:nth-child(n+2) {
     min-height: 44px;
 }
 
-.player-info-left img {
+.waiting-info-left img {
   width: 64px;
   height: 64px;
 }
-.player-info-right img {
+.waiting-info-right img {
   width: 44px;
   height: 44px;
   margin: 0 2.5px;

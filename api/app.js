@@ -794,24 +794,24 @@ app.get('/api/solo/check', async (req, res) => {
           <div class="container">
             <div class="match-section">
               <h1>マッチング待機中</h1>
-              <div class="player-info-grid">
-                <div class="player-info-left">
-                  <div class="player-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
-                  <div class="player-info-item">使用キャラ：</div>
-                  <div class="player-info-item">レート：</div>
-                  <div class="player-info-item">レート制限：</div>
+              <div class="waiting-info-grid">
+                <div class="waiting-info-left">
+                  <div class="waiting-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
+                  <div class="waiting-info-item">使用キャラ：</div>
+                  <div class="waiting-info-item">レート：</div>
+                  <div class="waiting-info-item">レート制限：</div>
                 </div>
-                <div class="player-info-right">
-                  <div class="player-info-item">${hostName}</div>
-                  <div class="player-info-item">
+                <div class="waiting-info-right">
+                  <div class="waiting-info-item">${hostName}</div>
+                  <div class="waiting-info-item">
                     ${displayCharacters.length > 0
                       ? displayCharacters.map(charId => `
                           <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
                         `).join('')
                       : '対戦履歴無し'}
                   </div>
-                  <div class="player-info-item">${req.user.soloRating || 1500}</div>
-                  <div class="player-info-item">${soloRatingRange === null ? '制限なし' : `${soloRatingRange}以内`}</div>
+                  <div class="waiting-info-item">${req.user.soloRating || 1500}</div>
+                  <div class="waiting-info-item">${soloRatingRange === null ? '制限なし' : `${soloRatingRange}以内`}</div>
                 </div>
               </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
