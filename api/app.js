@@ -722,6 +722,57 @@ app.get('/api/solo/check', async (req, res) => {
     const userData = userSnap.exists ? userSnap.data() : {};
     const soloRatingRange = userData.soloRatingRange ?? 200;
 
+    let displayCharacters = [];
+    try {
+      const matchesRef10 = db.collection('matches');
+      const hostMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('userId', '==', userId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const guestMatchesQuery10 = matchesRef10
+        .where('type', '==', 'solo')
+        .where('guestId', '==', userId)
+        .where('status', '==', 'finished')
+        .orderBy('timestamp', 'desc')
+        .limit(5);
+      const [hostMatchesSnap10, guestMatchesSnap10] = await Promise.all([
+        hostMatchesQuery10.get(),
+        guestMatchesQuery10.get()
+      ]);
+
+      const charUsage = new Map();
+      const collectCharacters = (matchesSnap, isHost) => {
+        matchesSnap.forEach(doc => {
+          const match = doc.data();
+          const choices = isHost ? match.hostChoices : match.guestChoices;
+          if (choices) {
+            for (let i = 1; i <= 3; i++) {
+              const charId = choices[`character${i}`];
+              if (charId && charId !== '00') {
+                charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+              }
+            }
+          }
+        });
+      };
+      collectCharacters(hostMatchesSnap10, true);
+      collectCharacters(guestMatchesSnap10, false);
+
+      displayCharacters = Array.from(charUsage.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([charId]) => charId);
+    } catch (error) {
+      if (error.code === 'failed-precondition' && error.message.includes('requires an index')) {
+        console.error('インデックスが必要:', error.message);
+        displayCharacters = [];
+      } else {
+        throw error;
+      }
+    }    
+
     res.send(`
       <html>
         <head>
@@ -734,6 +785,13 @@ app.get('/api/solo/check', async (req, res) => {
             <div class="match-section">
               <h1>マッチング待機中</h1>
               <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
+              <p>使用キャラ:
+                ${displayCharacters.length > 0
+                  ? displayCharacters.map(charId => `
+                      <img src="/characters/${charId}.png" alt="${characterMap.get(charId) || '不明'}" class="char-icon">
+                    `).join('')
+                  : '対戦履歴無し'}
+              </p>
               <p>レート: ${req.user.soloRating || 1500}</p>
               <p>レート制限: ${soloRatingRange === null ? '制限なし' : `${soloRatingRange}以内`}</p>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
