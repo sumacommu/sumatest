@@ -177,7 +177,13 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: 250px;
     font-size: 1.5em;
+    justify-content: flex-start;
+}
+.player-info-right .player-info-item {
+  text-align: center;
+  justify-content: center;
 }
 .player-info-item {
     display: flex;
@@ -185,7 +191,10 @@
     justify-content: center;
     min-height: 64px;
 }
-
+.player-info-left .player-info-item:nth-child(n+2),
+.player-info-right .player-info-item:nth-child(n+2) {
+    min-height: 44px;
+}
 .player-info-left img {
   width: 64px;
   height: 64px;

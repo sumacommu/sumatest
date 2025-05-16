@@ -816,7 +816,7 @@ app.get('/api/solo/check', async (req, res) => {
               </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/solo/update" method="POST">
-                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
+                <label>Switch部屋ID <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
                 <div class="button-group">
                   <button type="submit">IDを更新</button>
                   <button type="button" id="cancelButton">ルームを削除する</button>
