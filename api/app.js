@@ -717,11 +717,13 @@ app.get('/api/solo/check', async (req, res) => {
     const hostProfileImage = req.user.profileImage || '/default.png';
     const hostName = req.user.handleName || 'ゲスト';
 
+    const db = admin.firestore();
     const userRef = admin.firestore().collection('users').doc(userId);
     const userSnap = await userRef.get();
     const userData = userSnap.exists ? userSnap.data() : {};
     const soloRatingRange = userData.soloRatingRange ?? 200;
 
+    const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
     let displayCharacters = [];
     try {
       const matchesRef10 = db.collection('matches');
