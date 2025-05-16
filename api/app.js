@@ -2669,17 +2669,17 @@ app.get('/api/user/:userId/edit', async (req, res) => {
             <input type="file" name="profileImage" accept="image/png,image/jpeg">
             <img src="${userData.profileImage || '/default.png'}" alt="プロフィール画像" id="profileImageDisplay">
           </label>
-          <label>
-            よく使うキャラ（1～5体）:
-            <button type="button" id="selectCharactersButton">キャラクターを選択する</button>
+          <label class="favorite-characters-label">
+            <span>よく使うキャラ（1～5体）:</span>
             <div class="selected-characters" id="selectedCharacters">
               ${favoriteCharacters.map(charId => {
                 const char = allCharacters.find(c => c.id === charId);
                 return char ? `<img src="/characters/${char.id}.png" alt="${char.name}" data-id="${char.id}">` : '';
               }).join('')}
             </div>
+            <button type="button" id="selectCharactersButton">キャラクターを選択する</button>
             <input type="hidden" name="favoriteCharacters" id="favoriteCharactersInput" value="${favoriteCharacters.join(',')}">
-          </label>          
+          </label>    
           <div id="error" class="error"></div>
           <button type="submit">保存</button>
         </form>

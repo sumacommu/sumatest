@@ -348,6 +348,27 @@ table td {
     max-height: 32px;
 }
 
+.favorite-characters-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.favorite-characters-label span {
+    white-space: nowrap;
+}
+
+.favorite-characters-label .selected-characters {
+    display: flex;
+    gap: 10px;
+}
+
+.favorite-characters-label button {
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
 @media (max-width: 768px) {
     .site-header {
         width: 100%;
