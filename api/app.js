@@ -2052,32 +2052,45 @@ app.get('/api/user/:userId', async (req, res) => {
     const characterMap = new Map(allCharacters.map(c => [c.id, c.name]));
 
     const matchesRef10 = db.collection('matches');
-    const soloMatchesQuery10 = matchesRef10
+    const hostMatchesQuery10 = matchesRef10
       .where('type', '==', 'solo')
-      .where('status', '==', 'completed')
-      .where('players', 'array-contains', userId)
-      .orderBy('createdAt', 'desc')
-      .limit(10);
-    const soloMatchesSnap10 = await soloMatchesQuery10.get();    
+      .where('userId', '==', userId)
+      .where('status', '==', 'finished')
+      .orderBy('timestamp', 'desc')
+      .limit(5);
+    const guestMatchesQuery10 = matchesRef10
+      .where('type', '==', 'solo')
+      .where('guestId', '==', userId)
+      .where('status', '==', 'finished')
+      .orderBy('timestamp', 'desc')
+      .limit(5);
+    const [hostMatchesSnap10, guestMatchesSnap10] = await Promise.all([
+      hostMatchesQuery10.get(),
+      guestMatchesQuery10.get()
+    ]);
 
     const charUsage = new Map();
-    soloMatchesSnap10.forEach(doc => {
-      const match = doc.data();
-      const isPlayer1 = match.player1.id === userId;
-      const characters = isPlayer1 ? match.player1.characters : match.player2.characters;
-      if (Array.isArray(characters)) {
-        characters.forEach(charId => {
-          if (charId) {
-            charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+    const collectCharacters = (matchesSnap, isHost) => {
+      matchesSnap.forEach(doc => {
+        const match = doc.data();
+        const choices = isHost ? match.hostChoices : match.guestChoices;
+        if (choices) {
+          for (let i = 1; i <= 3; i++) {
+            const charId = choices[`character${i}`];
+            if (charId && charId !== '00') {
+              charUsage.set(charId, (charUsage.get(charId) || 0) + 1);
+            }
           }
-        });
-      }
-    });
+        }
+      });
+    };
+    collectCharacters(hostMatchesSnap10, true);
+    collectCharacters(guestMatchesSnap10, false);
 
     const topCharacters = Array.from(charUsage.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([charId]) => charId);
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 2)
+      .map(([charId]) => charId);
 
     const displayCharacters = [...topCharacters];
     const remainingSlots = 5 - displayCharacters.length;
