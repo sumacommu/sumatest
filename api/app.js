@@ -1015,27 +1015,20 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     const hostRef = db.collection('users').doc(hostId);
     const guestRef = db.collection('users').doc(guestId);
     const [hostSnap, guestSnap] = await Promise.all([hostRef.get(), guestRef.get()]);
-    const hostName = hostSnap.data().handleName || '不明';
-    const guestName = guestSnap.data().handleName || '不明';
-    const hostsoloRating = hostSnap.data().soloRating || 1500;
-    const guestsoloRating = guestSnap.data().soloRating || 1500;
-    const hostProfileImage = hostSnap.data().profileImage || '/default.png';
-    const guestProfileImage = guestSnap.data().profileImage || '/default.png';
+    const hostData = hostSnap.data();
+    const guestData = guestSnap.data();
+    const hostName = hostData.handleName || '不明';
+    const guestName = guestData.handleName || '不明';
+    const hostsoloRating = hostData.soloRating || 1500;
+    const guestsoloRating = guestData.soloRating || 1500;
+    const hostProfileImage = hostData.profileImage || '/default.png';
+    const guestProfileImage = guestData.profileImage || '/default.png';
+    const hostFavoriteCharacters = hostData.favoriteCharacters || [];
+    const guestFavoriteCharacters = guestData.favoriteCharacters || [];
 
     const hostChoices = matchData.hostChoices || { wins: 0, losses: 0 };
     const guestChoices = matchData.guestChoices || { wins: 0, losses: 0 };
 
-    const allCharacters = Array.from({ length: 87 }, (_, i) => {
-      const id = String(i + 1).padStart(2, '0');
-      return { id, name: `キャラ${id}` };
-    });
-    const popularCharacters = [
-      { id: '01', name: 'マリオ' },
-      { id: '03', name: 'リンク' },
-      { id: '54', name: '格闘Mii' },
-      { id: '55', name: '剣術Mii' },
-      { id: '56', name: '射撃Mii' }
-    ];
     const stages = [
       { id: 'Random', name: 'ランダム' },
       { id: 'BattleField', name: '戦場' },
@@ -1051,6 +1044,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
     res.send(`
       <html>
         <head>
+          <link rel="stylesheet" href="/css/general.css">
           <link rel="stylesheet" href="/css/solo.css">
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
           <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -1158,7 +1152,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                       btn.classList.toggle('char-dim-gray', btn.dataset.id !== hostChoices['character' + (matchCount + 1)]);
                     } else {
                       btn.classList.toggle('char-normal', btn.dataset.id === guestChoices['character' + (matchCount + 1)]);
-                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character' + (matchCount + 1)]);
+                      btn.classList.toggle('char-dim-gray', btn.dataset.id !== guestChoices['character + (matchCount + 1)]');
                     }
                   }
                 }
@@ -1777,7 +1771,7 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
                   btn.onclick = canSelectChar ? () => {
                     const charPopup = document.getElementById('charPopup');
                     const overlay = document.getElementById('overlay');
-                    if (charPopup) charPopup.style.display = 'block';
+                    if (charPopup) charPopup.style.display = 'flex';
                     if (overlay) overlay.style.display = 'block';
                   } : null;
                 });
@@ -1831,18 +1825,24 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <div class="player-info">
                 <h2><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</h2>
                 <p>レート: ${hostsoloRating}</p>
-                <p>よく使うキャラ:</p>
-                ${popularCharacters.map(char => `
-                  <img src="/characters/${char.id}.png" alt="${char.name}">
-                `).join('')}
+                <p>使用キャラ:</p>
+                ${hostFavoriteCharacters.length > 0
+                  ? hostFavoriteCharacters.map(charId => {
+                      const char = allCharacters.find(c => c.id === charId);
+                      return char ? `<img src="/characters/${char.id}.png" alt="${char.name}">` : '';
+                    }).join('')
+                  : '対戦履歴無し'}
               </div>
               <div class="player-info">
                 <h2><img src="${guestProfileImage}" alt="${guestName}のプロフィール画像"> ${guestName}</h2>
                 <p>レート: ${guestsoloRating}</p>
-                <p>よく使うキャラ:</p>
-                ${popularCharacters.map(char => `
-                  <img src="/characters/${char.id}.png" alt="${char.name}">
-                `).join('')}
+                <p>使用キャラ:</p>
+                ${guestFavoriteCharacters.length > 0
+                  ? guestFavoriteCharacters.map(charId => {
+                      const char = allCharacters.find(c => c.id === charId);
+                      return char ? `<img src="/characters/${char.id}.png" alt="${char.name}">` : '';
+                    }).join('')
+                  : '対戦履歴無し'}
               </div>
             </div>
             <table class="history-table">
@@ -1858,19 +1858,34 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
             <p id="guide"></p>
             <div class="section">
               <h2>キャラクター選択</h2>
-              ${popularCharacters.map(char => `
-                <button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
-                  <img src="/characters/${char.id}.png">
-                </button>
-              `).join('')}
+              ${isHost
+                ? (hostFavoriteCharacters.length > 0
+                    ? hostFavoriteCharacters.map(charId => {
+                        const char = allCharacters.find(c => c.id === charId);
+                        return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
+                      }).join('')
+                    : '未設定')
+                : (guestFavoriteCharacters.length > 0
+                    ? guestFavoriteCharacters.map(charId => {
+                        const char = allCharacters.find(c => c.id === charId);
+                        return char ? `<button class="popular char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')"><img src="/characters/${char.id}.png"></button>` : '';
+                      }).join('')
+                    : '未設定')}
               <button class="select-char-btn">全キャラから選ぶ</button>
-              <div id="charPopup" class="popup">
-                ${allCharacters.map(char => `
-                  <button class="char-btn" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
-                    <img src="/characters/${char.id}.png">
-                  </button>
-                `).join('')}
+              <div class="popup" id="charPopup">
+                <div class="popup-content">
+                  <button class="close-button" id="closePopup">閉じる</button>
+                  <h2>キャラクターを選択</h2>
+                  <div class="character-grid">
+                    ${allCharacters.map(char => `
+                      <div class="character-item" data-id="${char.id}" onclick="selectCharacter('${char.id}', '${char.name}')">
+                        <img src="/characters/${char.id}.png" alt="${char.name}">
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
               </div>
+              <div class="overlay" id="overlay"></div>
             </div>
             <div class="section" id="miiInput">
               <h2>Miiファイター設定</h2>
@@ -1900,8 +1915,14 @@ app.get('/api/solo/setup/:matchId', async (req, res) => {
               <div class="chat-controls">
                 <span id="charCount">0/500</span>
                 <button onclick="sendMessage()">送信</button>
-             </div>
+              </div>
             </div>
+            <script>
+              document.getElementById('closePopup').addEventListener('click', () => {
+                document.getElementById('charPopup').style.display = 'none';
+                document.getElementById('overlay').style.display = 'none';
+              });
+            </script>
           </div>
         </body>
       </html>
