@@ -816,7 +816,7 @@ app.get('/api/solo/check', async (req, res) => {
               </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/solo/update" method="POST">
-                <label>Switch部屋ID <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
+                <label>Switch部屋ID　<input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
                 <div class="button-group">
                   <button type="submit">IDを更新</button>
                   <button type="button" id="cancelButton">ルームを削除する</button>
@@ -3400,13 +3400,23 @@ app.get('/api/team/check', async (req, res) => {
           <div class="container">
             <div class="match-section">
               <h1>チームマッチング待機中</h1>
-              <p class="profile-display"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"> ${hostName}</p>
-              <p class="profile-display"><img src="${tagPartnerProfileImage}" alt="${tagPartnerName}のプロフィール画像"> ${tagPartnerName}</p>
-              <p>レート: ${teamRating}</p>
-              <p>レート制限: ${teamRatingRange === null ? '制限なし' : `${teamRatingRange}以内`}</p>
+              <div class="waiting-info-grid">
+                <div class="waiting-info-left">
+                  <div class="waiting-info-item"><img src="${hostProfileImage}" alt="${hostName}のプロフィール画像"></div>
+                  <div class="waiting-info-item"><img src="${tagPartnerProfileImage}" alt="${tagPartnerProfileImage}のプロフィール画像"></div>
+                  <div class="waiting-info-item">レート：</div>
+                  <div class="waiting-info-item">レート制限：</div>
+                </div>
+                <div class="waiting-info-right">
+                  <div class="waiting-info-item">${hostName}</div>
+                  <div class="waiting-info-item">${tagPartnerName}</div>
+                  <div class="waiting-info-item">${teamRating}</div>
+                  <div class="waiting-info-item">${teamRatingRange === null ? '制限なし' : `${teamRatingRange}以内`}</div>
+                </div>
+              </div>
               <p>部屋を作成し、以下に部屋IDを入力してください。</p>
               <form action="/api/team/update" method="POST">
-                <label>Switch部屋ID: <input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123"></label>
+                <label>Switch部屋ID　<input type="text" name="roomId" value="${roomId}" placeholder="例: ABC123" pattern="[A-Za-z0-9]{1,5}" maxlength="5" required></label>
                 <div class="button-group">
                   <button type="submit">IDを更新</button>
                   <button type="button" id="cancelButton">ルームを削除する</button>
